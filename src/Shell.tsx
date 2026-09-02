@@ -17,7 +17,7 @@ export default function Shell() {
           <NavLink to="/" className="flex items-center gap-2 no-underline" style={{ color: 'var(--ink)' }}>
             <Mark />
             <div>
-              <div className="display text-xl leading-none">Wayline</div>
+              <div className="display text-xl leading-none">BOOMVOY</div>
               <div className="text-[11px] tracking-wide" style={{ color: 'var(--muted)' }}>
                 Plan less. Decide better.
               </div>

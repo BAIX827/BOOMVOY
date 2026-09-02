@@ -292,7 +292,7 @@ export const useApp = create<AppState>()(
         }),
       resetDemo: () => set({ trips: seed() }),
     }),
-    { name: 'wayline-v1', storage: createJSONStorage(() => localStorage) },
+    { name: 'boomvoy-v1', storage: createJSONStorage(() => localStorage) },
   ),
 )
 

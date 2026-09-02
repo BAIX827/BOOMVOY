@@ -23,7 +23,7 @@ export default function Share() {
         <div className="mb-6 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 no-underline" style={{ color: 'var(--ink)' }}>
             <Mark />
-            <span className="display text-xl">Wayline</span>
+            <span className="display text-xl">BOOMVOY</span>
           </Link>
           <button className="btn" onClick={copyLink}>
             复制链接

@@ -54,7 +54,7 @@ export default function TripShell() {
           <button className="mb-6 flex items-center gap-2 text-left" onClick={() => nav('/')}>
             <Mark />
             <div>
-              <div className="display text-lg leading-none">Wayline</div>
+              <div className="display text-lg leading-none">BOOMVOY</div>
               <div className="mt-1 text-[11px]" style={{ color: 'var(--muted)' }}>
                 一次旅行一个工作台
               </div>

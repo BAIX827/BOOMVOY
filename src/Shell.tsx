@@ -1,25 +1,31 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { Compass, MapPinned, Plus, UserRound } from 'lucide-react'
 import { cls } from './lib'
-
-const links = [
-  { to: '/', label: '我的旅行', icon: MapPinned, end: true },
-  { to: '/explore', label: '发现', icon: Compass },
-  { to: '/profile', label: '我', icon: UserRound },
-]
+import { useT } from './i18n'
+import { LangSwitch } from './ui'
+import { useApp } from './store'
 
 export default function Shell() {
   const nav = useNavigate()
+  const { t } = useT()
+  const themePref = useApp((s) => s.profile.themePref)
+  const theme = themePref === 'auto' ? 'cream' : themePref
+  const links = [
+    { to: '/', label: t('nav.trips'), icon: MapPinned, end: true },
+    { to: '/explore', label: t('nav.explore'), icon: Compass },
+    { to: '/profile', label: t('nav.me'), icon: UserRound },
+  ]
+
   return (
-    <div className="min-h-screen">
-      <header className="sticky top-0 z-40 border-b backdrop-blur-md" style={{ borderColor: 'var(--line)', background: 'color-mix(in srgb, var(--bg) 82%, transparent)' }}>
+    <div className={`theme-${theme} min-h-screen`}>
+      <header className="sticky top-0 z-40 border-b backdrop-blur-md" style={{ borderColor: 'var(--line)', backgroundColor: 'color-mix(in srgb, var(--bg) 82%, transparent)' }}>
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <NavLink to="/" className="flex items-center gap-2 no-underline" style={{ color: 'var(--ink)' }} data-guide="brand">
             <Mark />
             <div>
               <div className="display text-xl leading-none">BOOMVOY</div>
               <div className="text-[11px] tracking-wide" style={{ color: 'var(--muted)' }}>
-                一本旅行手账
+                {t('brand.tagline')}
               </div>
             </div>
           </NavLink>
@@ -39,9 +45,14 @@ export default function Shell() {
               </NavLink>
             ))}
           </nav>
-          <button className="btn" onClick={() => nav('/new')} data-guide="create-trip">
-            <Plus size={16} /> 创建旅行
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="hidden sm:block">
+              <LangSwitch compact />
+            </div>
+            <button className="btn" onClick={() => nav('/new')} data-guide="create-trip">
+              <Plus size={16} /> {t('nav.create')}
+            </button>
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-4 pb-24 pt-8">

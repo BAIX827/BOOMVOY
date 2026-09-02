@@ -2,17 +2,19 @@ import { useEffect, useState } from 'react'
 import type { Trip, WeatherCondition, WeatherSnap } from './types'
 import { toISODate } from './lib'
 import { useApp } from './store'
+import { resolveLocale, t, type Locale } from './i18n'
 
 const cityCache = new Map<string, { lat: number; lng: number }>()
 
-export async function geocodeCity(city: string) {
+export async function geocodeCity(city: string, locale: Locale = 'zh') {
   const key = city.trim().toLowerCase()
   if (cityCache.has(key)) return cityCache.get(key)!
-  const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=zh`)
-  if (!res.ok) throw new Error('城市定位失败')
+  const lang = locale === 'zh' ? 'zh' : 'en'
+  const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=${lang}`)
+  if (!res.ok) throw new Error(t(locale, 'wx.cityFail'))
   const data = await res.json()
   const hit = data.results?.[0]
-  if (!hit) throw new Error(`找不到 ${city}`)
+  if (!hit) throw new Error(t(locale, 'wx.noCity', { city }))
   const loc = { lat: hit.latitude as number, lng: hit.longitude as number }
   cityCache.set(key, loc)
   return loc
@@ -55,47 +57,54 @@ type Daily = {
   precipitation_sum?: number[]
 }
 
-function snapsFromDaily(daily: Daily, seasonal: boolean): Record<string, WeatherSnap> {
+function snapsFromDaily(daily: Daily, seasonal: boolean, locale: Locale): Record<string, WeatherSnap> {
   const out: Record<string, WeatherSnap> = {}
   daily.time.forEach((date, i) => {
     const code = daily.weather_code?.[i] ?? 2
     const tMax = Math.round(daily.temperature_2m_max?.[i] ?? 22)
     const tMin = Math.round(daily.temperature_2m_min?.[i] ?? 16)
     const rainProb = daily.precipitation_probability_max?.[i] ?? rainFromMm(daily.precipitation_sum?.[i] ?? 0)
+    const precipMm = Math.round(daily.precipitation_sum?.[i] ?? 0)
+    const source = seasonal ? ('seasonal' as const) : ('forecast' as const)
     out[date] = {
       condition: wmoCondition(code),
       tMin,
       tMax,
       rainProb: Math.round(rainProb),
-      summary: seasonal
-        ? `远期按去年同期估算：${tMin}–${tMax}°C，降水约 ${Math.round(daily.precipitation_sum?.[i] ?? 0)} mm`
-        : `预报 ${tMin}–${tMax}°C，降雨概率 ${Math.round(rainProb)}%`,
+      precipMm,
+      source,
+      summary: t(locale, source === 'seasonal' ? 'wx.seasonal' : 'wx.forecast', {
+        min: tMin,
+        max: tMax,
+        mm: precipMm,
+        rain: Math.round(rainProb),
+      }),
     }
   })
   return out
 }
 
-async function forecastRange(lat: number, lng: number, start: string, end: string) {
+async function forecastRange(lat: number, lng: number, start: string, end: string, locale: Locale) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum&timezone=auto&start_date=${start}&end_date=${end}`
   const res = await fetch(url)
   if (!res.ok) return {} as Record<string, WeatherSnap>
   const data = await res.json()
   if (!data.daily?.time) return {}
-  return snapsFromDaily(data.daily, false)
+  return snapsFromDaily(data.daily, false, locale)
 }
 
-async function archiveRange(lat: number, lng: number, start: string, end: string, seasonal: boolean) {
+async function archiveRange(lat: number, lng: number, start: string, end: string, seasonal: boolean, locale: Locale) {
   const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto&start_date=${start}&end_date=${end}`
   const res = await fetch(url)
   if (!res.ok) return {} as Record<string, WeatherSnap>
   const data = await res.json()
   if (!data.daily?.time) return {}
-  return snapsFromDaily(data.daily, seasonal)
+  return snapsFromDaily(data.daily, seasonal, locale)
 }
 
-export async function weatherForCity(city: string, dates: string[]) {
+export async function weatherForCity(city: string, dates: string[], locale: Locale = 'zh') {
   if (!dates.length) return {} as Record<string, WeatherSnap>
-  const loc = await geocodeCity(city)
+  const loc = await geocodeCity(city, locale)
   const sorted = [...dates].sort()
   const today = toISODate(new Date())
   const forecastHorizon = addDays(today, 15)
@@ -103,18 +112,18 @@ export async function weatherForCity(city: string, dates: string[]) {
   const far = sorted.filter((d) => d > forecastHorizon)
   const past = sorted.filter((d) => d < today)
   const out: Record<string, WeatherSnap> = {}
-  if (near.length) Object.assign(out, await forecastRange(loc.lat, loc.lng, near[0], near[near.length - 1]))
+  if (near.length) Object.assign(out, await forecastRange(loc.lat, loc.lng, near[0], near[near.length - 1], locale))
   if (far.length) {
-    const analog = await archiveRange(loc.lat, loc.lng, shiftYear(far[0], -1), shiftYear(far[far.length - 1], -1), true)
+    const analog = await archiveRange(loc.lat, loc.lng, shiftYear(far[0], -1), shiftYear(far[far.length - 1], -1), true, locale)
     Object.entries(analog).forEach(([date, snap]) => {
       out[shiftYear(date, 1)] = snap
     })
   }
-  if (past.length) Object.assign(out, await archiveRange(loc.lat, loc.lng, past[0], past[past.length - 1], false))
+  if (past.length) Object.assign(out, await archiveRange(loc.lat, loc.lng, past[0], past[past.length - 1], false, locale))
   return out
 }
 
-export async function refreshTripWeather(trip: Trip, force = false) {
+export async function refreshTripWeather(trip: Trip, force = false, locale: Locale = 'zh') {
   const stamp = trip.weatherUpdatedAt ? Date.parse(trip.weatherUpdatedAt) : 0
   if (!force && stamp && Date.now() - stamp < 6 * 60 * 60 * 1000) return null
   const byCity = new Map<string, string[]>()
@@ -126,12 +135,12 @@ export async function refreshTripWeather(trip: Trip, force = false) {
   const byKey: Record<string, WeatherSnap> = {}
   let seasonal = false
   for (const [city, dates] of byCity) {
-    const snaps = await weatherForCity(city, dates)
+    const snaps = await weatherForCity(city, dates, locale)
     dates.forEach((date) => {
       const snap = snaps[date]
       if (snap) {
         byKey[`${date}|${city}`] = snap
-        if (snap.summary.includes('去年')) seasonal = true
+        if (snap.source === 'seasonal' || snap.summary.includes('去年') || snap.summary.includes('last year')) seasonal = true
       }
     })
   }
@@ -141,6 +150,7 @@ export async function refreshTripWeather(trip: Trip, force = false) {
 
 export function useLiveWeather(trip: Trip | undefined) {
   const patchDaysWeather = useApp((s) => s.patchDaysWeather)
+  const locale = useApp((s) => resolveLocale(s.profile.locale))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [seasonal, setSeasonal] = useState(false)
@@ -150,14 +160,14 @@ export function useLiveWeather(trip: Trip | undefined) {
     let live = true
     setBusy(true)
     setError('')
-    refreshTripWeather(trip)
+    refreshTripWeather(trip, false, locale)
       .then((r) => {
         if (!live || !r) return
         patchDaysWeather(trip.id, r.byKey, r.fetchedAt)
         setSeasonal(r.seasonal)
       })
       .catch((e) => {
-        if (live) setError(e instanceof Error ? e.message : '天气获取失败')
+        if (live) setError(e instanceof Error ? e.message : t(locale, 'wx.fail'))
       })
       .finally(() => {
         if (live) setBusy(false)
@@ -165,20 +175,20 @@ export function useLiveWeather(trip: Trip | undefined) {
     return () => {
       live = false
     }
-  }, [trip?.id, trip?.startDate, trip?.endDate, (trip?.days ?? []).map((d) => d.city).join('|')])
+  }, [trip?.id, trip?.startDate, trip?.endDate, locale, (trip?.days ?? []).map((d) => d.city).join('|')])
 
   async function refresh() {
     if (!trip) return
     setBusy(true)
     setError('')
     try {
-      const r = await refreshTripWeather(trip, true)
+      const r = await refreshTripWeather(trip, true, locale)
       if (r) {
         patchDaysWeather(trip.id, r.byKey, r.fetchedAt)
         setSeasonal(r.seasonal)
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : '天气获取失败')
+      setError(e instanceof Error ? e.message : t(locale, 'wx.fail'))
     } finally {
       setBusy(false)
     }

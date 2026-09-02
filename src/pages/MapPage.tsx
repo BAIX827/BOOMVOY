@@ -6,10 +6,12 @@ import { activePlaces, cityRoute, dayDistance } from '../domain'
 import { formatDay } from '../lib'
 import type { Coords } from '../types'
 import { mapsDayRoute } from '../geo'
+import { transportLabel, useT } from '../i18n'
 
 export default function MapPage() {
   const { id } = useParams()
   const trip = useTrip(id)
+  const { t, locale } = useT()
   const [filter, setFilter] = useState<'all' | string>('all')
   if (!trip) return null
 
@@ -25,14 +27,14 @@ export default function MapPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="display text-4xl">路线图</h1>
+        <h1 className="display text-4xl">{t('map.title')}</h1>
         <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-          规划完成后，一眼看出有没有绕路、某一天跨度是不是太大。
+          {t('map.blurb')}
         </p>
       </div>
       <div className="flex gap-2 overflow-auto pb-1">
         <Chip active={filter === 'all'} onClick={() => setFilter('all')}>
-          All Trip
+          {t('map.all')}
         </Chip>
         {trip.days.map((d, i) => (
           <Chip key={d.id} active={filter === d.id} onClick={() => setFilter(d.id)} color={DAY_COLORS[i % DAY_COLORS.length]}>
@@ -42,12 +44,12 @@ export default function MapPage() {
       </div>
 
       <div className="paper overflow-hidden p-3">
-        <RouteCanvas points={allPts} layers={layers} />
+        <RouteCanvas points={allPts} layers={layers} empty={t('map.empty')} />
       </div>
 
       {filter === 'all' ? (
         <div className="paper p-5">
-          <h2 className="display text-2xl">全旅行节点</h2>
+          <h2 className="display text-2xl">{t('map.nodes')}</h2>
           <div className="mt-4 space-y-3">
             <div className="text-sm">{trip.origin}</div>
             {route.map((n) => (
@@ -56,13 +58,18 @@ export default function MapPage() {
                 <div>
                   <div className="font-medium">{n.city}</div>
                   <div className="text-sm" style={{ color: 'var(--muted)' }}>
-                    {formatDay(n.start)} · {n.nights} 天 · {n.stay || '住宿待定'} · {n.transport}
+                    {t('map.nights', {
+                      date: formatDay(n.start, locale),
+                      n: n.nights,
+                      stay: n.stay || t('map.stayTbd'),
+                      transport: `${TRANSPORT[n.mode].icon} ${transportLabel(t, n.mode)}`,
+                    })}
                     {n.weather && ` · ${WEATHER[n.weather.condition].icon} ${n.weather.tMin}–${n.weather.tMax}°`}
                   </div>
                 </div>
               </div>
             ))}
-            <div className="text-sm">{trip.origin} 返程</div>
+            <div className="text-sm">{t('map.return', { city: trip.origin })}</div>
           </div>
         </div>
       ) : (
@@ -89,12 +96,12 @@ export default function MapPage() {
               </ol>
               {dist.km > 0 && (
                 <p className="mt-3 text-sm" style={{ color: 'var(--muted)' }}>
-                  当天连线约 {dist.km.toFixed(1)} km，{dist.minutes} 分钟（粗估）
+                  {t('map.dayKm', { km: dist.km.toFixed(1), min: dist.minutes })}
                 </p>
               )}
               {mapsDayRoute(pts) && (
                 <a className="btn mt-3 text-sm no-underline" href={mapsDayRoute(pts)} target="_blank" rel="noreferrer">
-                  在 Google 地图打开
+                  {t('map.google')}
                 </a>
               )}
             </div>
@@ -108,9 +115,11 @@ export default function MapPage() {
 function RouteCanvas({
   points,
   layers,
+  empty,
 }: {
   points: Coords[]
   layers: { color: string; pts: { id: string; name: string; time?: string; coords?: Coords }[] }[]
+  empty: string
 }) {
   const w = 900
   const h = 520
@@ -118,7 +127,7 @@ function RouteCanvas({
   if (!points.length) {
     return (
       <div className="grid h-[420px] place-items-center text-sm" style={{ color: 'var(--muted)' }}>
-        这一天还没有带坐标的地点。添加地点时搜一下，就会出现在路线上。
+        {empty}
       </div>
     )
   }

@@ -3,46 +3,48 @@ import { useApp } from '../store'
 import { CoverArt } from '../ui'
 import { formatRange } from '../lib'
 import { THEMES } from '../catalog'
+import { themeLabel, useT } from '../i18n'
 
 export default function Explore() {
-  const templates = useApp((s) => s.trips).filter((t) => t.template)
+  const templates = useApp((s) => s.trips).filter((tr) => tr.template)
   const cloneTrip = useApp((s) => s.cloneTrip)
   const nav = useNavigate()
+  const { t, locale } = useT()
 
   return (
     <div>
       <p className="hand text-2xl" style={{ color: 'var(--muted)' }}>
-        把别人规划好的一天，撕下来贴进自己的本子。
+        {t('explore.kicker')}
       </p>
-      <h1 className="display mt-1 mb-8 text-4xl">发现行程</h1>
+      <h1 className="display mt-1 mb-8 text-4xl">{t('explore.title')}</h1>
       <div className="grid gap-8 lg:grid-cols-2">
-        {templates.map((t) => (
-          <article key={t.id} className="scrap">
-            <CoverArt kind={t.cover} title={t.name} polaroid />
+        {templates.map((tr) => (
+          <article key={tr.id} className="scrap">
+            <CoverArt kind={tr.cover} title={tr.name} polaroid />
             <div className="px-2 pt-4">
               <div className="text-sm" style={{ color: 'var(--muted)' }}>
-                {formatRange(t.startDate, t.endDate)} · {t.origin} → {t.destinations.join(' → ')}
+                {formatRange(tr.startDate, tr.endDate, locale)} · {tr.origin} → {tr.destinations.join(' → ')}
               </div>
-              <p className="mt-3 text-sm leading-6">{t.notes}</p>
+              <p className="mt-3 text-sm leading-6">{tr.notes}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <span className="chip">
-                  {THEMES[t.theme].label} {THEMES[t.theme].name}
+                  {themeLabel(t, tr.theme)} {THEMES[tr.theme].name}
                 </span>
-                <span className="chip">{t.days.length} 天</span>
-                <span className="chip">可整本复制</span>
+                <span className="chip">{t('explore.days', { n: tr.days.length })}</span>
+                <span className="chip">{t('explore.copyable')}</span>
               </div>
               <div className="mt-5 flex gap-2">
                 <button
                   className="btn"
                   onClick={() => {
-                    const id = cloneTrip(t.id)
+                    const id = cloneTrip(tr.id)
                     nav(`/trip/${id}`)
                   }}
                 >
-                  复制整趟旅行
+                  {t('explore.copy')}
                 </button>
-                <button className="btn btn-ghost" onClick={() => nav(`/share/${t.id}`)}>
-                  先看看
+                <button className="btn btn-ghost" onClick={() => nav(`/share/${tr.id}`)}>
+                  {t('explore.peek')}
                 </button>
               </div>
             </div>

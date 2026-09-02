@@ -6,11 +6,13 @@ import type { BookingStatus, SavedKind } from '../types'
 import { Label, Modal, Tone } from '../ui'
 import { money } from '../lib'
 import BookingSearch from '../BookingSearch'
+import { bookingStatusLabel, kindLabel, useT } from '../i18n'
 
 export default function Bookings() {
   const { id } = useParams()
   const trip = useTrip(id)
   const { updateBooking, addBooking } = useApp()
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   if (!trip) return null
 
@@ -20,13 +22,13 @@ export default function Bookings() {
     <div>
       <div className="mb-5 flex items-end justify-between">
         <div>
-          <h1 className="display text-4xl">预订中心</h1>
+          <h1 className="display text-4xl">{t('book.title')}</h1>
           <p className="hand mt-1 text-xl" style={{ color: 'var(--muted)' }}>
-            登机牌一点就比价。订完切回来，Boom 弹出一张小条让你记。
+            {t('book.blurb')}
           </p>
         </div>
         <button className="btn" onClick={() => setOpen(true)}>
-          登记一项
+          {t('book.register')}
         </button>
       </div>
 
@@ -43,7 +45,7 @@ export default function Bookings() {
             <section key={kind}>
               <div className="mb-2 flex items-center justify-between">
                 <h2 className="display text-2xl">
-                  {KINDS[kind].icon} {KINDS[kind].label}
+                  {KINDS[kind].icon} {kindLabel(t, kind)}
                 </h2>
                 <span className="text-sm" style={{ color: 'var(--muted)' }}>
                   {done}/{items.length}
@@ -56,12 +58,12 @@ export default function Bookings() {
                       <div>
                         <div className="font-medium">{b.name}</div>
                         <div className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-                          {b.date || '日期待定'}
+                          {b.date || t('book.dateTbd')}
                           {b.confirmation ? ` · ${b.confirmation}` : ''}
                           {b.cost ? ` · ${money(b.cost.amount, b.cost.currency)}` : ''}
                         </div>
                       </div>
-                      <Tone tone={BOOKING_STATUS[b.status].tone}>{BOOKING_STATUS[b.status].label}</Tone>
+                      <Tone tone={BOOKING_STATUS[b.status].tone}>{bookingStatusLabel(t, b.status)}</Tone>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-1">
                       {(Object.keys(BOOKING_STATUS) as BookingStatus[]).map((st) => (
@@ -70,12 +72,12 @@ export default function Bookings() {
                           className={b.status === st ? 'btn px-2 py-1 text-xs' : 'btn btn-ghost px-2 py-1 text-xs'}
                           onClick={() => updateBooking(trip.id, b.id, { status: st })}
                         >
-                          {BOOKING_STATUS[st].label}
+                          {bookingStatusLabel(t, st)}
                         </button>
                       ))}
                       {b.url && (
                         <a className="btn btn-soft px-2 py-1 text-xs no-underline" href={b.url} target="_blank" rel="noreferrer">
-                          打开平台
+                          {t('book.openSite')}
                         </a>
                       )}
                     </div>
@@ -107,26 +109,27 @@ function AddBooking({
   onClose: () => void
   onAdd: (b: { kind: SavedKind; name: string; status: BookingStatus; date?: string; url?: string }) => void
 }) {
+  const { t } = useT()
   const [kind, setKind] = useState<SavedKind>('hotel')
   const [name, setName] = useState('')
   const [url, setUrl] = useState('')
   return (
-    <Modal open={open} title="登记预订" onClose={onClose}>
+    <Modal open={open} title={t('book.addTitle')} onClose={onClose}>
       <div className="space-y-3">
         <div>
-          <Label>类型</Label>
+          <Label>{t('book.kind')}</Label>
           <select className="field" value={kind} onChange={(e) => setKind(e.target.value as SavedKind)}>
-            {Object.entries(KINDS).map(([k, v]) => (
+            {Object.keys(KINDS).map((k) => (
               <option key={k} value={k}>
-                {v.label}
+                {kindLabel(t, k as SavedKind)}
               </option>
             ))}
           </select>
         </div>
-        <input className="field" placeholder="名称" value={name} onChange={(e) => setName(e.target.value)} />
-        <input className="field" placeholder="预订链接" value={url} onChange={(e) => setUrl(e.target.value)} />
+        <input className="field" placeholder={t('book.name')} value={name} onChange={(e) => setName(e.target.value)} />
+        <input className="field" placeholder={t('book.url')} value={url} onChange={(e) => setUrl(e.target.value)} />
         <button className="btn w-full" disabled={!name} onClick={() => onAdd({ kind, name, status: 'need', url })}>
-          加入
+          {t('book.add')}
         </button>
       </div>
     </Modal>

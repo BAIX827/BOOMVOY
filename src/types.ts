@@ -55,6 +55,8 @@ export interface WeatherSnap {
   rainProb: number
   rainWindow?: string
   summary: string
+  source?: 'forecast' | 'seasonal' | 'archive' | 'placeholder'
+  precipMm?: number
 }
 
 export interface PlaceStop {
@@ -190,6 +192,7 @@ export interface Profile {
   homeCity: string
   homeCurrency: string
   themePref: ThemeId | 'auto'
+  locale?: 'zh' | 'en'
   llmUrl?: string
   llmKey?: string
   llmModel?: string

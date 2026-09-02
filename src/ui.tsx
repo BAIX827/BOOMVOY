@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
 import { cls } from './lib'
+import { useT } from './i18n'
+import { useApp } from './store'
 
 export function Modal({
   open,
@@ -14,15 +16,16 @@ export function Modal({
   onClose: () => void
   wide?: boolean
 }) {
+  const { t } = useT()
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center">
-      <button className="absolute inset-0 bg-[color-mix(in_srgb,var(--ink)_35%,transparent)]" onClick={onClose} aria-label="关闭" />
+      <button className="absolute inset-0 bg-[color-mix(in_srgb,var(--ink)_35%,transparent)]" onClick={onClose} aria-label={t('ui.close')} />
       <div className={cls('paper relative z-10 w-full p-5', wide ? 'max-w-2xl' : 'max-w-md')}>
         <div className="mb-4 flex items-start justify-between gap-4">
           <h3 className="display text-2xl">{title}</h3>
           <button className="btn-ghost btn px-3 py-1 text-sm" onClick={onClose}>
-            关闭
+            {t('ui.close')}
           </button>
         </div>
         {children}
@@ -116,6 +119,25 @@ export function Label({ children }: { children: ReactNode }) {
   return (
     <div className="mb-1 text-xs font-medium uppercase tracking-[0.14em]" style={{ color: 'var(--muted)' }}>
       {children}
+    </div>
+  )
+}
+
+export function LangSwitch({ compact }: { compact?: boolean }) {
+  const { locale, t } = useT()
+  const setProfile = useApp((s) => s.setProfile)
+  return (
+    <div className="flex gap-1" role="group" aria-label={t('profile.language')}>
+      {(['zh', 'en'] as const).map((id) => (
+        <button
+          key={id}
+          className={locale === id ? 'btn' : 'btn btn-ghost'}
+          style={compact ? { padding: '0.35rem 0.7rem', fontSize: 12 } : undefined}
+          onClick={() => setProfile({ locale: id })}
+        >
+          {id === 'zh' ? t('profile.zh') : t('profile.en')}
+        </button>
+      ))}
     </div>
   )
 }

@@ -1,10 +1,12 @@
 import { useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import { useApp, useTrip } from '../store'
-import { KINDS, STATUS } from '../catalog'
+import { KINDS } from '../catalog'
 import type { DecisionStatus, SavedKind } from '../types'
 import { Label, Modal, Tone } from '../ui'
 import { money } from '../lib'
+import { kindLabel, statusLabel, useT } from '../i18n'
+import { STATUS } from '../catalog'
 
 const kinds: SavedKind[] = ['flight', 'hotel', 'restaurant', 'place', 'activity', 'rental-car', 'souvenir', 'route']
 
@@ -12,6 +14,7 @@ export default function Saved() {
   const { id } = useParams()
   const trip = useTrip(id)
   const { addSaved, updateSaved } = useApp()
+  const { t } = useT()
   const [kind, setKind] = useState<SavedKind | 'all'>('all')
   const [open, setOpen] = useState(false)
   if (!trip) return null
@@ -21,22 +24,22 @@ export default function Saved() {
     <div>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="display text-4xl">收藏</h1>
+          <h1 className="display text-4xl">{t('saved.title')}</h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-            机票、酒店、餐厅、地点放在一起。状态帮你从感兴趣走到订下去。
+            {t('saved.blurb')}
           </p>
         </div>
         <button className="btn" onClick={() => setOpen(true)}>
-          加入收藏
+          {t('saved.add')}
         </button>
       </div>
       <div className="mb-4 flex gap-2 overflow-auto">
         <FilterChip active={kind === 'all'} onClick={() => setKind('all')}>
-          全部
+          {t('saved.all')}
         </FilterChip>
         {kinds.map((k) => (
           <FilterChip key={k} active={kind === k} onClick={() => setKind(k)}>
-            {KINDS[k].icon} {KINDS[k].label}
+            {KINDS[k].icon} {kindLabel(t, k)}
           </FilterChip>
         ))}
       </div>
@@ -46,18 +49,18 @@ export default function Saved() {
             <div className="flex items-start justify-between gap-2">
               <div>
                 <div className="text-xs" style={{ color: 'var(--muted)' }}>
-                  {KINDS[s.kind].icon} {KINDS[s.kind].label}
+                  {KINDS[s.kind].icon} {kindLabel(t, s.kind)}
                 </div>
                 <div className="display text-2xl leading-tight">{s.name}</div>
                 {s.subtitle && <div className="text-sm" style={{ color: 'var(--muted)' }}>{s.subtitle}</div>}
               </div>
-              <Tone tone={STATUS[s.status].tone}>{STATUS[s.status].label}</Tone>
+              <Tone tone={STATUS[s.status].tone}>{statusLabel(t, s.status)}</Tone>
             </div>
             <div className="mt-3 flex flex-wrap gap-2 text-sm">
               {s.price && <span className="chip">{money(s.price.amount, s.price.currency)}</span>}
               {s.rating && <span className="chip">⭐ {s.rating}</span>}
               {s.watchTarget && s.price && (
-                <span className="chip">盯盘 &lt; {money(s.watchTarget, s.price.currency)}</span>
+                <span className="chip">{t('saved.watch', { price: money(s.watchTarget, s.price.currency) })}</span>
               )}
             </div>
             {s.pros && s.pros.length > 0 && (
@@ -76,13 +79,13 @@ export default function Saved() {
             )}
             {s.status === 'rejected' && s.rejectReason && (
               <p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>
-                排除原因：{s.rejectReason}
+                {t('saved.reject', { reason: s.rejectReason })}
               </p>
             )}
             {s.notes && <p className="mt-2 text-sm">{s.notes}</p>}
             {s.priceHistory && s.priceHistory.length > 0 && (
               <p className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>
-                价格：{s.priceHistory.map((h) => `${h.date.slice(5)} ${h.amount}`).join(' → ')}
+                {t('saved.price', { history: s.priceHistory.map((h) => `${h.date.slice(5)} ${h.amount}`).join(' → ') })}
               </p>
             )}
             <div className="mt-3 flex flex-wrap gap-1">
@@ -92,13 +95,13 @@ export default function Saved() {
                   className={s.status === st ? 'btn px-2 py-1 text-xs' : 'btn btn-ghost px-2 py-1 text-xs'}
                   onClick={() => updateSaved(trip.id, s.id, { status: st })}
                 >
-                  {STATUS[st].label}
+                  {statusLabel(t, st)}
                 </button>
               ))}
             </div>
             {s.url && (
               <a className="mt-3 inline-block text-sm" href={s.url} target="_blank" rel="noreferrer">
-                打开来源 ↗
+                {t('saved.open')}
               </a>
             )}
           </article>
@@ -133,6 +136,7 @@ function AddSaved({
   onClose: () => void
   onAdd: (item: { kind: SavedKind; name: string; subtitle?: string; status: DecisionStatus; price?: { amount: number; currency: string }; url?: string; notes?: string }) => void
 }) {
+  const { t } = useT()
   const [kind, setKind] = useState<SavedKind>('hotel')
   const [name, setName] = useState('')
   const [subtitle, setSubtitle] = useState('')
@@ -140,23 +144,23 @@ function AddSaved({
   const [url, setUrl] = useState('')
   const [notes, setNotes] = useState('')
   return (
-    <Modal open={open} title="加入收藏" onClose={onClose}>
+    <Modal open={open} title={t('saved.add')} onClose={onClose}>
       <div className="space-y-3">
         <div>
-          <Label>类型</Label>
+          <Label>{t('saved.kind')}</Label>
           <select className="field" value={kind} onChange={(e) => setKind(e.target.value as SavedKind)}>
             {kinds.map((k) => (
               <option key={k} value={k}>
-                {KINDS[k].label}
+                {kindLabel(t, k)}
               </option>
             ))}
           </select>
         </div>
-        <input className="field" placeholder="名称" value={name} onChange={(e) => setName(e.target.value)} />
-        <input className="field" placeholder="补充信息" value={subtitle} onChange={(e) => setSubtitle(e.target.value)} />
-        <input className="field" placeholder="价格（本币数字）" value={price} onChange={(e) => setPrice(e.target.value)} />
-        <input className="field" placeholder="链接（Skyscanner / Booking / 官网）" value={url} onChange={(e) => setUrl(e.target.value)} />
-        <textarea className="field" placeholder="备注，比如：如果低于 A$180 就订" value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <input className="field" placeholder={t('saved.name')} value={name} onChange={(e) => setName(e.target.value)} />
+        <input className="field" placeholder={t('saved.extra')} value={subtitle} onChange={(e) => setSubtitle(e.target.value)} />
+        <input className="field" placeholder={t('saved.pricePh')} value={price} onChange={(e) => setPrice(e.target.value)} />
+        <input className="field" placeholder={t('saved.urlPh')} value={url} onChange={(e) => setUrl(e.target.value)} />
+        <textarea className="field" placeholder={t('saved.notesPh')} value={notes} onChange={(e) => setNotes(e.target.value)} />
         <button
           className="btn w-full"
           disabled={!name}
@@ -172,7 +176,7 @@ function AddSaved({
             })
           }
         >
-          收藏
+          {t('saved.save')}
         </button>
       </div>
     </Modal>

@@ -4,6 +4,7 @@ import { THEMES, TRANSPORT } from '../catalog'
 import { useApp } from '../store'
 import type { ThemeId, TransportMode } from '../types'
 import { Label } from '../ui'
+import { themeBlurb, themeLabel, transportLabel, useT } from '../i18n'
 
 const modes: TransportMode[] = ['self-drive', 'public', 'walking', 'taxi', 'cycling', 'mixed']
 
@@ -11,6 +12,7 @@ export default function CreateTrip() {
   const createTrip = useApp((s) => s.createTrip)
   const profile = useApp((s) => s.profile)
   const nav = useNavigate()
+  const { t } = useT()
   const [step, setStep] = useState(0)
   const [name, setName] = useState('')
   const [origin, setOrigin] = useState(profile.homeCity)
@@ -34,7 +36,7 @@ export default function CreateTrip() {
 
   function submit() {
     const id = createTrip({
-      name: name || destinations[0] || '未命名旅行',
+      name: name || destinations[0] || t('create.untitled'),
       origin,
       destinations: destinations.length ? destinations : [origin],
       startDate,
@@ -52,22 +54,22 @@ export default function CreateTrip() {
   return (
     <div className="mx-auto max-w-2xl">
       <p className="text-sm" style={{ color: 'var(--muted)' }}>
-        第 {step + 1} / 4 步
+        {t('create.progress', { n: step + 1 })}
       </p>
-      <h1 className="display mt-1 mb-6 text-4xl">创建一次旅行</h1>
+      <h1 className="display mt-1 mb-6 text-4xl">{t('create.title')}</h1>
       <div className="paper p-6">
         {step === 0 && (
           <div className="space-y-4">
             <div>
-              <Label>旅行名称</Label>
+              <Label>{t('create.name')}</Label>
               <input className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder="Japan 2026" />
             </div>
             <div>
-              <Label>出发城市</Label>
+              <Label>{t('create.origin')}</Label>
               <input className="field" value={origin} onChange={(e) => setOrigin(e.target.value)} />
             </div>
             <div>
-              <Label>目的地（用逗号或 → 分隔）</Label>
+              <Label>{t('create.dest')}</Label>
               <input
                 className="field"
                 value={dest}
@@ -80,11 +82,11 @@ export default function CreateTrip() {
         {step === 1 && (
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <Label>开始</Label>
+              <Label>{t('create.start')}</Label>
               <input className="field" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
             </div>
             <div>
-              <Label>结束</Label>
+              <Label>{t('create.end')}</Label>
               <input className="field" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
           </div>
@@ -92,15 +94,15 @@ export default function CreateTrip() {
         {step === 2 && (
           <div className="space-y-4">
             <div>
-              <Label>人数</Label>
+              <Label>{t('create.people')}</Label>
               <input className="field" type="number" min={1} value={people} onChange={(e) => setPeople(Number(e.target.value))} />
             </div>
             <div>
-              <Label>成员名字</Label>
+              <Label>{t('create.members')}</Label>
               <input className="field" value={members} onChange={(e) => setMembers(e.target.value)} placeholder="Ari, Bo" />
             </div>
             <div>
-              <Label>每人预算（{profile.homeCurrency}）</Label>
+              <Label>{t('create.budget', { currency: profile.homeCurrency })}</Label>
               <input className="field" type="number" value={budget} onChange={(e) => setBudget(Number(e.target.value))} />
             </div>
           </div>
@@ -108,7 +110,7 @@ export default function CreateTrip() {
         {step === 3 && (
           <div className="space-y-6">
             <div>
-              <Label>旅行方式（可多选，之后还能按天改）</Label>
+              <Label>{t('create.modes')}</Label>
               <div className="mt-2 flex flex-wrap gap-2">
                 {modes.map((m) => (
                   <button
@@ -116,19 +118,19 @@ export default function CreateTrip() {
                     className={transport.includes(m) ? 'btn' : 'btn btn-ghost'}
                     onClick={() => toggleMode(m)}
                   >
-                    {TRANSPORT[m].icon} {TRANSPORT[m].label}
+                    {TRANSPORT[m].icon} {transportLabel(t, m)}
                   </button>
                 ))}
               </div>
             </div>
             <div>
-              <Label>Theme</Label>
+              <Label>{t('create.theme')}</Label>
               <div className="mt-3 grid gap-3 sm:grid-cols-3">
                 {(Object.keys(THEMES) as ThemeId[]).map((id) => (
                   <button
                     key={id}
                     onClick={() => setTheme(id)}
-                    className="paper p-3 text-left"
+                    className={`paper theme-preview theme-${id} p-3 text-left`}
                     style={{ outline: theme === id ? '2px solid var(--ink)' : undefined }}
                   >
                     <div className="mb-2 flex gap-1">
@@ -137,10 +139,10 @@ export default function CreateTrip() {
                       ))}
                     </div>
                     <div className="font-medium">
-                      {THEMES[id].label} · {THEMES[id].name}
+                      {themeLabel(t, id)} · {THEMES[id].name}
                     </div>
                     <div className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>
-                      {THEMES[id].blurb}
+                      {themeBlurb(t, id)}
                     </div>
                   </button>
                 ))}
@@ -150,15 +152,15 @@ export default function CreateTrip() {
         )}
         <div className="mt-6 flex justify-between">
           <button className="btn btn-ghost" disabled={step === 0} onClick={() => setStep((s) => s - 1)}>
-            上一步
+            {t('create.prev')}
           </button>
           {step < 3 ? (
             <button className="btn" onClick={() => setStep((s) => s + 1)}>
-              下一步
+              {t('create.next')}
             </button>
           ) : (
             <button className="btn btn-accent" onClick={submit}>
-              进入工作台
+              {t('create.go')}
             </button>
           )}
         </div>

@@ -5,11 +5,13 @@ import { BUDGET_CATS } from '../catalog'
 import { money } from '../lib'
 import { settle } from '../domain'
 import { Label, Modal } from '../ui'
+import { namedCat, useT } from '../i18n'
 
 export default function Expenses() {
   const { id } = useParams()
   const trip = useTrip(id)
   const { addExpense, removeExpense, addGift, updateGift } = useApp()
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   if (!trip) return null
   const { transfers } = settle(trip)
@@ -19,30 +21,30 @@ export default function Expenses() {
     <div className="space-y-6">
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="display text-4xl">费用 / AA</h1>
+          <h1 className="display text-4xl">{t('aa.title')}</h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-            记录谁付的。支持均分，也可以排除某个人。日元会按约 0.0102 换成澳元。
+            {t('aa.blurb')}
           </p>
         </div>
         <button className="btn" onClick={() => setOpen(true)}>
-          记一笔
+          {t('aa.add')}
         </button>
       </div>
 
       <div className="paper p-5">
-        <h2 className="display text-2xl">Settlement</h2>
+        <h2 className="display text-2xl">{t('aa.settle')}</h2>
         {transfers.length === 0 ? (
           <p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>
-            目前打平，没有谁欠谁。
+            {t('aa.even')}
           </p>
         ) : (
           <ul className="mt-3 space-y-2">
-            {transfers.map((t, i) => (
+            {transfers.map((tr, i) => (
               <li key={i} className="flex justify-between text-sm">
                 <span>
-                  {name(t.from)} → {name(t.to)}
+                  {name(tr.from)} → {name(tr.to)}
                 </span>
-                <span className="font-medium">{money(t.amount, trip.homeCurrency)}</span>
+                <span className="font-medium">{money(tr.amount, trip.homeCurrency)}</span>
               </li>
             ))}
           </ul>
@@ -55,8 +57,9 @@ export default function Expenses() {
             <div>
               <div className="font-medium">{e.title}</div>
               <div className="text-sm" style={{ color: 'var(--muted)' }}>
-                {e.category} · {e.date} · {name(e.paidBy)} 付 ·{e.split === 'equal' ? ' 均分' : ' 自定义'}
-                {e.excluded.length ? ' · 有人除外' : ''}
+                {namedCat(t, e.category)} · {e.date} · {t('aa.paidBy', { name: name(e.paidBy) })} ·
+                {e.split === 'equal' ? ` ${t('aa.equal')}` : ` ${t('aa.custom')}`}
+                {e.excluded.length ? ` · ${t('aa.excluded')}` : ''}
               </div>
             </div>
             <div className="text-right">
@@ -66,7 +69,7 @@ export default function Expenses() {
                   : `${e.currency} ${e.amount.toLocaleString()} ≈ ${money(e.homeAmount ?? e.amount * 0.0102, trip.homeCurrency)}`}
               </div>
               <button className="text-xs" style={{ color: 'var(--muted)' }} onClick={() => removeExpense(trip.id, e.id)}>
-                删除
+                {t('aa.delete')}
               </button>
             </div>
           </div>
@@ -74,7 +77,7 @@ export default function Expenses() {
       </div>
 
       <section>
-        <h2 className="display mb-3 text-2xl">伴手礼</h2>
+        <h2 className="display mb-3 text-2xl">{t('aa.gifts')}</h2>
         <div className="grid gap-2 sm:grid-cols-2">
           {trip.gifts.map((g) => (
             <div key={g.id} className="paper flex items-center justify-between p-3">
@@ -91,18 +94,18 @@ export default function Expenses() {
                 value={g.status}
                 onChange={(e) => updateGift(trip.id, g.id, { status: e.target.value as typeof g.status })}
               >
-                <option value="need">要买</option>
-                <option value="bought">已买</option>
-                <option value="packed">已装包</option>
+                <option value="need">{t('aa.giftNeed')}</option>
+                <option value="bought">{t('aa.giftBought')}</option>
+                <option value="packed">{t('aa.giftPacked')}</option>
               </select>
             </div>
           ))}
         </div>
         <button
           className="btn btn-ghost mt-3 text-sm"
-          onClick={() => addGift(trip.id, { forWhom: '朋友', item: '零食', city: trip.destinations[0], status: 'need' })}
+          onClick={() => addGift(trip.id, { forWhom: t('aa.giftWho'), item: t('aa.giftItem'), city: trip.destinations[0], status: 'need' })}
         >
-          加一项礼物
+          {t('aa.addGift')}
         </button>
       </section>
 
@@ -127,7 +130,6 @@ function AddExpense({
 }: {
   open: boolean
   onClose: () => void
-  members: { id: string; name: string }[]
   onAdd: (e: {
     title: string
     amount: number
@@ -139,15 +141,17 @@ function AddExpense({
     excluded: string[]
     status: 'paid'
   }) => void
+  members: { id: string; name: string }[]
 }) {
-  const [title, setTitle] = useState('晚饭')
+  const { t } = useT()
+  const [title, setTitle] = useState(t('aa.dinner'))
   const [amount, setAmount] = useState(12800)
   const [currency, setCurrency] = useState('JPY')
   const [category, setCategory] = useState('餐饮')
   const [paidBy, setPaidBy] = useState(members[0]?.id || '')
   const [excluded, setExcluded] = useState<string[]>([])
   return (
-    <Modal open={open} title="记一笔费用" onClose={onClose}>
+    <Modal open={open} title={t('aa.addTitle')} onClose={onClose}>
       <div className="space-y-3">
         <input className="field" value={title} onChange={(e) => setTitle(e.target.value)} />
         <div className="grid grid-cols-2 gap-2">
@@ -160,11 +164,13 @@ function AddExpense({
         </div>
         <select className="field" value={category} onChange={(e) => setCategory(e.target.value)}>
           {BUDGET_CATS.map((c) => (
-            <option key={c}>{c}</option>
+            <option key={c} value={c}>
+              {namedCat(t, c)}
+            </option>
           ))}
         </select>
         <div>
-          <Label>谁付的</Label>
+          <Label>{t('aa.whoPaid')}</Label>
           <select className="field" value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
             {members.map((m) => (
               <option key={m.id} value={m.id}>
@@ -174,7 +180,7 @@ function AddExpense({
           </select>
         </div>
         <div>
-          <Label>不参与 AA 的人</Label>
+          <Label>{t('aa.skip')}</Label>
           <div className="mt-1 flex gap-2">
             {members.map((m) => (
               <button
@@ -203,7 +209,7 @@ function AddExpense({
             })
           }
         >
-          记下
+          {t('aa.save')}
         </button>
       </div>
     </Modal>

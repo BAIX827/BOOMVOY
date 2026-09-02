@@ -1,29 +1,40 @@
 import { useApp } from '../store'
 import { THEMES } from '../catalog'
-import { Label } from '../ui'
+import { Label, LangSwitch } from '../ui'
 import type { ThemeId } from '../types'
 import { resolveLlm } from '../llm'
+import { themeLabel, useT } from '../i18n'
 
 export default function Profile() {
   const profile = useApp((s) => s.profile)
   const setProfile = useApp((s) => s.setProfile)
   const resetDemo = useApp((s) => s.resetDemo)
   const llm = resolveLlm(profile)
+  const { t } = useT()
 
   return (
     <div className="mx-auto max-w-xl">
-      <h1 className="display mb-6 text-4xl">我</h1>
+      <h1 className="display mb-6 text-4xl">{t('profile.title')}</h1>
+      <div className="paper mb-6 space-y-4 p-6">
+        <div>
+          <Label>{t('profile.language')}</Label>
+          <p className="mb-3 text-sm leading-6" style={{ color: 'var(--muted)' }}>
+            {t('profile.langHint')}
+          </p>
+          <LangSwitch />
+        </div>
+      </div>
       <div className="paper space-y-4 p-6">
         <div>
-          <Label>名字</Label>
+          <Label>{t('profile.name')}</Label>
           <input className="field" value={profile.name} onChange={(e) => setProfile({ name: e.target.value })} />
         </div>
         <div>
-          <Label>出发城市</Label>
+          <Label>{t('profile.origin')}</Label>
           <input className="field" value={profile.homeCity} onChange={(e) => setProfile({ homeCity: e.target.value })} />
         </div>
         <div>
-          <Label>本币</Label>
+          <Label>{t('profile.currency')}</Label>
           <select className="field" value={profile.homeCurrency} onChange={(e) => setProfile({ homeCurrency: e.target.value })}>
             {['AUD', 'CNY', 'USD', 'JPY', 'EUR'].map((c) => (
               <option key={c}>{c}</option>
@@ -31,29 +42,39 @@ export default function Profile() {
           </select>
         </div>
         <div>
-          <Label>默认 Theme</Label>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {(['auto', ...(Object.keys(THEMES) as ThemeId[])] as const).map((id) => (
+          <Label>{t('profile.theme')}</Label>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <button
+              className={profile.themePref === 'auto' ? 'btn' : 'btn btn-ghost'}
+              onClick={() => setProfile({ themePref: 'auto' })}
+            >
+              {t('profile.followTrip')}
+            </button>
+            {(Object.keys(THEMES) as ThemeId[]).map((id) => (
               <button
                 key={id}
-                className={profile.themePref === id ? 'btn' : 'btn btn-ghost'}
+                className={`paper theme-preview theme-${id} p-3 text-left`}
+                style={{ outline: profile.themePref === id ? '2px solid var(--ink)' : undefined }}
                 onClick={() => setProfile({ themePref: id })}
               >
-                {id === 'auto' ? '跟随旅行' : THEMES[id].label}
+                <div className="mb-2 flex gap-1">
+                  {THEMES[id].swatches.map((c) => (
+                    <span key={c} className="h-5 flex-1 rounded-full" style={{ background: c }} />
+                  ))}
+                </div>
+                <div className="font-medium">{themeLabel(t, id)}</div>
               </button>
             ))}
           </div>
         </div>
       </div>
       <div className="paper mt-6 space-y-4 p-6">
-        <h2 className="display text-2xl">建议行程 API</h2>
+        <h2 className="display text-2xl">{t('profile.api')}</h2>
         <p className="text-sm leading-6" style={{ color: 'var(--muted)' }}>
-          {llm.fromEnv
-            ? '本地环境已经接好 OpenAI，行程页会直接生成建议。Key 只存在这台电脑的 .env.local，不会进 Git。'
-            : '不填就用 Boom 自带的东京 / 京都 / 大阪等地建议。填了之后按 OpenAI Chat Completions 格式请求。DeepSeek、Groq 等同格式接口也能用。'}
+          {llm.fromEnv ? t('profile.apiEnv') : t('profile.apiHint')}
         </p>
         <div>
-          <Label>接口地址</Label>
+          <Label>{t('profile.apiUrl')}</Label>
           <input
             className="field"
             placeholder={llm.llmUrl}
@@ -62,18 +83,18 @@ export default function Profile() {
           />
         </div>
         <div>
-          <Label>API Key</Label>
+          <Label>{t('profile.apiKey')}</Label>
           <input
             className="field"
             type="password"
             autoComplete="off"
-            placeholder={llm.fromEnv ? '已从本地环境读取' : 'sk-…'}
+            placeholder={llm.fromEnv ? t('profile.apiKeyEnv') : t('profile.apiKeyPh')}
             value={profile.llmKey || ''}
             onChange={(e) => setProfile({ llmKey: e.target.value })}
           />
         </div>
         <div>
-          <Label>模型名</Label>
+          <Label>{t('profile.model')}</Label>
           <input
             className="field"
             placeholder={llm.llmModel}
@@ -83,13 +104,13 @@ export default function Profile() {
         </div>
       </div>
       <p className="mt-6 text-sm leading-6" style={{ color: 'var(--muted)' }}>
-        第一版账号存在这台浏览器里。以后做 App 时，同一套旅行数据可以同步上去。
+        {t('profile.accountHint')}
       </p>
       <button className="btn btn-ghost mt-4" onClick={resetDemo}>
-        恢复示例数据（Japan 2026）
+        {t('profile.resetDemo')}
       </button>
       <button className="btn mt-3" onClick={() => window.dispatchEvent(new Event('boomvoy-start-guide'))}>
-        再看一遍新手引导
+        {t('profile.replayGuide')}
       </button>
     </div>
   )

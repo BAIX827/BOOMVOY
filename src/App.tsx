@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import Shell from './Shell'
 import TripShell from './TripShell'
@@ -18,10 +19,33 @@ import Group from './pages/Group'
 import Notes from './pages/Notes'
 import Share from './pages/Share'
 import GuideCat from './GuideCat'
+import { useT } from './i18n'
+import { useApp } from './store'
+
+function LocaleDoc() {
+  const { locale } = useT()
+  useEffect(() => {
+    document.documentElement.lang = locale === 'zh' ? 'zh-CN' : 'en'
+  }, [locale])
+  return null
+}
+
+function ThemeDoc() {
+  const pref = useApp((s) => s.profile.themePref)
+  const theme = pref === 'auto' ? 'cream' : pref
+  useEffect(() => {
+    const root = document.documentElement
+    root.classList.remove('theme-cream', 'theme-ocean', 'theme-forest')
+    root.classList.add(`theme-${theme}`)
+  }, [theme])
+  return null
+}
 
 export default function App() {
   return (
     <>
+      <LocaleDoc />
+      <ThemeDoc />
       <Routes>
         <Route element={<Shell />}>
           <Route path="/" element={<Home />} />
@@ -49,4 +73,3 @@ export default function App() {
     </>
   )
 }
-

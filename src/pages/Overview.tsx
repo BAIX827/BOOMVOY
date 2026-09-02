@@ -6,15 +6,17 @@ import { formatRange, money } from '../lib'
 import { bookingProgress, cityRoute, itineraryProgress, weatherAdvice } from '../domain'
 import { flightLinks, lookupAir, tripFlightPlan } from '../bookingLinks'
 import type { Trip } from '../types'
+import { bookingStatusLabel, kindLabel, transportLabel, useT, type TFn } from '../i18n'
 
 export default function Overview() {
   const { id } = useParams()
   const trip = useTrip(id)
+  const { t, locale } = useT()
   if (!trip) return null
   const route = cityRoute(trip)
   const booking = bookingProgress(trip)
   const itin = itineraryProgress(trip)
-  const rainDay = trip.days.find((d) => weatherAdvice(d)?.suggestSwitch)
+  const rainDay = trip.days.find((d) => weatherAdvice(d, t)?.suggestSwitch)
 
   return (
     <div className="space-y-6">
@@ -23,17 +25,17 @@ export default function Overview() {
         <div className="pt-2">
           <span className="stamp">{trip.origin}</span>
           <div className="mt-4 text-sm" style={{ color: 'var(--muted)' }}>
-            {formatRange(trip.startDate, trip.endDate)}
+            {formatRange(trip.startDate, trip.endDate, locale)}
           </div>
           <p className="hand mt-2 text-3xl leading-tight">
             {trip.origin} → {trip.destinations.join(' → ')}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <span className="chip">👥 {trip.travellers} travellers</span>
-            <span className="chip">💰 {money(trip.budgetPerPerson, trip.homeCurrency)} / person</span>
+            <span className="chip">👥 {t('overview.travellers', { n: trip.travellers })}</span>
+            <span className="chip">💰 {t('overview.perPerson', { money: money(trip.budgetPerPerson, trip.homeCurrency) })}</span>
             {trip.transportModes.map((m) => (
               <span className="chip" key={m}>
-                {TRANSPORT[m].icon} {TRANSPORT[m].label}
+                {TRANSPORT[m].icon} {transportLabel(t, m)}
               </span>
             ))}
           </div>
@@ -42,29 +44,29 @@ export default function Overview() {
 
       {rainDay && (
         <Link to={`/trip/${trip.id}/weather`} className="paper block p-5 no-underline" style={{ color: 'var(--ink)' }}>
-          <Tone tone="warn">天气备选</Tone>
+          <Tone tone="warn">{t('overview.weatherAlt')}</Tone>
           <div className="display mt-2 text-2xl">
-            {rainDay.city} · {WEATHER[rainDay.weather.condition].icon} 降雨 {rainDay.weather.rainProb}%
+            {t('overview.rain', { city: rainDay.city, icon: WEATHER[rainDay.weather.condition].icon, n: rainDay.weather.rainProb })}
           </div>
           <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-            {weatherAdvice(rainDay)?.text} 要不要切换到 Plan B？
+            {weatherAdvice(rainDay, t)?.text} {t('overview.switchB')}
           </p>
         </Link>
       )}
 
-      <FlightJump trip={trip} />
+      <FlightJump trip={trip} t={t} locale={locale} />
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="paper p-5">
           <div className="text-sm" style={{ color: 'var(--muted)' }}>
-            Booking Progress
+            {t('overview.booking')}
           </div>
           <div className="mt-4 space-y-3">
             {booking.map((b) => (
               <div key={b.kind}>
                 <div className="mb-1 flex justify-between text-sm">
                   <span>
-                    {KINDS[b.kind].icon} {KINDS[b.kind].label}
+                    {KINDS[b.kind].icon} {kindLabel(t, b.kind)}
                   </span>
                   <span>
                     {b.total === 0 ? '—' : b.done === b.total ? '✓' : `${b.done}/${b.total}`}
@@ -77,35 +79,35 @@ export default function Overview() {
         </div>
         <div className="paper p-5">
           <div className="text-sm" style={{ color: 'var(--muted)' }}>
-            行程完成度
+            {t('overview.itinerary')}
           </div>
           <div className="display mt-3 text-4xl">
             {itin.done}/{itin.total}
           </div>
           <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-            天已排地点
+            {t('overview.daysPlanned')}
           </p>
           <div className="mt-4">
             <Progress value={itin.total ? (itin.done / itin.total) * 100 : 0} />
           </div>
           <Link to={`/trip/${trip.id}/plan`} className="btn mt-5 text-sm no-underline">
-            去排行程
+            {t('overview.goPlan')}
           </Link>
         </div>
       </div>
 
       <div className="paper p-6">
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="display text-3xl">Trip Route</h2>
+          <h2 className="display text-3xl">{t('overview.route')}</h2>
           <Link to={`/trip/${trip.id}/map`} className="text-sm" style={{ color: 'var(--muted)' }}>
-            打开地图 →
+            {t('overview.openMap')}
           </Link>
         </div>
         <ol className="relative ml-3">
           <li className="relative border-l pb-6 pl-6" style={{ borderColor: 'var(--line)' }}>
             <span className="absolute -left-[7px] top-1 h-3.5 w-3.5 rounded-full" style={{ background: 'var(--ink)' }} />
             <div className="text-xs uppercase tracking-widest" style={{ color: 'var(--muted)' }}>
-              出发
+              {t('overview.depart')}
             </div>
             <div className="display text-2xl">{trip.origin}</div>
           </li>
@@ -113,7 +115,11 @@ export default function Overview() {
             <li key={n.city + n.start} className="relative border-l pb-6 pl-6 last:border-0" style={{ borderColor: 'var(--line)' }}>
               <span className="absolute -left-[7px] top-1 h-3.5 w-3.5 rounded-full" style={{ background: n.color }} />
               <div className="text-xs" style={{ color: 'var(--muted)' }}>
-                {n.start.slice(5)} · {n.nights} 天 · {n.transport}
+                {t('overview.nights', {
+                  date: n.start.slice(5),
+                  n: n.nights,
+                  transport: `${TRANSPORT[n.mode].icon} ${transportLabel(t, n.mode)}`,
+                })}
               </div>
               <div className="display text-2xl">{n.city}</div>
               <div className="mt-1 flex flex-wrap gap-2 text-sm">
@@ -131,7 +137,7 @@ export default function Overview() {
 
       <div className="paper p-5">
         <div className="text-sm" style={{ color: 'var(--muted)' }}>
-          最近预订
+          {t('overview.recent')}
         </div>
         <div className="mt-3 divide-y" style={{ borderColor: 'var(--line)' }}>
           {trip.bookings.slice(0, 5).map((b) => (
@@ -139,7 +145,7 @@ export default function Overview() {
               <span>
                 {KINDS[b.kind].icon} {b.name}
               </span>
-              <Tone tone={BOOKING_STATUS[b.status].tone}>{BOOKING_STATUS[b.status].label}</Tone>
+              <Tone tone={BOOKING_STATUS[b.status].tone}>{bookingStatusLabel(t, b.status)}</Tone>
             </div>
           ))}
         </div>
@@ -148,9 +154,9 @@ export default function Overview() {
   )
 }
 
-function FlightJump({ trip }: { trip: Trip }) {
-  const plan = tripFlightPlan(trip)
-  const links = flightLinks(plan.outbound.from, plan.outbound.to, plan.outbound.date, trip)
+function FlightJump({ trip, t, locale }: { trip: Trip; t: TFn; locale: 'zh' | 'en' }) {
+  const plan = tripFlightPlan(trip, locale)
+  const links = flightLinks(plan.outbound.from, plan.outbound.to, plan.outbound.date, trip, undefined, locale)
   const primary = links[0]
   const fromCode = lookupAir(plan.outbound.from)?.iata || plan.outbound.from.slice(0, 3).toUpperCase()
   const toCode = lookupAir(plan.outbound.to)?.iata || plan.outbound.to.slice(0, 3).toUpperCase()
@@ -162,7 +168,7 @@ function FlightJump({ trip }: { trip: Trip }) {
             BOARDING · {plan.label}
           </div>
           <Link to={`/trip/${trip.id}/bookings`} className="text-xs no-underline" style={{ color: 'var(--muted)' }}>
-            预订中心 →
+            {t('overview.bookingHub')}
           </Link>
         </div>
         <div className="pass-codes mt-2">
@@ -171,11 +177,11 @@ function FlightJump({ trip }: { trip: Trip }) {
           <span>{toCode}</span>
         </div>
         <p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>
-          主按钮直接打开比价。订完切回来就能记一笔。
+          {t('overview.flyHint')}
         </p>
         {primary && (
           <a className="btn mt-4 no-underline" href={primary.href} target="_blank" rel="noreferrer">
-            打开 {primary.name}
+            {t('overview.openX', { name: primary.name })}
           </a>
         )}
       </div>

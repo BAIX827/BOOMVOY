@@ -3,6 +3,7 @@ import { useApp, useTrip } from '../store'
 import { THEMES, TRANSPORT } from '../catalog'
 import type { ThemeId, TransportMode } from '../types'
 import { Label } from '../ui'
+import { themeLabel, transportLabel, useT } from '../i18n'
 
 const modes: TransportMode[] = ['self-drive', 'public', 'walking', 'taxi', 'cycling', 'mixed', 'flight']
 
@@ -12,6 +13,7 @@ export default function Notes() {
   const updateTrip = useApp((s) => s.updateTrip)
   const deleteTrip = useApp((s) => s.deleteTrip)
   const nav = useNavigate()
+  const { t } = useT()
   if (!trip) return null
   const current = trip
 
@@ -24,14 +26,14 @@ export default function Notes() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
-      <h1 className="display text-4xl">笔记与设置</h1>
+      <h1 className="display text-4xl">{t('notes.title')}</h1>
       <div className="paper space-y-4 p-5">
         <div>
-          <Label>旅行名称</Label>
+          <Label>{t('notes.name')}</Label>
           <input className="field" value={trip.name} onChange={(e) => updateTrip(trip.id, { name: e.target.value })} />
         </div>
         <div>
-          <Label>笔记</Label>
+          <Label>{t('notes.notes')}</Label>
           <textarea
             className="field min-h-[140px]"
             value={trip.notes}
@@ -39,7 +41,7 @@ export default function Notes() {
           />
         </div>
         <div>
-          <Label>分享范围</Label>
+          <Label>{t('notes.share')}</Label>
           <div className="mt-2 flex flex-wrap gap-2">
             {(['private', 'friends', 'public'] as const).map((v) => (
               <button
@@ -47,18 +49,18 @@ export default function Notes() {
                 className={trip.share.visibility === v ? 'btn' : 'btn btn-ghost'}
                 onClick={() => updateTrip(trip.id, { share: { visibility: v } })}
               >
-                {v === 'private' ? '仅自己' : v === 'friends' ? '朋友' : '公开'}
+                {t(`share.${v}`)}
               </button>
             ))}
           </div>
         </div>
         <div>
-          <Label>Theme</Label>
+          <Label>{t('notes.theme')}</Label>
           <div className="mt-2 grid gap-2 sm:grid-cols-3">
             {(Object.keys(THEMES) as ThemeId[]).map((th) => (
               <button
                 key={th}
-                className="paper p-3 text-left"
+                className={`paper theme-preview theme-${th} p-3 text-left`}
                 style={{ outline: trip.theme === th ? '2px solid var(--ink)' : undefined }}
                 onClick={() => updateTrip(trip.id, { theme: th, cover: trip.cover === 'cream' || trip.cover === 'ocean' || trip.cover === 'forest' ? th : trip.cover })}
               >
@@ -67,17 +69,17 @@ export default function Notes() {
                     <span key={c} className="h-5 flex-1 rounded-full" style={{ background: c }} />
                   ))}
                 </div>
-                {THEMES[th].label}
+                {themeLabel(t, th)}
               </button>
             ))}
           </div>
         </div>
         <div>
-          <Label>旅行方式</Label>
+          <Label>{t('notes.modes')}</Label>
           <div className="mt-2 flex flex-wrap gap-2">
             {modes.map((m) => (
               <button key={m} className={trip.transportModes.includes(m) ? 'btn' : 'btn btn-ghost'} onClick={() => toggleMode(m)}>
-                {TRANSPORT[m].icon} {TRANSPORT[m].label}
+                {TRANSPORT[m].icon} {transportLabel(t, m)}
               </button>
             ))}
           </div>
@@ -86,13 +88,13 @@ export default function Notes() {
       <button
         className="btn btn-ghost"
         onClick={() => {
-          if (confirm('删除这趟旅行？')) {
+          if (confirm(t('notes.deleteConfirm'))) {
             deleteTrip(current.id)
             nav('/')
           }
         }}
       >
-        删除旅行
+        {t('notes.delete')}
       </button>
     </div>
   )

@@ -1,6 +1,7 @@
 import type { Trip } from './types'
 import { cityRoute } from './domain'
 import { formatDay } from './lib'
+import { t, type Locale } from './i18n'
 
 type Air = { iata: string; sky: string; label: string }
 
@@ -43,7 +44,7 @@ function au(trip: Trip) {
 
 export type ShopLink = { name: string; href: string; hint?: string }
 
-export function flightLinks(fromCity: string, toCity: string, date: string, trip: Trip, back?: string): ShopLink[] {
+export function flightLinks(fromCity: string, toCity: string, date: string, trip: Trip, back?: string, locale: Locale = 'zh'): ShopLink[] {
   const from = lookupAir(fromCity)
   const to = lookupAir(toCity)
   const adults = Math.max(1, trip.travellers)
@@ -52,11 +53,12 @@ export function flightLinks(fromCity: string, toCity: string, date: string, trip
   const q = back
     ? `Flights from ${fromCity} to ${toCity} on ${date} through ${back}`
     : `Flights from ${fromCity} to ${toCity} on ${date}`
+  const hl = locale === 'zh' ? 'zh-CN' : 'en'
 
   const links: ShopLink[] = [
     {
       name: 'Google Flights',
-      href: `https://www.google.com/travel/flights?hl=zh-CN&q=${encodeURIComponent(q)}`,
+      href: `https://www.google.com/travel/flights?hl=${hl}&q=${encodeURIComponent(q)}`,
       hint: '比价清楚，适合开口票',
     },
   ]
@@ -81,7 +83,7 @@ export function flightLinks(fromCity: string, toCity: string, date: string, trip
     })
   } else {
     links.push({
-      name: 'Skyscanner 搜索',
+      name: t(locale, 'shop.skySearch'),
       href: `https://${host}/?adultsv1=${adults}&locale=en-AU`,
     })
   }
@@ -89,7 +91,7 @@ export function flightLinks(fromCity: string, toCity: string, date: string, trip
   return links
 }
 
-export function openJawLinks(trip: Trip): ShopLink[] | null {
+export function openJawLinks(trip: Trip, locale: Locale = 'zh'): ShopLink[] | null {
   const first = trip.destinations[0]
   const last = trip.destinations[trip.destinations.length - 1]
   if (!first || !last || first.toLowerCase() === last.toLowerCase()) return null
@@ -100,26 +102,28 @@ export function openJawLinks(trip: Trip): ShopLink[] | null {
   const adults = Math.max(1, trip.travellers)
   const host = au(trip) ? 'www.skyscanner.com.au' : 'www.skyscanner.com'
   const q = `Flights from ${trip.origin} to ${first} on ${trip.startDate}, ${last} to ${trip.origin} on ${trip.endDate}`
+  const hl = locale === 'zh' ? 'zh-CN' : 'en'
   return [
     {
-      name: 'Skyscanner 开口票',
+      name: t(locale, 'shop.skyOpenJaw'),
       href: `https://${host}/transport/d/${from.sky}/${skyDate(trip.startDate)}/${mid.sky}/${back.sky}/${skyDate(trip.endDate)}/${from.sky}/?adultsv1=${adults}`,
       hint: `${trip.origin}→${first}，${last}→${trip.origin}`,
     },
     {
-      name: 'Google 开口票',
-      href: `https://www.google.com/travel/flights?hl=zh-CN&q=${encodeURIComponent(q)}`,
+      name: t(locale, 'shop.gOpenJaw'),
+      href: `https://www.google.com/travel/flights?hl=${hl}&q=${encodeURIComponent(q)}`,
     },
   ]
 }
 
-export function hotelLinks(city: string, checkin: string, checkout: string, trip: Trip): ShopLink[] {
+export function hotelLinks(city: string, checkin: string, checkout: string, trip: Trip, locale: Locale = 'zh'): ShopLink[] {
   const adults = Math.max(1, trip.travellers)
   const q = encodeURIComponent(city)
+  const lang = locale === 'zh' ? 'zh-cn' : 'en-us'
   return [
     {
       name: 'Booking.com',
-      href: `https://www.booking.com/searchresults.html?ss=${q}&checkin=${checkin}&checkout=${checkout}&group_adults=${adults}&no_rooms=1&lang=zh-cn`,
+      href: `https://www.booking.com/searchresults.html?ss=${q}&checkin=${checkin}&checkout=${checkout}&group_adults=${adults}&no_rooms=1&lang=${lang}`,
     },
     {
       name: 'Agoda',
@@ -132,24 +136,24 @@ export function hotelLinks(city: string, checkin: string, checkout: string, trip
   ]
 }
 
-export function activityLinks(city: string): ShopLink[] {
+export function activityLinks(city: string, locale: Locale = 'zh'): ShopLink[] {
   const q = encodeURIComponent(city)
   return [
     { name: 'Klook', href: `https://www.klook.com/en-AU/search/?query=${q}` },
     { name: 'GetYourGuide', href: `https://www.getyourguide.com/s/?q=${q}` },
-    { name: 'Trip.com 玩乐', href: `https://au.trip.com/things-to-do/?keyword=${q}` },
+    { name: t(locale, 'shop.tripFun'), href: `https://au.trip.com/things-to-do/?keyword=${q}` },
   ]
 }
 
-export function tripFlightPlan(trip: Trip) {
+export function tripFlightPlan(trip: Trip, locale: Locale = 'zh') {
   const first = trip.destinations[0] || trip.origin
   const last = trip.destinations[trip.destinations.length - 1] || first
   return {
     outbound: { from: trip.origin, to: first, date: trip.startDate },
     inbound: { from: last, to: trip.origin, date: trip.endDate },
     sameCity: first.toLowerCase() === last.toLowerCase(),
-    label: `${trip.origin} → ${first} · ${formatDay(trip.startDate)}`,
-    backLabel: `${last} → ${trip.origin} · ${formatDay(trip.endDate)}`,
+    label: `${trip.origin} → ${first} · ${formatDay(trip.startDate, locale)}`,
+    backLabel: `${last} → ${trip.origin} · ${formatDay(trip.endDate, locale)}`,
   }
 }
 

@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { useApp } from './store'
 import { uid } from './lib'
-import { SETTING, TRANSPORT } from './catalog'
+import { TRANSPORT } from './catalog'
 import { suggestDays, type DaySuggestion } from './suggestions'
 import { resolveLlm } from './llm'
 import { hopMeta, mapsDayRoute, mapsPlaceUrl } from './geo'
-import type { PlaceStop, WeatherSnap } from './types'
+import type { PlaceSetting, PlaceStop, WeatherSnap } from './types'
+import { placeCatLabel, settingLabel, transportLabel, useT } from './i18n'
 
 export default function DaySuggest({
   city,
@@ -25,6 +26,7 @@ export default function DaySuggest({
 }) {
   const profile = useApp((s) => s.profile)
   const llm = resolveLlm(profile)
+  const { t } = useT()
   const [items, setItems] = useState<DaySuggestion[]>([])
   const [source, setSource] = useState<'local' | 'api'>('local')
   const [loading, setLoading] = useState(false)
@@ -49,7 +51,7 @@ export default function DaySuggest({
         setItems(r.items)
         setSource(r.source)
         setPicked(0)
-        setError(r.error || '')
+        setError(r.error ? t(`suggest.${r.error}`) : '')
       })
       .finally(() => {
         if (live) setLoading(false)
@@ -57,7 +59,7 @@ export default function DaySuggest({
     return () => {
       live = false
     }
-  }, [city, date, weather?.rainProb, llm.llmUrl, llm.llmKey, llm.llmModel])
+  }, [city, date, weather?.rainProb, llm.llmUrl, llm.llmKey, llm.llmModel, t])
 
   const named = existing.map((n) => n.toLowerCase())
   const visible = items
@@ -72,7 +74,7 @@ export default function DaySuggest({
     return (
       <div className="paper p-5">
         <div className="flex items-center gap-2 text-sm">
-          <Sparkles size={16} /> Boom 正在按 {city} 想一天，并补上坐标和门票…
+          <Sparkles size={16} /> {t('suggest.loading', { city })}
         </div>
       </div>
     )
@@ -84,14 +86,14 @@ export default function DaySuggest({
       <div className="flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4" style={{ borderColor: 'var(--line)' }}>
         <div>
           <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--muted)' }}>
-            <Sparkles size={14} /> {source === 'api' ? '来自 OpenAI' : error ? 'API 暂时不可用，先用本地建议' : 'Boom 的本地建议'}
+            <Sparkles size={14} /> {source === 'api' ? t('suggest.fromApi') : error ? t('suggest.fallback') : t('suggest.local')}
           </div>
           {error && (
             <p className="mt-1 text-xs" style={{ color: 'var(--warn)' }}>
               {error}
             </p>
           )}
-          <h3 className="display mt-1 text-2xl">给 {city} 的这一天</h3>
+          <h3 className="display mt-1 text-2xl">{t('suggest.dayFor', { city })}</h3>
           <p className="hand mt-1 text-xl" style={{ color: 'var(--muted)' }}>
             {current.vibe}
           </p>
@@ -111,34 +113,37 @@ export default function DaySuggest({
         {current.places.map((p, i) => {
           const next = current.places[i + 1]
           const hop = next ? hopMeta(p, next) : null
+          const setting = (['outdoor', 'indoor', 'mixed'] as PlaceSetting[]).includes(p.setting as PlaceSetting)
+            ? (p.setting as PlaceSetting)
+            : 'mixed'
           return (
             <li key={p.name} className="flex items-start gap-3 text-sm">
               <span className="chip mt-0.5 min-w-10 justify-center">{p.time || `${i + 1}`}</span>
               <div className="min-w-0 flex-1">
                 <div className="font-medium">{p.name}</div>
                 <div style={{ color: 'var(--muted)' }}>
-                  {p.category} · {(p.setting in SETTING ? SETTING[p.setting] : { label: p.setting }).label}
+                  {placeCatLabel(t, p.category)} · {settingLabel(t, setting)}
                   {p.durationMin ? ` · ${p.durationMin} min` : ''}
                 </div>
                 {p.address && <div className="mt-0.5 text-xs" style={{ color: 'var(--muted)' }}>{p.address}</div>}
                 <div className="mt-1 flex flex-wrap gap-2 text-xs">
                   {p.coords && (
                     <a className="underline" href={mapsPlaceUrl(p.name, p.coords)} target="_blank" rel="noreferrer">
-                      地图
+                      {t('suggest.map')}
                     </a>
                   )}
                   {p.ticketNeeded && p.ticketUrl && (
                     <a className="underline" href={p.ticketUrl} target="_blank" rel="noreferrer">
-                      订门票
+                      {t('suggest.tickets')}
                     </a>
                   )}
                 </div>
                 {hop && (
                   <div className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>
-                    ↓ {TRANSPORT[hop.mode].icon} {TRANSPORT[hop.mode].label} · {hop.km.toFixed(1)} km / {hop.minutes} min
+                    ↓ {TRANSPORT[hop.mode].icon} {transportLabel(t, hop.mode)} · {hop.km.toFixed(1)} km / {hop.minutes} min
                     {' · '}
                     <a className="underline" href={hop.url} target="_blank" rel="noreferrer">
-                      路线
+                      {t('suggest.route')}
                     </a>
                   </div>
                 )}
@@ -155,16 +160,16 @@ export default function DaySuggest({
             setPicked((n) => Math.min(n, Math.max(0, visible.length - 2)))
           }}
         >
-          一键加入计划表
+          {t('suggest.add')}
         </button>
         {existing.length > 0 && (
           <button className="btn btn-ghost" onClick={() => onReplace(current.places.map((p) => ({ ...p, id: uid() })))}>
-            换成这一套
+            {t('suggest.replace')}
           </button>
         )}
         {mapsDayRoute(current.places) && (
           <a className="btn btn-ghost no-underline" href={mapsDayRoute(current.places)} target="_blank" rel="noreferrer">
-            打开当天路线
+            {t('suggest.openRoute')}
           </a>
         )}
       </div>

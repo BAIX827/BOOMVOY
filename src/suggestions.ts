@@ -199,7 +199,7 @@ export async function suggestDays(input: {
   llmUrl?: string
   llmKey?: string
   llmModel?: string
-}): Promise<{ items: DaySuggestion[]; source: 'local' | 'api'; error?: string }> {
+}): Promise<{ items: DaySuggestion[]; source: 'local' | 'api'; error?: 'offline' | 'failed' | 'empty' }> {
   const packed = localSuggestions(input.city, input.weather, input.existing)
   const localItems: DaySuggestion[] = []
   for (const s of packed) {
@@ -224,9 +224,9 @@ export async function suggestDays(input: {
       return { items, source: 'api' }
     }
   } catch (err) {
-    return { items: localItems, source: 'local', error: err instanceof Error ? (err.message === 'Failed to fetch' ? 'OpenAI 暂时连不上，先用本地建议' : err.message) : 'API 失败' }
+    return { items: localItems, source: 'local', error: err instanceof Error && err.message === 'Failed to fetch' ? 'offline' : 'failed' }
   }
-  return { items: localItems, source: 'local', error: 'API 没有返回可用行程' }
+  return { items: localItems, source: 'local', error: 'empty' }
 }
 
 async function fromLlm(input: {

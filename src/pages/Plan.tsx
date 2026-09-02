@@ -13,24 +13,26 @@ import { CSS } from '@dnd-kit/utilities'
 import { GripVertical, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { useApp, useTrip } from '../store'
 import type { PlaceSetting, PlaceStop, PlanVariant, Priority, TransportMode } from '../types'
-import { PRIORITY, SETTING, TRANSPORT, WEATHER } from '../catalog'
+import { TRANSPORT, WEATHER } from '../catalog'
 import { formatDayLong, money, nearestNeighbor } from '../lib'
 import { Label, Modal, Tone } from '../ui'
 import { activePlaces, dayDistance, outdoorRatio, suggestedSwap, weatherAdvice } from '../domain'
 import DaySuggest from '../DaySuggest'
 import { hopMeta, mapsDayRoute, mapsPlaceUrl } from '../geo'
+import { PLACE_CATS, placeCatLabel, priorityLabel, settingLabel, transportLabel, useT } from '../i18n'
 
 export default function Plan() {
   const { id } = useParams()
   const trip = useTrip(id)
   const { addDayPlace, removePlace, reorderPlaces, setActivePlan, updatePlace, updateTrip, replacePlaces } = useApp()
+  const { t, locale } = useT()
   const [dayId, setDayId] = useState(trip?.days[0]?.id)
   const [open, setOpen] = useState(false)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   const day = trip?.days.find((d) => d.id === dayId) || trip?.days[0]
   const places = day ? activePlaces(day) : []
-  const advice = day ? weatherAdvice(day) : null
+  const advice = day ? weatherAdvice(day, t) : null
   const dist = dayDistance(places)
   const swap = day ? suggestedSwap(day) : null
 
@@ -51,7 +53,7 @@ export default function Plan() {
   return (
     <div className="flex flex-col gap-5 lg:flex-row">
       <div className="lg:w-[220px] shrink-0">
-        <h1 className="display mb-3 text-3xl">行程</h1>
+        <h1 className="display mb-3 text-3xl">{t('plan.title')}</h1>
         <div className="flex gap-2 overflow-auto pb-2 lg:flex-col">
           {trip.days.map((d, i) => (
             <button
@@ -76,7 +78,7 @@ export default function Plan() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <div className="text-sm" style={{ color: 'var(--muted)' }}>
-              {formatDayLong(day.date)}
+              {formatDayLong(day.date, locale)}
             </div>
             <h2 className="display text-4xl">
               Day {trip.days.findIndex((d) => d.id === day.id) + 1} — {day.city}
@@ -93,14 +95,14 @@ export default function Plan() {
 
         <div className="flex flex-wrap gap-2 text-sm">
           <span className="chip">
-            {WEATHER[day.weather.condition].icon} {day.weather.tMin}–{day.weather.tMax}°C · 雨 {day.weather.rainProb}%
+            {WEATHER[day.weather.condition].icon} {day.weather.tMin}–{day.weather.tMax}°C · {t('plan.rainChip', { n: day.weather.rainProb })}
           </span>
-          <span className="chip">{TRANSPORT[day.transportMode].icon} {TRANSPORT[day.transportMode].label}</span>
+          <span className="chip">{TRANSPORT[day.transportMode].icon} {transportLabel(t, day.transportMode)}</span>
           {day.stay && <span className="chip">🏨 {day.stay}</span>}
-          <span className="chip">户外 {Math.round(outdoorRatio(places) * 100)}%</span>
+          <span className="chip">{t('plan.outdoor', { n: Math.round(outdoorRatio(places) * 100) })}</span>
           {dist.km > 0 && (
             <span className="chip">
-              约 {dist.km.toFixed(1)} km / {dist.minutes} min
+              {t('plan.about', { km: dist.km.toFixed(1), min: dist.minutes })}
             </span>
           )}
         </div>
@@ -111,7 +113,7 @@ export default function Plan() {
             <p className="mt-2 text-sm leading-6">{advice.text}</p>
             {advice.suggestSwitch && (
               <button className="btn mt-3 text-sm" onClick={() => setActivePlan(trip.id, day.id, 'B')}>
-                切换到雨天 Plan B
+                {t('plan.switchB')}
               </button>
             )}
           </div>
@@ -137,20 +139,20 @@ export default function Plan() {
         {swap && plan === 'A' && (
           <div className="paper p-4">
             <div className="flex items-center gap-2 text-sm font-medium">
-              <Sparkles size={16} /> 天气替换建议
+              <Sparkles size={16} /> {t('plan.weatherSwap')}
             </div>
             <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-              上午雨更大：把室内项目提前，户外挪到后面。
+              {t('plan.weatherSwapHint')}
             </p>
             <ol className="mt-2 text-sm">
               {swap.map((p) => (
                 <li key={p.id}>
-                  {p.time} {p.name} · {SETTING[p.setting].label}
+                  {p.time} {p.name} · {settingLabel(t, p.setting)}
                 </li>
               ))}
             </ol>
             <button className="btn btn-soft mt-3 text-sm" onClick={() => replacePlaces(trip.id, day.id, 'A', swap)}>
-              Apply Changes
+              {t('plan.apply')}
             </button>
           </div>
         )}
@@ -160,9 +162,7 @@ export default function Plan() {
             <div className="space-y-2">
               {places.length === 0 && (
                 <div className="paper p-8 text-center text-sm" style={{ color: 'var(--muted)' }}>
-                  {plan === 'B'
-                    ? '还没有雨天备选。上面有室内建议，也可以自己加。'
-                    : '这一天还是空的。上面选一套建议，一键贴进计划表。'}
+                  {plan === 'B' ? t('plan.emptyB') : t('plan.emptyA')}
                 </div>
               )}
               {places.map((place, i) => (
@@ -180,24 +180,24 @@ export default function Plan() {
 
         <div className="flex flex-wrap gap-2">
           <button className="btn" onClick={() => setOpen(true)}>
-            <Plus size={16} /> 添加地点
+            <Plus size={16} /> {t('plan.addPlace')}
           </button>
           <button
             className="btn btn-ghost"
             onClick={() => replacePlaces(trip.id, day.id, plan, nearestNeighbor(places))}
             disabled={places.length < 3}
           >
-            Optimize · 就近排序
+            {t('plan.optimize')}
           </button>
           {mapsDayRoute(places) && (
             <a className="btn btn-ghost no-underline" href={mapsDayRoute(places)} target="_blank" rel="noreferrer">
-              打开当天路线
+              {t('plan.openRoute')}
             </a>
           )}
         </div>
 
         <div>
-          <Label>这一天的备注</Label>
+          <Label>{t('plan.dayNotes')}</Label>
           <textarea
             className="field min-h-[80px]"
             value={day.notes || ''}
@@ -233,6 +233,7 @@ function SortablePlace({
   onRemove: () => void
   onPatch: (p: Partial<PlaceStop>) => void
 }) {
+  const { t } = useT()
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: place.id })
   const style = { transform: CSS.Transform.toString(transform), transition }
   return (
@@ -241,7 +242,7 @@ function SortablePlace({
         <span className="stamp absolute right-10 top-3 z-10">booked</span>
       )}
       <div className="flex items-start gap-3">
-        <button className="mt-1 opacity-50" {...attributes} {...listeners} aria-label="拖动">
+        <button className="mt-1 opacity-50" {...attributes} {...listeners} aria-label={t('plan.drag')}>
           <GripVertical size={16} />
         </button>
         <input
@@ -254,11 +255,11 @@ function SortablePlace({
         <div className="min-w-0 flex-1">
           <div className="font-medium">{place.name}</div>
           <div className="mt-1 flex flex-wrap gap-1.5 text-xs">
-            <span className="chip">{place.category}</span>
-            <span className="chip">{SETTING[place.setting].label}</span>
-            {place.priority && <span className="chip">{PRIORITY[place.priority]}</span>}
-            {place.ticketNeeded && <span className="chip">门票</span>}
-            {place.booked && <Tone tone="good">已订</Tone>}
+            <span className="chip">{placeCatLabel(t, place.category)}</span>
+            <span className="chip">{settingLabel(t, place.setting)}</span>
+            {place.priority && <span className="chip">{priorityLabel(t, place.priority)}</span>}
+            {place.ticketNeeded && <span className="chip">{t('plan.ticket')}</span>}
+            {place.booked && <Tone tone="good">{t('plan.booked')}</Tone>}
             {place.cost && <span className="chip">{money(place.cost.amount, place.cost.currency)}</span>}
           </div>
           {place.address && (
@@ -269,12 +270,12 @@ function SortablePlace({
           <div className="mt-1 flex flex-wrap gap-2 text-xs">
             {place.coords && (
               <a className="underline" href={mapsPlaceUrl(place.name, place.coords)} target="_blank" rel="noreferrer">
-                地图
+                {t('plan.mapLink')}
               </a>
             )}
             {place.ticketNeeded && place.ticketUrl && (
               <a className="underline" href={place.ticketUrl} target="_blank" rel="noreferrer">
-                订门票
+                {t('plan.buyTicket')}
               </a>
             )}
           </div>
@@ -289,15 +290,15 @@ function SortablePlace({
                 const hop = hopMeta(place, next)
                 return hop ? (
                   <>
-                    ↓ {TRANSPORT[hop.mode].icon} {TRANSPORT[hop.mode].label} · {hop.km.toFixed(1)} km / {hop.minutes} min
+                    ↓ {TRANSPORT[hop.mode].icon} {transportLabel(t, hop.mode)} · {hop.km.toFixed(1)} km / {hop.minutes} min
                     {' · '}
                     <a className="underline" href={hop.url} target="_blank" rel="noreferrer">
-                      路线
+                      {t('plan.routeLink')}
                     </a>
                   </>
                 ) : (
                   <>
-                    ↓ {TRANSPORT[place.transportToNext || 'public'].icon} {TRANSPORT[place.transportToNext || 'public'].label}
+                    ↓ {TRANSPORT[place.transportToNext || 'public'].icon} {transportLabel(t, place.transportToNext || 'public')}
                   </>
                 )
               })()}
@@ -305,9 +306,9 @@ function SortablePlace({
           )}
         </div>
         <label className="text-xs" style={{ color: 'var(--muted)' }}>
-          <input type="checkbox" checked={!!place.booked} onChange={(e) => onPatch({ booked: e.target.checked })} /> 预订
+          <input type="checkbox" checked={!!place.booked} onChange={(e) => onPatch({ booked: e.target.checked })} /> {t('plan.bookingCheck')}
         </label>
-        <button className="opacity-50 hover:opacity-100" onClick={onRemove} aria-label="删除">
+        <button className="opacity-50 hover:opacity-100" onClick={onRemove} aria-label={t('plan.delete')}>
           <Trash2 size={16} />
         </button>
       </div>
@@ -335,6 +336,7 @@ function AddPlaceModal({
   const [ticket, setTicket] = useState(false)
   const [q, setQ] = useState('')
   const [hits, setHits] = useState<Array<{ display_name: string; lat: string; lon: string }>>([])
+  const { t } = useT()
 
   async function search() {
     if (!q.trim()) return
@@ -347,16 +349,16 @@ function AddPlaceModal({
   const picked = useMemo(() => hits[0], [hits])
 
   return (
-    <Modal open={open} title="添加地点" onClose={onClose}>
+    <Modal open={open} title={t('plan.addTitle')} onClose={onClose}>
       <div className="space-y-3">
         <p className="text-sm" style={{ color: 'var(--muted)' }}>
-          确定一个点之后，Boom 会按 {city} 再给几套可一键加入的一天。
+          {t('plan.addHint', { city })}
         </p>
-        <input className="field" placeholder="名称，如 Meiji Shrine" value={name} onChange={(e) => setName(e.target.value)} />
+        <input className="field" placeholder={t('plan.addName')} value={name} onChange={(e) => setName(e.target.value)} />
         <div className="flex gap-2">
-          <input className="field" placeholder="在地图上搜" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input className="field" placeholder={t('plan.searchMap')} value={q} onChange={(e) => setQ(e.target.value)} />
           <button className="btn btn-ghost" onClick={search}>
-            搜
+            {t('plan.search')}
           </button>
         </div>
         {hits.map((h) => (
@@ -376,29 +378,31 @@ function AddPlaceModal({
         <div className="grid grid-cols-2 gap-2">
           <input className="field" value={time} onChange={(e) => setTime(e.target.value)} />
           <select className="field" value={category} onChange={(e) => setCategory(e.target.value)}>
-            {['景点', '餐饮', '住宿', '交通', '购物', '活动'].map((c) => (
-              <option key={c}>{c}</option>
+            {PLACE_CATS.map((c) => (
+              <option key={c} value={c}>
+                {placeCatLabel(t, c)}
+              </option>
             ))}
           </select>
         </div>
         <div className="flex flex-wrap gap-2">
           {(['outdoor', 'indoor', 'mixed'] as PlaceSetting[]).map((s) => (
             <button key={s} className={setting === s ? 'btn' : 'btn btn-ghost'} onClick={() => setSetting(s)}>
-              {SETTING[s].label}
+              {settingLabel(t, s)}
             </button>
           ))}
         </div>
         <div className="flex flex-wrap gap-2">
           {(['must', 'want', 'optional'] as Priority[]).map((s) => (
             <button key={s} className={priority === s ? 'btn' : 'btn btn-ghost'} onClick={() => setPriority(s)}>
-              {PRIORITY[s]}
+              {priorityLabel(t, s)}
             </button>
           ))}
         </div>
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={ticket} onChange={(e) => setTicket(e.target.checked)} /> 需要门票
+          <input type="checkbox" checked={ticket} onChange={(e) => setTicket(e.target.checked)} /> {t('plan.needTicket')}
         </label>
-        <textarea className="field" placeholder="备注" value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <textarea className="field" placeholder={t('plan.notes')} value={notes} onChange={(e) => setNotes(e.target.value)} />
         <button
           className="btn w-full"
           disabled={!name}
@@ -417,7 +421,7 @@ function AddPlaceModal({
             })
           }
         >
-          加入这一天
+          {t('plan.addToDay')}
         </button>
       </div>
     </Modal>
@@ -483,12 +487,13 @@ function SmartStops({
   onAdd: (p: Omit<PlaceStop, 'id'>) => void
 }) {
   const list = (STOPS[city] || []).filter((s) => !existing.includes(s.name))
+  const { t } = useT()
   if (!list.length) return null
   return (
     <div className="paper p-4">
-      <div className="text-sm font-medium">Smart Stops · 沿途推荐</div>
+      <div className="text-sm font-medium">{t('plan.smartStops')}</div>
       <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>
-        自驾日会根据路线提示景点、厕所、加油站和餐厅。
+        {t('plan.smartHint')}
       </p>
       <div className="mt-3 space-y-2">
         {list.map((s) => (
@@ -501,7 +506,7 @@ function SmartStops({
             </div>
             <div className="flex gap-1">
               <button className="btn px-2 py-1 text-xs" onClick={() => onAdd(s)}>
-                Add
+                {t('plan.add')}
               </button>
             </div>
           </div>

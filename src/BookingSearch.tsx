@@ -13,15 +13,17 @@ import {
 } from './bookingLinks'
 import { formatDay } from './lib'
 import { Label, Modal } from './ui'
+import { useT } from './i18n'
 
 type Draft = { kind: SavedKind; name: string; date?: string; url?: string }
 
 const SHOP_KEY = 'boomvoy-shop'
 
 export default function BookingSearch({ trip }: { trip: Trip }) {
-  const plan = tripFlightPlan(trip)
+  const { t, locale } = useT()
+  const plan = tripFlightPlan(trip, locale)
   const stays = tripHotelStays(trip)
-  const openJaw = openJawLinks(trip)
+  const openJaw = openJawLinks(trip, locale)
   const addBooking = useApp((s) => s.addBooking)
   const [from, setFrom] = useState(plan.outbound.from)
   const [to, setTo] = useState(plan.outbound.to)
@@ -29,7 +31,7 @@ export default function BookingSearch({ trip }: { trip: Trip }) {
   const [back, setBack] = useState(plan.sameCity ? plan.inbound.date : '')
   const [draft, setDraft] = useState<Draft | null>(null)
 
-  const custom = flightLinks(from, to, go, trip, back || undefined)
+  const custom = flightLinks(from, to, go, trip, back || undefined, locale)
 
   useEffect(() => {
     const raw = sessionStorage.getItem(SHOP_KEY)
@@ -66,9 +68,9 @@ export default function BookingSearch({ trip }: { trip: Trip }) {
       <section>
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="display text-3xl">登机牌</h2>
+            <h2 className="display text-3xl">{t('shop.pass')}</h2>
             <p className="hand mt-1 text-xl" style={{ color: 'var(--muted)' }}>
-              点开主按钮就能比价。订完切回来，Boom 帮你记一笔。
+              {t('shop.passHint')}
             </p>
           </div>
           <button
@@ -90,7 +92,7 @@ export default function BookingSearch({ trip }: { trip: Trip }) {
               })
             }}
           >
-            订完了？记一笔
+            {t('shop.logged')}
           </button>
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
@@ -100,7 +102,7 @@ export default function BookingSearch({ trip }: { trip: Trip }) {
             date={plan.outbound.date}
             stub="OUTBOUND"
             people={trip.travellers}
-            links={flightLinks(plan.outbound.from, plan.outbound.to, plan.outbound.date, trip)}
+            links={flightLinks(plan.outbound.from, plan.outbound.to, plan.outbound.date, trip, undefined, locale)}
             onShop={shop}
           />
           <Pass
@@ -109,34 +111,34 @@ export default function BookingSearch({ trip }: { trip: Trip }) {
             date={plan.inbound.date}
             stub="RETURN"
             people={trip.travellers}
-            links={flightLinks(plan.inbound.from, plan.inbound.to, plan.inbound.date, trip)}
+            links={flightLinks(plan.inbound.from, plan.inbound.to, plan.inbound.date, trip, undefined, locale)}
             onShop={shop}
           />
         </div>
 
         {openJaw && (
           <div className="paper mt-4 p-4">
-            <div className="text-sm font-medium">开口票 · 去东京、从大阪回</div>
+            <div className="text-sm font-medium">{t('shop.openJaw')}</div>
             <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>
-              进出机场不一样时，一次搜两段通常更便宜。
+              {t('shop.openJawHint')}
             </p>
             <LinkRow
               links={openJaw}
-              onShop={(href, name) => shop(href, { kind: 'flight', name: `开口票 · ${name}`, date: plan.outbound.date, url: href })}
+              onShop={(href, name) => shop(href, { kind: 'flight', name: `Open-jaw · ${name}`, date: plan.outbound.date, url: href })}
             />
           </div>
         )}
 
         <div className="paper mt-4 p-4">
-          <div className="text-sm font-medium">自己改航线</div>
+          <div className="text-sm font-medium">{t('shop.custom')}</div>
           <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            <input className="field" value={from} onChange={(e) => setFrom(e.target.value)} placeholder="出发，如 Melbourne" />
-            <input className="field" value={to} onChange={(e) => setTo(e.target.value)} placeholder="到达，如 Tokyo" />
+            <input className="field" value={from} onChange={(e) => setFrom(e.target.value)} placeholder={t('shop.fromPh')} />
+            <input className="field" value={to} onChange={(e) => setTo(e.target.value)} placeholder={t('shop.toPh')} />
             <input className="field" type="date" value={go} onChange={(e) => setGo(e.target.value)} />
             <input className="field" type="date" value={back} onChange={(e) => setBack(e.target.value)} />
           </div>
           <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>
-            回程留空 = 单程。人数按这次 {trip.travellers} 人。
+            {t('shop.customHint', { n: trip.travellers })}
           </p>
           <LinkRow
             links={custom}
@@ -149,17 +151,17 @@ export default function BookingSearch({ trip }: { trip: Trip }) {
 
       {stays.length > 0 && (
         <section>
-          <h2 className="display mb-3 text-3xl">房卡</h2>
+          <h2 className="display mb-3 text-3xl">{t('shop.keys')}</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             {stays.map((s) => {
-              const links = hotelLinks(s.city, s.checkin, s.checkout, trip)
+              const links = hotelLinks(s.city, s.checkin, s.checkout, trip, locale)
               const primary = links[0]
               return (
                 <div key={s.city + s.checkin} className="keycard p-4">
                   <div className="text-[11px] tracking-[0.2em] text-white/70">GUEST KEY</div>
                   <div className="display mt-1 text-3xl text-white">{s.city}</div>
                   <div className="mt-8 text-sm" style={{ color: 'var(--muted)' }}>
-                    {formatDay(s.checkin)} – {formatDay(s.checkout)}
+                    {formatDay(s.checkin, locale)} – {formatDay(s.checkout, locale)}
                     {s.stay ? ` · ${s.stay}` : ''}
                   </div>
                   {primary && (
@@ -168,13 +170,13 @@ export default function BookingSearch({ trip }: { trip: Trip }) {
                       onClick={() =>
                         shop(primary.href, {
                           kind: 'hotel',
-                          name: `${s.city} 住宿`,
+                          name: t('shop.stay', { city: s.city }),
                           date: s.checkin,
                           url: primary.href,
                         })
                       }
                     >
-                      打开 {primary.name}
+                      {t('shop.openX', { name: primary.name })}
                     </button>
                   )}
                   <LinkRow
@@ -191,16 +193,16 @@ export default function BookingSearch({ trip }: { trip: Trip }) {
       )}
 
       <section className="paper p-5">
-        <h2 className="display text-2xl">门票 / 体验</h2>
+        <h2 className="display text-2xl">{t('shop.acts')}</h2>
         <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-          Klook、GetYourGuide。订完切回来登记。
+          {t('shop.actsHint')}
         </p>
         <div className="mt-3 flex flex-wrap gap-4">
           {[...new Set(trip.destinations)].map((city) => (
             <div key={city}>
               <div className="text-sm font-medium">{city}</div>
               <LinkRow
-                links={activityLinks(city)}
+                links={activityLinks(city, locale)}
                 onShop={(href, name) => shop(href, { kind: 'activity', name: `${city} · ${name}`, url: href })}
               />
             </div>
@@ -248,11 +250,12 @@ function Pass({
   const rest = links.slice(1)
   const fromCode = lookupAir(from)?.iata || from.slice(0, 3).toUpperCase()
   const toCode = lookupAir(to)?.iata || to.slice(0, 3).toUpperCase()
+  const { t, locale } = useT()
   return (
     <article className="pass">
       <div className="pass-body">
         <div className="text-[11px] tracking-[0.18em]" style={{ color: 'var(--muted)' }}>
-          {formatDay(date)} · {people} PAX
+          {formatDay(date, locale)} · {people} PAX
         </div>
         <div className="pass-codes mt-2">
           <span>{fromCode}</span>
@@ -267,7 +270,7 @@ function Pass({
             className="btn mt-4 w-full"
             onClick={() => onShop(primary.href, { kind: 'flight', name: `${from} → ${to}`, date, url: primary.href })}
           >
-            打开 {primary.name}
+            {t('shop.openX', { name: primary.name })}
           </button>
         )}
         {rest.length > 0 && (
@@ -332,29 +335,30 @@ function Capture({
   const [price, setPrice] = useState('')
   const [code, setCode] = useState('')
   const [status, setStatus] = useState<BookingStatus>('booked')
+  const { t } = useT()
 
   if (!draft) return null
   return (
-    <Modal open={open} title="订好了吗？" onClose={onClose}>
+    <Modal open={open} title={t('shop.capture')} onClose={onClose}>
       <p className="mb-3 text-sm" style={{ color: 'var(--muted)' }}>
-        不用填完整。订了就标已预订，没订就关掉。
+        {t('shop.captureHint')}
       </p>
       <div className="space-y-3">
         <input className="field" value={name} onChange={(e) => setName(e.target.value)} />
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <Label>价格（选填）</Label>
+            <Label>{t('shop.priceOpt')}</Label>
             <input className="field" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder={currency} />
           </div>
           <div>
-            <Label>确认号（选填）</Label>
+            <Label>{t('shop.codeOpt')}</Label>
             <input className="field" value={code} onChange={(e) => setCode(e.target.value)} />
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
           {(['booked', 'need'] as BookingStatus[]).map((s) => (
             <button key={s} className={status === s ? 'btn' : 'btn btn-ghost'} onClick={() => setStatus(s)}>
-              {s === 'booked' ? '已订' : '还在看'}
+              {s === 'booked' ? t('shop.booked') : t('shop.looking')}
             </button>
           ))}
         </div>
@@ -373,7 +377,7 @@ function Capture({
             })
           }
         >
-          记进预订中心
+          {t('shop.save')}
         </button>
       </div>
     </Modal>

@@ -4,12 +4,14 @@ import { useApp, useTrip } from '../store'
 import { MEMBER_COLORS } from '../catalog'
 import type { Role } from '../types'
 import { uid } from '../lib'
+import { useT } from '../i18n'
 
 export default function Group() {
   const { id } = useParams()
   const trip = useTrip(id)
   const updateTrip = useApp((s) => s.updateTrip)
   const toggleVote = useApp((s) => s.toggleVote)
+  const { t } = useT()
   const [name, setName] = useState('')
   if (!trip) return null
 
@@ -18,9 +20,9 @@ export default function Group() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="display text-4xl">同伴</h1>
+        <h1 className="display text-4xl">{t('group.title')}</h1>
         <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-          第一版邀请是本地成员。以后做 App 时再接实时协作。权限：Owner / Editor / Viewer。
+          {t('group.blurb')}
         </p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -49,15 +51,15 @@ export default function Group() {
                 })
               }
             >
-              <option value="owner">Owner</option>
-              <option value="editor">Editor</option>
-              <option value="viewer">Viewer</option>
+              <option value="owner">{t('role.owner')}</option>
+              <option value="editor">{t('role.editor')}</option>
+              <option value="viewer">{t('role.viewer')}</option>
             </select>
           </div>
         ))}
       </div>
       <div className="flex gap-2">
-        <input className="field" placeholder="邀请朋友（先记下名字）" value={name} onChange={(e) => setName(e.target.value)} />
+        <input className="field" placeholder={t('group.invite')} value={name} onChange={(e) => setName(e.target.value)} />
         <button
           className="btn"
           disabled={!name}
@@ -72,14 +74,14 @@ export default function Group() {
             setName('')
           }}
         >
-          加入
+          {t('group.add')}
         </button>
       </div>
 
       <section className="paper p-5">
-        <h2 className="display text-2xl">Which hotel?</h2>
+        <h2 className="display text-2xl">{t('group.hotel')}</h2>
         <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-          点名字投票。这是多人旅行最常用的纠结点。
+          {t('group.hotelHint')}
         </p>
         <div className="mt-4 space-y-3">
           {hotelVote.map((h) => {
@@ -88,7 +90,7 @@ export default function Group() {
               <div key={h.id}>
                 <div className="flex justify-between text-sm">
                   <span>{h.name}</span>
-                  <span>{votes} votes</span>
+                  <span>{t('group.votes', { n: votes })}</span>
                 </div>
                 <div className="mt-1 flex gap-1">
                   {trip.members.map((m) => (

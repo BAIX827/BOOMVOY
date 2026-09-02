@@ -1,6 +1,7 @@
-import type { DayPlan, Expense, PlaceStop, Trip } from './types'
-import { DAY_COLORS, TRANSPORT } from './catalog'
+import type { DayPlan, Expense, PlaceStop, TransportMode, Trip } from './types'
+import { DAY_COLORS } from './catalog'
 import { haversineKm, estimateMinutes } from './lib'
+import type { TFn } from './i18n'
 
 export function activePlaces(day: DayPlan): PlaceStop[] {
   return day.activePlan === 'A' ? day.planA : day.planB
@@ -11,23 +12,27 @@ export function outdoorRatio(places: PlaceStop[]) {
   return places.filter((p) => p.setting !== 'indoor').length / places.length
 }
 
-export function weatherAdvice(day: DayPlan) {
+export function weatherAdvice(day: DayPlan, tFn: TFn) {
   const places = activePlaces(day)
   const ratio = outdoorRatio(places)
   const rain = day.weather.rainProb
   if (rain >= 60 && ratio >= 0.5) {
     return {
       level: 'warn' as const,
-      title: '户外活动偏多，下雨风险高',
-      text: `${day.city} 降雨概率 ${rain}%${day.weather.rainWindow ? `，预计 ${day.weather.rainWindow}` : ''}。建议切换雨天 Plan B，或把室内项目提前。`,
+      title: tFn('wx.warnTitle'),
+      text: tFn('wx.warnText', {
+        city: day.city,
+        rain,
+        window: day.weather.rainWindow ? tFn('wx.warnWindow', { window: day.weather.rainWindow }) : '',
+      }),
       suggestSwitch: day.activePlan === 'A' && day.planB.length > 0,
     }
   }
   if (rain >= 40 && ratio >= 0.4) {
     return {
       level: 'info' as const,
-      title: '可能有阵雨',
-      text: '带伞即可。如果雷阵雨变强，可以把公园类项目往后挪。',
+      title: tFn('wx.infoTitle'),
+      text: tFn('wx.infoText'),
       suggestSwitch: false,
     }
   }
@@ -54,7 +59,7 @@ export interface RouteNode {
   end: string
   nights: number
   stay?: string
-  transport: string
+  mode: TransportMode
   weather?: DayPlan['weather']
   color: string
 }
@@ -74,7 +79,7 @@ export function cityRoute(trip: Trip): RouteNode[] {
         end: day.date,
         nights: 1,
         stay: day.stay,
-        transport: TRANSPORT[day.transportMode].icon + ' ' + TRANSPORT[day.transportMode].label,
+        mode: day.transportMode,
         weather: day.weather,
         color: DAY_COLORS[nodes.length % DAY_COLORS.length],
       })

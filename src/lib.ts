@@ -26,20 +26,28 @@ export function parseISO(iso: string) {
   return new Date(iso + 'T00:00:00')
 }
 
-const WEEK = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+type DateLocale = 'zh' | 'en'
 
-export function formatDay(iso: string) {
+const WEEK_ZH = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+
+export function formatDay(iso: string, locale: DateLocale = 'zh') {
   const d = parseISO(iso)
+  if (locale === 'en') {
+    return d.toLocaleDateString('en-AU', { month: 'short', day: 'numeric' })
+  }
   return `${d.getMonth() + 1}月${d.getDate()}日`
 }
 
-export function formatDayLong(iso: string) {
+export function formatDayLong(iso: string, locale: DateLocale = 'zh') {
   const d = parseISO(iso)
-  return `${d.getMonth() + 1}月${d.getDate()}日 ${WEEK[d.getDay()]}`
+  if (locale === 'en') {
+    return d.toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric' })
+  }
+  return `${d.getMonth() + 1}月${d.getDate()}日 ${WEEK_ZH[d.getDay()]}`
 }
 
-export function formatRange(start: string, end: string) {
-  return `${formatDay(start)} – ${formatDay(end)}`
+export function formatRange(start: string, end: string, locale: DateLocale = 'zh') {
+  return `${formatDay(start, locale)} – ${formatDay(end, locale)}`
 }
 
 export function nightCount(start: string, end: string) {

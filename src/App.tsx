@@ -17,32 +17,36 @@ import Weather from './pages/Weather'
 import Group from './pages/Group'
 import Notes from './pages/Notes'
 import Share from './pages/Share'
+import GuideCat from './GuideCat'
 
 export default function App() {
   return (
-    <Routes>
-      <Route element={<Shell />}>
-        <Route path="/" element={<Home />} />
-        <Route path="/explore" element={<Explore />} />
-        <Route path="/new" element={<CreateTrip />} />
-        <Route path="/profile" element={<Profile />} />
-      </Route>
-      <Route path="/trip/:id" element={<TripShell />}>
-        <Route index element={<Overview />} />
-        <Route path="plan" element={<Plan />} />
-        <Route path="map" element={<MapPage />} />
-        <Route path="saved" element={<Saved />} />
-        <Route path="compare" element={<Compare />} />
-        <Route path="bookings" element={<Bookings />} />
-        <Route path="budget" element={<Budget />} />
-        <Route path="expenses" element={<Expenses />} />
-        <Route path="weather" element={<Weather />} />
-        <Route path="group" element={<Group />} />
-        <Route path="notes" element={<Notes />} />
-      </Route>
-      <Route path="/share/:id" element={<Share />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route element={<Shell />}>
+          <Route path="/" element={<Home />} />
+          <Route path="/explore" element={<Explore />} />
+          <Route path="/new" element={<CreateTrip />} />
+          <Route path="/profile" element={<Profile />} />
+        </Route>
+        <Route path="/trip/:id" element={<TripShell />}>
+          <Route index element={<Overview />} />
+          <Route path="plan" element={<Plan />} />
+          <Route path="map" element={<MapPage />} />
+          <Route path="saved" element={<Saved />} />
+          <Route path="compare" element={<Compare />} />
+          <Route path="bookings" element={<Bookings />} />
+          <Route path="budget" element={<Budget />} />
+          <Route path="expenses" element={<Expenses />} />
+          <Route path="weather" element={<Weather />} />
+          <Route path="group" element={<Group />} />
+          <Route path="notes" element={<Notes />} />
+        </Route>
+        <Route path="/share/:id" element={<Share />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <GuideCat />
+    </>
   )
 }
 

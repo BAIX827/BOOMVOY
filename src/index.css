@@ -161,3 +161,69 @@ button { cursor: pointer; }
   background: color-mix(in srgb, var(--ink) 18%, transparent);
   border-radius: 99px;
 }
+
+.guide-dock {
+  position: fixed;
+  right: 16px;
+  bottom: 88px;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  pointer-events: none;
+}
+@media (min-width: 1024px) {
+  .guide-dock { bottom: 24px; right: 24px; }
+}
+.guide-dock > * { pointer-events: auto; }
+
+.guide-card {
+  width: min(320px, calc(100vw - 32px));
+  padding: 16px 16px 14px;
+  animation: guide-in 0.22s ease;
+}
+@keyframes guide-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+.guide-cat {
+  position: relative;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  width: 82px;
+  height: 82px;
+  border-radius: 50%;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 12px 28px -10px color-mix(in srgb, var(--ink) 35%, transparent);
+}
+.guide-cat-pulse {
+  animation: cat-bob 1.6s ease-in-out infinite;
+}
+@keyframes cat-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+.guide-badge {
+  position: absolute;
+  top: -2px;
+  left: -6px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.guide-spot {
+  position: fixed;
+  z-index: 71;
+  border-radius: 18px;
+  box-shadow: 0 0 0 9999px color-mix(in srgb, var(--ink) 42%, transparent);
+  pointer-events: none;
+  transition: top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease;
+  outline: 2px solid var(--accent);
+}

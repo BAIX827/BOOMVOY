@@ -51,7 +51,7 @@ export default function TripShell() {
     <div className={`theme-${trip.theme} min-h-screen`} style={{ background: 'var(--bg)' }}>
       <div className="mx-auto flex max-w-[1400px]">
         <aside className="sticky top-0 hidden h-screen w-[230px] shrink-0 flex-col border-r p-4 lg:flex" style={{ borderColor: 'var(--line)' }}>
-          <button className="mb-6 flex items-center gap-2 text-left" onClick={() => nav('/')}>
+          <button className="mb-6 flex items-center gap-2 text-left" onClick={() => nav('/')} data-guide="brand">
             <Mark />
             <div>
               <div className="display text-lg leading-none">BOOMVOY</div>
@@ -66,7 +66,7 @@ export default function TripShell() {
               {formatRange(trip.startDate, trip.endDate)}
             </div>
           </div>
-          <nav className="flex flex-1 flex-col gap-0.5 overflow-auto">
+          <nav className="flex flex-1 flex-col gap-0.5 overflow-auto" data-guide="trip-nav">
             {items.map((it) => (
               <NavLink
                 key={it.to}
@@ -76,6 +76,7 @@ export default function TripShell() {
                   cls('flex items-center gap-2 rounded-xl px-3 py-2 text-sm no-underline', isActive ? 'btn-soft font-medium' : '')
                 }
                 style={{ color: 'var(--ink)' }}
+                data-guide={it.to === 'plan' ? 'nav-plan' : it.to === 'map' ? 'nav-map' : it.to === 'compare' ? 'nav-compare' : it.to === 'weather' ? 'nav-weather' : it.to === '' ? 'nav-overview' : undefined}
               >
                 <it.icon size={16} />
                 {it.label}
@@ -102,6 +103,7 @@ export default function TripShell() {
           <nav
             className="fixed bottom-0 left-0 right-0 z-40 flex gap-1 overflow-auto border-t px-2 py-2 lg:hidden"
             style={{ background: 'var(--paper)', borderColor: 'var(--line)' }}
+            data-guide="trip-nav"
           >
             {items.slice(0, 6).map((it) => (
               <NavLink
@@ -112,6 +114,7 @@ export default function TripShell() {
                   cls('flex min-w-[64px] flex-col items-center rounded-xl px-2 py-1 text-[11px] no-underline', isActive ? 'btn-soft' : '')
                 }
                 style={{ color: 'var(--ink)' }}
+                data-guide={it.to === 'plan' ? 'nav-plan' : it.to === 'map' ? 'nav-map' : it.to === 'compare' ? 'nav-compare' : it.to === 'weather' ? 'nav-weather' : it.to === '' ? 'nav-overview' : undefined}
               >
                 <it.icon size={16} />
                 {it.label}

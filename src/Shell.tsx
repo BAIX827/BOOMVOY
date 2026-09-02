@@ -14,7 +14,7 @@ export default function Shell() {
     <div className="min-h-screen">
       <header className="sticky top-0 z-40 border-b backdrop-blur-md" style={{ borderColor: 'var(--line)', background: 'color-mix(in srgb, var(--bg) 82%, transparent)' }}>
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-          <NavLink to="/" className="flex items-center gap-2 no-underline" style={{ color: 'var(--ink)' }}>
+          <NavLink to="/" className="flex items-center gap-2 no-underline" style={{ color: 'var(--ink)' }} data-guide="brand">
             <Mark />
             <div>
               <div className="display text-xl leading-none">BOOMVOY</div>
@@ -33,12 +33,13 @@ export default function Shell() {
                   cls('rounded-full px-3 py-1.5 text-sm no-underline', isActive ? 'btn-soft' : '')
                 }
                 style={{ color: 'var(--ink)' }}
+                data-guide={l.to === '/explore' ? 'nav-explore' : l.to === '/' ? 'nav-home' : undefined}
               >
                 {l.label}
               </NavLink>
             ))}
           </nav>
-          <button className="btn" onClick={() => nav('/new')}>
+          <button className="btn" onClick={() => nav('/new')} data-guide="create-trip">
             <Plus size={16} /> 创建旅行
           </button>
         </div>
@@ -57,6 +58,7 @@ export default function Shell() {
             end={l.end}
             className={({ isActive }) => cls('flex flex-col items-center gap-1 py-3 text-xs no-underline', isActive ? 'font-semibold' : '')}
             style={{ color: 'var(--ink)' }}
+            data-guide={l.to === '/explore' ? 'nav-explore' : l.to === '/' ? 'nav-home' : undefined}
           >
             <l.icon size={18} />
             {l.label}

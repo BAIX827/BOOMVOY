@@ -17,7 +17,7 @@ export default function Home() {
           <p className="text-sm" style={{ color: 'var(--muted)' }}>
             把地图、机票、天气、AA 收到一次旅行里
           </p>
-          <h1 className="display mt-1 text-4xl sm:text-5xl">我的旅行</h1>
+          <h1 className="display mt-1 text-4xl sm:text-5xl" data-guide="my-trips">我的旅行</h1>
         </div>
         <button className="btn" onClick={() => nav('/new')}>
           <Plus size={16} /> 新的一次

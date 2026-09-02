@@ -49,6 +49,12 @@ export default function Profile() {
       <button className="btn btn-ghost mt-4" onClick={resetDemo}>
         恢复示例数据（Japan 2026）
       </button>
+      <button
+        className="btn mt-3"
+        onClick={() => window.dispatchEvent(new Event('boomvoy-start-guide'))}
+      >
+        再看一遍新手引导
+      </button>
     </div>
   )
 }

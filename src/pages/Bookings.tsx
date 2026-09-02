@@ -21,8 +21,8 @@ export default function Bookings() {
       <div className="mb-5 flex items-end justify-between">
         <div>
           <h1 className="display text-4xl">预订中心</h1>
-          <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-            点比价链接会打开 Skyscanner / Google Flights（已填好航线和日期）。订完回到下面把状态改成已预订。
+          <p className="hand mt-1 text-xl" style={{ color: 'var(--muted)' }}>
+            登机牌一点就比价。订完切回来，Boom 弹出一张小条让你记。
           </p>
         </div>
         <button className="btn" onClick={() => setOpen(true)}>

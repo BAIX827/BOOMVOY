@@ -3,6 +3,7 @@
 @theme {
   --font-display: "Fraunces", "Times New Roman", serif;
   --font-sans: "Outfit", "PingFang SC", "Noto Sans SC", sans-serif;
+  --font-hand: "Caveat", "Segoe Script", cursive;
 }
 
 :root {
@@ -72,10 +73,11 @@
 html, body, #root { min-height: 100%; }
 body {
   margin: 0;
-  background:
+  background-color: var(--bg);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.17  0 0 0 0 0.14  0 0 0 0 0.11  0 0 0 0.045 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
     radial-gradient(1200px 500px at 10% -10%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 50%),
-    radial-gradient(900px 400px at 100% 0%, color-mix(in srgb, var(--accent-2) 22%, transparent), transparent 46%),
-    var(--bg);
+    radial-gradient(900px 400px at 100% 0%, color-mix(in srgb, var(--accent-2) 22%, transparent), transparent 46%);
   color: var(--ink);
 }
 
@@ -83,12 +85,16 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 button { cursor: pointer; }
 
 .display { font-family: var(--font-display); letter-spacing: -0.03em; }
+.hand { font-family: var(--font-hand); letter-spacing: 0.01em; }
 
 .paper {
-  background: var(--paper);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--paper) 92%, white), var(--paper));
   border: 1px solid var(--line);
   border-radius: 22px;
-  box-shadow: 0 10px 30px -22px color-mix(in srgb, var(--ink) 40%, transparent);
+  box-shadow:
+    0 10px 30px -22px color-mix(in srgb, var(--ink) 40%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 70%, transparent);
 }
 
 .chip {
@@ -148,6 +154,127 @@ button { cursor: pointer; }
   background-color: var(--paper);
   border: 1px dashed var(--line);
   border-radius: 18px;
+}
+
+.polaroid {
+  position: relative;
+  background: #fffdf8;
+  padding: 12px 12px 44px;
+  border-radius: 3px;
+  box-shadow:
+    0 18px 40px -24px color-mix(in srgb, var(--ink) 55%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--ink) 8%, transparent);
+}
+.polaroid .polaroid-shot { min-height: 168px; border-radius: 1px; }
+.polaroid-caption {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 10px;
+  font-family: var(--font-hand);
+  font-size: 22px;
+  line-height: 1;
+  color: var(--ink);
+}
+.washi {
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  z-index: 2;
+  width: 78px;
+  height: 18px;
+  transform: translateX(-50%) rotate(-2deg);
+  background: repeating-linear-gradient(
+    -42deg,
+    color-mix(in srgb, var(--accent) 55%, white) 0 9px,
+    color-mix(in srgb, var(--accent-2) 60%, white) 9px 18px
+  );
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--ink) 10%, transparent);
+  opacity: 0.9;
+}
+.scrap { transition: transform 0.2s ease; }
+.scrap:nth-child(odd) { transform: rotate(-1.35deg); }
+.scrap:nth-child(even) { transform: rotate(1.15deg); }
+.scrap:hover { transform: rotate(0deg) translateY(-6px); }
+
+.stamp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2.5px solid color-mix(in srgb, var(--accent) 72%, #b44);
+  color: color-mix(in srgb, var(--accent) 55%, #a33);
+  padding: 5px 9px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  transform: rotate(-12deg);
+  border-radius: 3px;
+  opacity: 0.82;
+}
+
+.pass {
+  display: grid;
+  grid-template-columns: 1fr 78px;
+  position: relative;
+  overflow: hidden;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: 0 16px 36px -24px color-mix(in srgb, var(--ink) 45%, transparent);
+}
+.pass::before,
+.pass::after {
+  content: "";
+  position: absolute;
+  left: calc(100% - 78px);
+  width: 16px;
+  height: 16px;
+  background: var(--bg);
+  border-radius: 50%;
+  z-index: 2;
+  transform: translateX(-50%);
+}
+.pass::before { top: -8px; }
+.pass::after { bottom: -8px; }
+.pass-body { padding: 16px 18px 18px; }
+.pass-stub {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ink);
+  color: var(--paper);
+  writing-mode: vertical-rl;
+  letter-spacing: 0.32em;
+  font-size: 11px;
+  font-family: var(--font-display);
+  border-left: 2px dashed color-mix(in srgb, var(--paper) 35%, transparent);
+}
+.pass-codes {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+}
+.pass-arrow {
+  font-size: 1.1rem;
+  opacity: 0.45;
+  align-self: center;
+}
+
+.keycard {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(165deg, var(--ink) 0 42%, var(--paper) 42%);
+  box-shadow: 0 14px 32px -22px color-mix(in srgb, var(--ink) 40%, transparent);
 }
 
 .leaflet-container {

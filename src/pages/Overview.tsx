@@ -4,7 +4,7 @@ import { CoverArt, Progress, Tone } from '../ui'
 import { BOOKING_STATUS, KINDS, TRANSPORT, WEATHER } from '../catalog'
 import { formatRange, money } from '../lib'
 import { bookingProgress, cityRoute, itineraryProgress, weatherAdvice } from '../domain'
-import { flightLinks, tripFlightPlan } from '../bookingLinks'
+import { flightLinks, lookupAir, tripFlightPlan } from '../bookingLinks'
 import type { Trip } from '../types'
 
 export default function Overview() {
@@ -18,13 +18,14 @@ export default function Overview() {
 
   return (
     <div className="space-y-6">
-      <div className="paper overflow-hidden">
-        <CoverArt kind={trip.cover} title={trip.name} />
-        <div className="p-6">
-          <div className="text-sm" style={{ color: 'var(--muted)' }}>
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,280px)_1fr]">
+        <CoverArt kind={trip.cover} title={trip.name} polaroid />
+        <div className="pt-2">
+          <span className="stamp">{trip.origin}</span>
+          <div className="mt-4 text-sm" style={{ color: 'var(--muted)' }}>
             {formatRange(trip.startDate, trip.endDate)}
           </div>
-          <p className="mt-2 text-lg">
+          <p className="hand mt-2 text-3xl leading-tight">
             {trip.origin} → {trip.destinations.join(' → ')}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -150,29 +151,35 @@ export default function Overview() {
 function FlightJump({ trip }: { trip: Trip }) {
   const plan = tripFlightPlan(trip)
   const links = flightLinks(plan.outbound.from, plan.outbound.to, plan.outbound.date, trip)
+  const primary = links[0]
+  const fromCode = lookupAir(plan.outbound.from)?.iata || plan.outbound.from.slice(0, 3).toUpperCase()
+  const toCode = lookupAir(plan.outbound.to)?.iata || plan.outbound.to.slice(0, 3).toUpperCase()
   return (
-    <div className="paper p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-sm" style={{ color: 'var(--muted)' }}>
-            去搜机票
+    <article className="pass">
+      <div className="pass-body">
+        <div className="flex items-start justify-between gap-3">
+          <div className="text-[11px] tracking-[0.18em]" style={{ color: 'var(--muted)' }}>
+            BOARDING · {plan.label}
           </div>
-          <div className="display mt-1 text-2xl">{plan.label}</div>
-          <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-            一点就打开已经填好航线的比价网站。订完来预订中心打勾。
-          </p>
+          <Link to={`/trip/${trip.id}/bookings`} className="text-xs no-underline" style={{ color: 'var(--muted)' }}>
+            预订中心 →
+          </Link>
         </div>
-        <Link to={`/trip/${trip.id}/bookings`} className="text-sm" style={{ color: 'var(--muted)' }}>
-          预订中心 →
-        </Link>
-      </div>
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {links.map((l) => (
-          <a key={l.name} className="btn btn-soft px-3 py-1.5 text-xs no-underline" href={l.href} target="_blank" rel="noreferrer">
-            {l.name} ↗
+        <div className="pass-codes mt-2">
+          <span>{fromCode}</span>
+          <span className="pass-arrow">→</span>
+          <span>{toCode}</span>
+        </div>
+        <p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>
+          主按钮直接打开比价。订完切回来就能记一笔。
+        </p>
+        {primary && (
+          <a className="btn mt-4 no-underline" href={primary.href} target="_blank" rel="noreferrer">
+            打开 {primary.name}
           </a>
-        ))}
+        )}
       </div>
-    </div>
+      <div className="pass-stub">FLY</div>
+    </article>
   )
 }

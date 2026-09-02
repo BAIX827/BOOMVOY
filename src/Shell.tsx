@@ -19,7 +19,7 @@ export default function Shell() {
             <div>
               <div className="display text-xl leading-none">BOOMVOY</div>
               <div className="text-[11px] tracking-wide" style={{ color: 'var(--muted)' }}>
-                Plan less. Decide better.
+                一本旅行手账
               </div>
             </div>
           </NavLink>

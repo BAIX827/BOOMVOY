@@ -17,6 +17,7 @@ import { PRIORITY, SETTING, TRANSPORT, WEATHER } from '../catalog'
 import { formatDayLong, money, nearestNeighbor } from '../lib'
 import { Label, Modal, Tone } from '../ui'
 import { activePlaces, dayDistance, outdoorRatio, suggestedSwap, weatherAdvice } from '../domain'
+import DaySuggest from '../DaySuggest'
 
 export default function Plan() {
   const { id } = useParams()
@@ -115,6 +116,15 @@ export default function Plan() {
           </div>
         )}
 
+        <DaySuggest
+          city={day.city}
+          date={day.date}
+          weather={day.weather}
+          existing={places.map((p) => p.name)}
+          onApply={(next) => next.forEach((place) => addDayPlace(trip.id, day.id, plan, place))}
+          onReplace={(next) => replacePlaces(trip.id, day.id, plan, next)}
+        />
+
         {day.transportMode === 'self-drive' && (
           <SmartStops
             city={day.city}
@@ -149,7 +159,9 @@ export default function Plan() {
             <div className="space-y-2">
               {places.length === 0 && (
                 <div className="paper p-8 text-center text-sm" style={{ color: 'var(--muted)' }}>
-                  {plan === 'B' ? '还没有雨天备选。加几个室内地点。' : '这一天还是空的。从早餐或落地开始加。'}
+                  {plan === 'B'
+                    ? '还没有雨天备选。上面有室内建议，也可以自己加。'
+                    : '这一天还是空的。上面选一套建议，一键贴进计划表。'}
                 </div>
               )}
               {places.map((place, i) => (
@@ -192,6 +204,7 @@ export default function Plan() {
         </div>
         <AddPlaceModal
           open={open}
+          city={day.city}
           onClose={() => setOpen(false)}
           onAdd={(place) => {
             addDayPlace(trip.id, day.id, plan, place)
@@ -217,7 +230,10 @@ function SortablePlace({
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: place.id })
   const style = { transform: CSS.Transform.toString(transform), transition }
   return (
-    <div ref={setNodeRef} style={style} className="paper p-4">
+    <div ref={setNodeRef} style={style} className="paper relative p-4">
+      {place.booked && (
+        <span className="stamp absolute right-10 top-3 z-10">booked</span>
+      )}
       <div className="flex items-start gap-3">
         <button className="mt-1 opacity-50" {...attributes} {...listeners} aria-label="拖动">
           <GripVertical size={16} />
@@ -263,10 +279,12 @@ function SortablePlace({
 
 function AddPlaceModal({
   open,
+  city,
   onClose,
   onAdd,
 }: {
   open: boolean
+  city: string
   onClose: () => void
   onAdd: (p: Omit<PlaceStop, 'id'>) => void
 }) {
@@ -293,6 +311,9 @@ function AddPlaceModal({
   return (
     <Modal open={open} title="添加地点" onClose={onClose}>
       <div className="space-y-3">
+        <p className="text-sm" style={{ color: 'var(--muted)' }}>
+          确定一个点之后，Boom 会按 {city} 再给几套可一键加入的一天。
+        </p>
         <input className="field" placeholder="名称，如 Meiji Shrine" value={name} onChange={(e) => setName(e.target.value)} />
         <div className="flex gap-2">
           <input className="field" placeholder="在地图上搜" value={q} onChange={(e) => setQ(e.target.value)} />

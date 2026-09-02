@@ -189,4 +189,7 @@ export interface Profile {
   homeCity: string
   homeCurrency: string
   themePref: ThemeId | 'auto'
+  llmUrl?: string
+  llmKey?: string
+  llmModel?: string
 }

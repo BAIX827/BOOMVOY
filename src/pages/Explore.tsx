@@ -11,21 +11,23 @@ export default function Explore() {
 
   return (
     <div>
-      <p className="text-sm" style={{ color: 'var(--muted)' }}>
-        不是信息流。把别人规划好的一天、一条路线，复制进自己的旅行。
+      <p className="hand text-2xl" style={{ color: 'var(--muted)' }}>
+        把别人规划好的一天，撕下来贴进自己的本子。
       </p>
       <h1 className="display mt-1 mb-8 text-4xl">发现行程</h1>
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-8 lg:grid-cols-2">
         {templates.map((t) => (
-          <article key={t.id} className="paper overflow-hidden">
-            <CoverArt kind={t.cover} title={t.name} />
-            <div className="p-5">
+          <article key={t.id} className="scrap">
+            <CoverArt kind={t.cover} title={t.name} polaroid />
+            <div className="px-2 pt-4">
               <div className="text-sm" style={{ color: 'var(--muted)' }}>
                 {formatRange(t.startDate, t.endDate)} · {t.origin} → {t.destinations.join(' → ')}
               </div>
               <p className="mt-3 text-sm leading-6">{t.notes}</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <span className="chip">{THEMES[t.theme].label} {THEMES[t.theme].name}</span>
+                <span className="chip">
+                  {THEMES[t.theme].label} {THEMES[t.theme].name}
+                </span>
                 <span className="chip">{t.days.length} 天</span>
                 <span className="chip">可整本复制</span>
               </div>

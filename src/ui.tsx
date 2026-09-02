@@ -43,7 +43,7 @@ export function Empty({ title, text, action }: { title: string; text: string; ac
   )
 }
 
-export function CoverArt({ kind, title }: { kind: string; title: string }) {
+export function CoverArt({ kind, title, polaroid }: { kind: string; title: string; polaroid?: boolean }) {
   const palettes: Record<string, string> = {
     tokyo: 'linear-gradient(145deg,#2b241d 0%,#8b4458 46%,#e8c36a 100%)',
     'ocean-road': 'linear-gradient(145deg,#1d2a1e 0%,#4f6f52 50%,#d5e0b8 100%)',
@@ -52,12 +52,12 @@ export function CoverArt({ kind, title }: { kind: string; title: string }) {
     ocean: 'linear-gradient(145deg,#3e8ebe,#d5eef3)',
     forest: 'linear-gradient(145deg,#4f6f52,#dfe8c8)',
   }
-  return (
+  const shot = (
     <div
-      className="relative overflow-hidden"
+      className={cls('relative overflow-hidden', polaroid ? 'polaroid-shot' : '')}
       style={{
         background: palettes[kind] || palettes.cream,
-        minHeight: 160,
+        minHeight: polaroid ? undefined : 160,
       }}
     >
       <svg className="absolute inset-0 h-full w-full opacity-50" viewBox="0 0 400 200" preserveAspectRatio="none">
@@ -66,9 +66,19 @@ export function CoverArt({ kind, title }: { kind: string; title: string }) {
         <circle cx="200" cy="90" r="5" fill="white" />
         <circle cx="390" cy="110" r="6" fill="white" />
       </svg>
-      <div className="absolute bottom-4 left-4 right-4 text-white">
-        <div className="display text-3xl leading-none drop-shadow">{title}</div>
-      </div>
+      {!polaroid && (
+        <div className="absolute bottom-4 left-4 right-4 text-white">
+          <div className="display text-3xl leading-none drop-shadow">{title}</div>
+        </div>
+      )}
+    </div>
+  )
+  if (!polaroid) return shot
+  return (
+    <div className="polaroid">
+      <span className="washi" aria-hidden />
+      {shot}
+      <div className="polaroid-caption">{title}</div>
     </div>
   )
 }

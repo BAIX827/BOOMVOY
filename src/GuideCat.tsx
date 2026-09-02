@@ -16,11 +16,11 @@ function pageTip(pathname: string) {
   if (pathname.includes('/explore')) return '发现页可以复制现成路线。喜欢就整趟拷进自己的旅行。'
   if (pathname.includes('/new')) return '创建只要四步：去哪、哪天、和谁、什么风格。填完会自动生成每一天。'
   if (pathname.includes('/profile')) return '这里改你的名字和本币。引导看烦了，也可以再叫我讲一遍。'
-  if (pathname.includes('/plan')) return '按天排地点。拖动可以改顺序，下雨就切到 Plan B。'
+  if (pathname.includes('/plan')) return '空的一天可以让 Boom 生成建议行程，点「一键加入计划表」就贴进去。下雨切 Plan B。'
   if (pathname.includes('/map')) return '路线图按天分色。看有没有绕路、某一天会不会走太远。'
   if (pathname.includes('/saved')) return '机票、酒店、餐厅先收藏在这，别散落在十个 App 里。'
   if (pathname.includes('/compare')) return '收藏只是开始。这里帮你比较、投票、排除，避免反复纠结。'
-  if (pathname.includes('/bookings')) return '先点 Skyscanner 或 Google Flights，页面会带上这次旅行的出发地和日期。订完回来把状态改成已预订。'
+  if (pathname.includes('/bookings')) return '登机牌上那个大按钮会打开已经填好航线的比价站。订完切回这个页，我会问你要不要记一笔。'
   if (pathname.includes('/budget')) return '每类费用分预估 / 已订 / 已付，看出还剩多少预算。'
   if (pathname.includes('/expenses')) return '谁付的记一笔，我会算 AA：谁该转给谁。'
   if (pathname.includes('/weather')) return '天气会检查当天户外多不多。雨大了会问你要不要换 Plan B。'
@@ -74,7 +74,7 @@ export default function GuideCat() {
       },
       {
         title: '最核心：按天排',
-        say: '行程页按 Day 1、Day 2 来。可以拖动排序，也能给每个点标室内 / 户外。',
+        say: '行程页按 Day 排。空的一天 Boom 会给建议，一键就能加进计划表。拖动改顺序，下雨切 Plan B。',
         route: demoId ? `${trip}/plan` : '/new',
         selector: '[data-guide="nav-plan"]',
       },

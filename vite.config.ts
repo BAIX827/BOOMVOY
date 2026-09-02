@@ -15,6 +15,13 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+    proxy: {
+      '/openai': {
+        target: 'https://api.openai.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/openai/, ''),
+      },
+    },
   },
   optimizeDeps: {
     include: ['leaflet', 'react-leaflet'],

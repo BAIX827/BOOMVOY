@@ -4,6 +4,8 @@ import { CoverArt, Progress, Tone } from '../ui'
 import { BOOKING_STATUS, KINDS, TRANSPORT, WEATHER } from '../catalog'
 import { formatRange, money } from '../lib'
 import { bookingProgress, cityRoute, itineraryProgress, weatherAdvice } from '../domain'
+import { flightLinks, tripFlightPlan } from '../bookingLinks'
+import type { Trip } from '../types'
 
 export default function Overview() {
   const { id } = useParams()
@@ -48,6 +50,8 @@ export default function Overview() {
           </p>
         </Link>
       )}
+
+      <FlightJump trip={trip} />
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="paper p-5">
@@ -138,6 +142,36 @@ export default function Overview() {
             </div>
           ))}
         </div>
+      </div>
+    </div>
+  )
+}
+
+function FlightJump({ trip }: { trip: Trip }) {
+  const plan = tripFlightPlan(trip)
+  const links = flightLinks(plan.outbound.from, plan.outbound.to, plan.outbound.date, trip)
+  return (
+    <div className="paper p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-sm" style={{ color: 'var(--muted)' }}>
+            去搜机票
+          </div>
+          <div className="display mt-1 text-2xl">{plan.label}</div>
+          <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
+            一点就打开已经填好航线的比价网站。订完来预订中心打勾。
+          </p>
+        </div>
+        <Link to={`/trip/${trip.id}/bookings`} className="text-sm" style={{ color: 'var(--muted)' }}>
+          预订中心 →
+        </Link>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {links.map((l) => (
+          <a key={l.name} className="btn btn-soft px-3 py-1.5 text-xs no-underline" href={l.href} target="_blank" rel="noreferrer">
+            {l.name} ↗
+          </a>
+        ))}
       </div>
     </div>
   )

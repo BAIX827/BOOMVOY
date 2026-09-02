@@ -20,7 +20,7 @@ function pageTip(pathname: string) {
   if (pathname.includes('/map')) return '路线图按天分色。看有没有绕路、某一天会不会走太远。'
   if (pathname.includes('/saved')) return '机票、酒店、餐厅先收藏在这，别散落在十个 App 里。'
   if (pathname.includes('/compare')) return '收藏只是开始。这里帮你比较、投票、排除，避免反复纠结。'
-  if (pathname.includes('/bookings')) return '订完回来标一下状态。第一版用外链跳去官网或 Klook。'
+  if (pathname.includes('/bookings')) return '先点 Skyscanner 或 Google Flights，页面会带上这次旅行的出发地和日期。订完回来把状态改成已预订。'
   if (pathname.includes('/budget')) return '每类费用分预估 / 已订 / 已付，看出还剩多少预算。'
   if (pathname.includes('/expenses')) return '谁付的记一笔，我会算 AA：谁该转给谁。'
   if (pathname.includes('/weather')) return '天气会检查当天户外多不多。雨大了会问你要不要换 Plan B。'

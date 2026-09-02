@@ -5,6 +5,7 @@ import { BOOKING_STATUS, KINDS } from '../catalog'
 import type { BookingStatus, SavedKind } from '../types'
 import { Label, Modal, Tone } from '../ui'
 import { money } from '../lib'
+import BookingSearch from '../BookingSearch'
 
 export default function Bookings() {
   const { id } = useParams()
@@ -21,13 +22,18 @@ export default function Bookings() {
         <div>
           <h1 className="display text-4xl">预订中心</h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-            第一版用外链跳转官网 / Klook / Skyscanner，订完回来标一下状态。
+            点比价链接会打开 Skyscanner / Google Flights（已填好航线和日期）。订完回到下面把状态改成已预订。
           </p>
         </div>
         <button className="btn" onClick={() => setOpen(true)}>
           登记一项
         </button>
       </div>
+
+      <div className="mb-6">
+        <BookingSearch trip={trip} />
+      </div>
+
       <div className="space-y-6">
         {groups.map((kind) => {
           const items = trip.bookings.filter((b) => b.kind === kind)

@@ -5,6 +5,7 @@ import { DAY_COLORS, TRANSPORT, WEATHER } from '../catalog'
 import { activePlaces, cityRoute, dayDistance } from '../domain'
 import { formatDay } from '../lib'
 import type { Coords } from '../types'
+import { mapsDayRoute } from '../geo'
 
 export default function MapPage() {
   const { id } = useParams()
@@ -90,6 +91,11 @@ export default function MapPage() {
                 <p className="mt-3 text-sm" style={{ color: 'var(--muted)' }}>
                   当天连线约 {dist.km.toFixed(1)} km，{dist.minutes} 分钟（粗估）
                 </p>
+              )}
+              {mapsDayRoute(pts) && (
+                <a className="btn mt-3 text-sm no-underline" href={mapsDayRoute(pts)} target="_blank" rel="noreferrer">
+                  在 Google 地图打开
+                </a>
               )}
             </div>
           )

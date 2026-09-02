@@ -23,7 +23,7 @@ function pageTip(pathname: string) {
   if (pathname.includes('/bookings')) return '登机牌上那个大按钮会打开已经填好航线的比价站。订完切回这个页，我会问你要不要记一笔。'
   if (pathname.includes('/budget')) return '每类费用分预估 / 已订 / 已付，看出还剩多少预算。'
   if (pathname.includes('/expenses')) return '谁付的记一笔，我会算 AA：谁该转给谁。'
-  if (pathname.includes('/weather')) return '天气会检查当天户外多不多。雨大了会问你要不要换 Plan B。'
+  if (pathname.includes('/weather')) return '天气按每天日期自动拉预报。雨大了会问你要不要换 Plan B。'
   if (pathname.includes('/group')) return '把同伴加进来，酒店可以一起投票。'
   if (pathname.includes('/notes')) return '旅行备注、Theme、分享范围都在这。'
   if (pathname.includes('/share')) return '这是分享页。复制链接就能把路线海报发给朋友。'

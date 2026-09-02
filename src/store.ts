@@ -12,6 +12,7 @@ import type {
   ThemeId,
   TransportMode,
   Trip,
+  WeatherSnap,
 } from './types'
 import { baliTrip, emptyBudget, japanTrip, oceanRoadTrip } from './data'
 import { copyJSON, eachDate, uid } from './lib'
@@ -53,6 +54,7 @@ interface AppState {
   removeExpense: (tripId: string, id: string) => void
   addGift: (tripId: string, item: Omit<GiftItem, 'id'>) => void
   updateGift: (tripId: string, id: string, patch: Partial<GiftItem>) => void
+  patchDaysWeather: (tripId: string, byKey: Record<string, WeatherSnap>, fetchedAt: string) => void
   resetDemo: () => void
 }
 
@@ -288,6 +290,17 @@ export const useApp = create<AppState>()(
           trips: patchTrip(get().trips, tripId, (t) => ({
             ...t,
             gifts: t.gifts.map((g) => (g.id === id ? { ...g, ...patch } : g)),
+          })),
+        }),
+      patchDaysWeather: (tripId, byKey, fetchedAt) =>
+        set({
+          trips: patchTrip(get().trips, tripId, (t) => ({
+            ...t,
+            weatherUpdatedAt: fetchedAt,
+            days: t.days.map((d) => {
+              const snap = byKey[`${d.date}|${d.city}`]
+              return snap ? { ...d, weather: snap } : d
+            }),
           })),
         }),
       resetDemo: () => set({ trips: seed() }),

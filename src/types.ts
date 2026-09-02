@@ -182,6 +182,7 @@ export interface Trip {
   share: { visibility: 'private' | 'friends' | 'public' }
   createdAt: string
   template?: boolean
+  weatherUpdatedAt?: string
 }
 
 export interface Profile {

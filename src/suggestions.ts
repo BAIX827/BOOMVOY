@@ -1,4 +1,5 @@
-import type { PlaceSetting, PlaceStop, WeatherSnap } from './types'
+import type { PlaceSetting, PlaceStop, TransportMode, WeatherSnap } from './types'
+import { enrichStops } from './geo'
 
 export type DaySuggestion = {
   title: string
@@ -21,7 +22,7 @@ const PACKS: Record<string, DaySuggestion[]> = {
         p({ name: '明治神宫', category: '景点', setting: 'outdoor', time: '10:00', durationMin: 90, coords: { lat: 35.6764, lng: 139.6993 } }),
         p({ name: '原宿 Takeshita', category: '购物', setting: 'mixed', time: '12:00', durationMin: 80, coords: { lat: 35.6702, lng: 139.7026 } }),
         p({ name: '涩谷十字路口', category: '景点', setting: 'outdoor', time: '14:00', durationMin: 40, coords: { lat: 35.6595, lng: 139.7004 } }),
-        p({ name: 'Shibuya Sky', category: '景点', setting: 'mixed', time: '16:00', durationMin: 80, ticketNeeded: true, coords: { lat: 35.658, lng: 139.7026 } }),
+        p({ name: 'Shibuya Sky', category: '景点', setting: 'mixed', time: '16:00', durationMin: 80, ticketNeeded: true, ticketUrl: 'https://www.klook.com/en-AU/search/?query=Shibuya%20Sky', coords: { lat: 35.658, lng: 139.7026 } }),
         p({ name: '涩谷晚饭', category: '餐饮', setting: 'indoor', time: '19:00', durationMin: 90 }),
       ],
     },
@@ -30,7 +31,7 @@ const PACKS: Record<string, DaySuggestion[]> = {
       vibe: 'TeamLab + 百货 + 博物馆',
       rainFriendly: true,
       places: [
-        p({ name: 'TeamLab Planets', category: '活动', setting: 'indoor', time: '10:00', durationMin: 150, ticketNeeded: true, coords: { lat: 35.649, lng: 139.79 } }),
+        p({ name: 'TeamLab Planets', category: '活动', setting: 'indoor', time: '10:00', durationMin: 150, ticketNeeded: true, ticketUrl: 'https://www.klook.com/en-AU/search/?query=TeamLab%20Planets', coords: { lat: 35.649, lng: 139.79 } }),
         p({ name: '涩谷 PARCO', category: '购物', setting: 'indoor', time: '14:00', durationMin: 90, coords: { lat: 35.6618, lng: 139.6983 } }),
         p({ name: '东京国立博物馆', category: '景点', setting: 'indoor', time: '16:30', durationMin: 100, coords: { lat: 35.7188, lng: 139.7765 } }),
       ],
@@ -54,7 +55,7 @@ const PACKS: Record<string, DaySuggestion[]> = {
       rainFriendly: false,
       places: [
         p({ name: '伏见稻荷大社', category: '景点', setting: 'outdoor', time: '09:00', durationMin: 120, priority: 'must', coords: { lat: 34.9671, lng: 135.7727 } }),
-        p({ name: '清水寺', category: '景点', setting: 'outdoor', time: '12:30', durationMin: 90, ticketNeeded: true, coords: { lat: 34.9949, lng: 135.785 } }),
+        p({ name: '清水寺', category: '景点', setting: 'outdoor', time: '12:30', durationMin: 90, ticketNeeded: true, ticketUrl: 'https://www.klook.com/en-AU/search/?query=Kiyomizu-dera', coords: { lat: 34.9949, lng: 135.785 } }),
         p({ name: '二年坂 / 三年坂', category: '景点', setting: 'outdoor', time: '14:30', durationMin: 60, coords: { lat: 34.9965, lng: 135.7825 } }),
         p({ name: '祇园', category: '景点', setting: 'outdoor', time: '16:30', durationMin: 70, coords: { lat: 35.0036, lng: 135.7784 } }),
       ],
@@ -64,7 +65,7 @@ const PACKS: Record<string, DaySuggestion[]> = {
       vibe: '铁道博物馆 + 锦市场 + 室内展',
       rainFriendly: true,
       places: [
-        p({ name: '京都铁道博物馆', category: '景点', setting: 'indoor', time: '09:30', durationMin: 120, ticketNeeded: true, coords: { lat: 34.9873, lng: 135.7441 } }),
+        p({ name: '京都铁道博物馆', category: '景点', setting: 'indoor', time: '09:30', durationMin: 120, ticketNeeded: true, ticketUrl: 'https://www.klook.com/en-AU/search/?query=Kyoto%20Railway%20Museum', coords: { lat: 34.9873, lng: 135.7441 } }),
         p({ name: '锦市场', category: '餐饮', setting: 'mixed', time: '12:30', durationMin: 70, coords: { lat: 35.005, lng: 135.7647 } }),
         p({ name: '京都国立博物馆', category: '景点', setting: 'indoor', time: '14:30', durationMin: 100, coords: { lat: 34.9901, lng: 135.773 } }),
       ],
@@ -77,7 +78,7 @@ const PACKS: Record<string, DaySuggestion[]> = {
         p({ name: '岚山竹林', category: '景点', setting: 'outdoor', time: '09:00', durationMin: 50, priority: 'must', coords: { lat: 35.017, lng: 135.672 } }),
         p({ name: '天龙寺', category: '景点', setting: 'outdoor', time: '10:00', durationMin: 70, coords: { lat: 35.0159, lng: 135.6736 } }),
         p({ name: '渡月桥', category: '景点', setting: 'outdoor', time: '12:00', coords: { lat: 35.0126, lng: 135.6778 } }),
-        p({ name: '金阁寺', category: '景点', setting: 'outdoor', time: '15:00', durationMin: 60, ticketNeeded: true, coords: { lat: 35.0394, lng: 135.7292 } }),
+        p({ name: '金阁寺', category: '景点', setting: 'outdoor', time: '15:00', durationMin: 60, ticketNeeded: true, ticketUrl: 'https://www.klook.com/en-AU/search/?query=Kinkakuji', coords: { lat: 35.0394, lng: 135.7292 } }),
       ],
     },
   ],
@@ -87,7 +88,7 @@ const PACKS: Record<string, DaySuggestion[]> = {
       vibe: '经典城景和夜市',
       rainFriendly: false,
       places: [
-        p({ name: '大阪城', category: '景点', setting: 'mixed', time: '11:00', durationMin: 90, ticketNeeded: true, coords: { lat: 34.6873, lng: 135.5262 } }),
+        p({ name: '大阪城', category: '景点', setting: 'mixed', time: '11:00', durationMin: 90, ticketNeeded: true, ticketUrl: 'https://www.klook.com/en-AU/search/?query=Osaka%20Castle', coords: { lat: 34.6873, lng: 135.5262 } }),
         p({ name: '心斋桥 / 道顿堀', category: '购物', setting: 'outdoor', time: '15:00', durationMin: 150, coords: { lat: 34.6687, lng: 135.5013 } }),
         p({ name: '章鱼烧晚饭', category: '餐饮', setting: 'outdoor', time: '18:30' }),
       ],
@@ -97,7 +98,7 @@ const PACKS: Record<string, DaySuggestion[]> = {
       vibe: '海游馆 + 梅田',
       rainFriendly: true,
       places: [
-        p({ name: '海游馆', category: '景点', setting: 'indoor', time: '10:30', ticketNeeded: true, coords: { lat: 34.6545, lng: 135.4289 } }),
+        p({ name: '海游馆', category: '景点', setting: 'indoor', time: '10:30', ticketNeeded: true, ticketUrl: 'https://www.klook.com/en-AU/search/?query=Osaka%20Aquarium', coords: { lat: 34.6545, lng: 135.4289 } }),
         p({ name: '梅田空中庭园', category: '景点', setting: 'indoor', time: '15:00', coords: { lat: 34.7053, lng: 135.4904 } }),
       ],
     },
@@ -110,7 +111,7 @@ const PACKS: Record<string, DaySuggestion[]> = {
       places: [
         p({ name: '忍野八海', category: '景点', setting: 'outdoor', time: '11:00', durationMin: 70, coords: { lat: 35.4606, lng: 138.8278 } }),
         p({ name: '河口湖观景', category: '景点', setting: 'outdoor', time: '14:00', durationMin: 90, priority: 'must', coords: { lat: 35.517, lng: 138.755 } }),
-        p({ name: '富士山全景缆车', category: '活动', setting: 'mixed', time: '16:00', durationMin: 60, ticketNeeded: true, coords: { lat: 35.5015, lng: 138.766 } }),
+        p({ name: '富士山全景缆车', category: '活动', setting: 'mixed', time: '16:00', durationMin: 60, ticketNeeded: true, ticketUrl: 'https://www.klook.com/en-AU/search/?query=Mt%20Fuji%20Panoramic%20Ropeway', coords: { lat: 35.5015, lng: 138.766 } }),
       ],
     },
     {
@@ -199,8 +200,12 @@ export async function suggestDays(input: {
   llmKey?: string
   llmModel?: string
 }): Promise<{ items: DaySuggestion[]; source: 'local' | 'api'; error?: string }> {
-  const local = localSuggestions(input.city, input.weather, input.existing)
-  if (!input.llmUrl || !input.llmKey) return { items: local, source: 'local' }
+  const packed = localSuggestions(input.city, input.weather, input.existing)
+  const localItems: DaySuggestion[] = []
+  for (const s of packed) {
+    localItems.push({ ...s, places: await enrichStops(input.city, s.places) })
+  }
+  if (!input.llmUrl || !input.llmKey) return { items: localItems, source: 'local' }
   try {
     const api = await fromLlm({
       city: input.city,
@@ -211,11 +216,17 @@ export async function suggestDays(input: {
       llmKey: input.llmKey,
       llmModel: input.llmModel,
     })
-    if (api.length) return { items: api, source: 'api' }
+    if (api.length) {
+      const items: DaySuggestion[] = []
+      for (const s of api) {
+        items.push({ ...s, places: await enrichStops(input.city, s.places) })
+      }
+      return { items, source: 'api' }
+    }
   } catch (err) {
-    return { items: local, source: 'local', error: err instanceof Error ? err.message : 'API 失败' }
+    return { items: localItems, source: 'local', error: err instanceof Error ? (err.message === 'Failed to fetch' ? 'OpenAI 暂时连不上，先用本地建议' : err.message) : 'API 失败' }
   }
-  return { items: local, source: 'local', error: 'API 没有返回可用行程' }
+  return { items: localItems, source: 'local', error: 'API 没有返回可用行程' }
 }
 
 async function fromLlm(input: {
@@ -235,7 +246,7 @@ async function fromLlm(input: {
       {
         role: 'system',
         content:
-          'You suggest walkable day itineraries. Reply JSON only: {"suggestions":[{"title":"","vibe":"","rainFriendly":false,"places":[{"name":"","category":"景点|餐饮|活动|购物","setting":"outdoor|indoor|mixed","time":"10:00","durationMin":60,"notes":"","ticketNeeded":false}]}]} 2 or 3 suggestions. Chinese titles ok. No markdown.',
+          'You suggest walkable day itineraries. Reply JSON only: {"suggestions":[{"title":"","vibe":"","rainFriendly":false,"places":[{"name":"","category":"景点|餐饮|活动|购物","setting":"outdoor|indoor|mixed","time":"10:00","durationMin":60,"notes":"","ticketNeeded":false,"ticketUrl":"","transportToNext":"walking|public|taxi"}]}]} 2 or 3 suggestions. Chinese titles ok. ticketNeeded true only if advance tickets are usually required; then ticketUrl should be a Klook/GetYourGuide search or official ticket page. If tickets are not needed, omit ticketUrl. Do not invent coordinates. No markdown.',
       },
       {
         role: 'user',
@@ -278,7 +289,11 @@ async function fromLlm(input: {
         time: pl.time,
         durationMin: pl.durationMin,
         notes: pl.notes,
-        ticketNeeded: pl.ticketNeeded,
+        ticketNeeded: !!pl.ticketNeeded,
+        ticketUrl: pl.ticketNeeded ? pl.ticketUrl : undefined,
+        transportToNext: (['walking', 'public', 'taxi', 'self-drive'].includes(String(pl.transportToNext))
+          ? pl.transportToNext
+          : 'public') as TransportMode,
       }),
     ),
   }))

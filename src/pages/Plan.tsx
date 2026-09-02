@@ -18,6 +18,7 @@ import { formatDayLong, money, nearestNeighbor } from '../lib'
 import { Label, Modal, Tone } from '../ui'
 import { activePlaces, dayDistance, outdoorRatio, suggestedSwap, weatherAdvice } from '../domain'
 import DaySuggest from '../DaySuggest'
+import { hopMeta, mapsDayRoute, mapsPlaceUrl } from '../geo'
 
 export default function Plan() {
   const { id } = useParams()
@@ -188,6 +189,11 @@ export default function Plan() {
           >
             Optimize · 就近排序
           </button>
+          {mapsDayRoute(places) && (
+            <a className="btn btn-ghost no-underline" href={mapsDayRoute(places)} target="_blank" rel="noreferrer">
+              打开当天路线
+            </a>
+          )}
         </div>
 
         <div>
@@ -255,6 +261,23 @@ function SortablePlace({
             {place.booked && <Tone tone="good">已订</Tone>}
             {place.cost && <span className="chip">{money(place.cost.amount, place.cost.currency)}</span>}
           </div>
+          {place.address && (
+            <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>
+              {place.address}
+            </p>
+          )}
+          <div className="mt-1 flex flex-wrap gap-2 text-xs">
+            {place.coords && (
+              <a className="underline" href={mapsPlaceUrl(place.name, place.coords)} target="_blank" rel="noreferrer">
+                地图
+              </a>
+            )}
+            {place.ticketNeeded && place.ticketUrl && (
+              <a className="underline" href={place.ticketUrl} target="_blank" rel="noreferrer">
+                订门票
+              </a>
+            )}
+          </div>
           {place.notes && (
             <p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>
               {place.notes}
@@ -262,7 +285,22 @@ function SortablePlace({
           )}
           {next && (
             <div className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>
-              ↓ {TRANSPORT[place.transportToNext || 'public'].icon} {TRANSPORT[place.transportToNext || 'public'].label}
+              {(() => {
+                const hop = hopMeta(place, next)
+                return hop ? (
+                  <>
+                    ↓ {TRANSPORT[hop.mode].icon} {TRANSPORT[hop.mode].label} · {hop.km.toFixed(1)} km / {hop.minutes} min
+                    {' · '}
+                    <a className="underline" href={hop.url} target="_blank" rel="noreferrer">
+                      路线
+                    </a>
+                  </>
+                ) : (
+                  <>
+                    ↓ {TRANSPORT[place.transportToNext || 'public'].icon} {TRANSPORT[place.transportToNext || 'public'].label}
+                  </>
+                )
+              })()}
             </div>
           )}
         </div>

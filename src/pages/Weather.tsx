@@ -1,24 +1,57 @@
+import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useApp, useTrip } from '../store'
 import { SETTING, WEATHER } from '../catalog'
 import { formatDayLong } from '../lib'
 import { activePlaces, outdoorRatio, suggestedSwap, weatherAdvice } from '../domain'
 import { Tone } from '../ui'
+import { refreshTripWeather } from '../weather'
 
 export default function Weather() {
   const { id } = useParams()
   const trip = useTrip(id)
-  const { setActivePlan, replacePlaces } = useApp()
+  const { setActivePlan, replacePlaces, patchDaysWeather } = useApp()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
   if (!trip) return null
+  const current = trip
+
+  async function refresh() {
+    setBusy(true)
+    setError('')
+    try {
+      const r = await refreshTripWeather(current, true)
+      if (r) patchDaysWeather(current.id, r.byKey, r.fetchedAt)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '天气获取失败')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="display text-4xl">天气感知</h1>
-        <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-          天气不只是 22°C。它会检查当天户外比例，并问你要不要切到 Plan B。
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="display text-4xl">天气感知</h1>
+          <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
+            按每天日期自动拉取预报。16 天以内是实时预报，更远的日期用去年同期估算。
+          </p>
+        </div>
+        <button className="btn" disabled={busy} onClick={refresh}>
+          {busy ? '更新中…' : '按日期刷新'}
+        </button>
       </div>
+      {error && (
+        <p className="text-sm" style={{ color: 'var(--warn)' }}>
+          {error}
+        </p>
+      )}
+      {trip.weatherUpdatedAt && (
+        <p className="text-xs" style={{ color: 'var(--muted)' }}>
+          上次更新 {trip.weatherUpdatedAt.replace('T', ' ').slice(0, 16)}
+        </p>
+      )}
       {trip.days.map((d, i) => {
         const places = activePlaces(d)
         const advice = weatherAdvice(d)

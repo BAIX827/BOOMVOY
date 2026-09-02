@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { useApp } from './store'
 import { uid } from './lib'
-import { SETTING } from './catalog'
+import { SETTING, TRANSPORT } from './catalog'
 import { suggestDays, type DaySuggestion } from './suggestions'
 import { resolveLlm } from './llm'
+import { hopMeta, mapsDayRoute, mapsPlaceUrl } from './geo'
 import type { PlaceStop, WeatherSnap } from './types'
 
 export default function DaySuggest({
@@ -71,7 +72,7 @@ export default function DaySuggest({
     return (
       <div className="paper p-5">
         <div className="flex items-center gap-2 text-sm">
-          <Sparkles size={16} /> Boom 正在按 {city} 想一天…
+          <Sparkles size={16} /> Boom 正在按 {city} 想一天，并补上坐标和门票…
         </div>
       </div>
     )
@@ -107,19 +108,44 @@ export default function DaySuggest({
         </div>
       )}
       <ol className="space-y-2 px-5 py-4">
-        {current.places.map((p, i) => (
-          <li key={p.name} className="flex items-start gap-3 text-sm">
-            <span className="chip mt-0.5 min-w-10 justify-center">{p.time || `${i + 1}`}</span>
-            <div className="min-w-0">
-              <div className="font-medium">{p.name}</div>
-              <div style={{ color: 'var(--muted)' }}>
-                {p.category} · {(p.setting in SETTING ? SETTING[p.setting] : { label: p.setting }).label}
-                {p.ticketNeeded ? ' · 门票' : ''}
-                {p.durationMin ? ` · ${p.durationMin} min` : ''}
+        {current.places.map((p, i) => {
+          const next = current.places[i + 1]
+          const hop = next ? hopMeta(p, next) : null
+          return (
+            <li key={p.name} className="flex items-start gap-3 text-sm">
+              <span className="chip mt-0.5 min-w-10 justify-center">{p.time || `${i + 1}`}</span>
+              <div className="min-w-0 flex-1">
+                <div className="font-medium">{p.name}</div>
+                <div style={{ color: 'var(--muted)' }}>
+                  {p.category} · {(p.setting in SETTING ? SETTING[p.setting] : { label: p.setting }).label}
+                  {p.durationMin ? ` · ${p.durationMin} min` : ''}
+                </div>
+                {p.address && <div className="mt-0.5 text-xs" style={{ color: 'var(--muted)' }}>{p.address}</div>}
+                <div className="mt-1 flex flex-wrap gap-2 text-xs">
+                  {p.coords && (
+                    <a className="underline" href={mapsPlaceUrl(p.name, p.coords)} target="_blank" rel="noreferrer">
+                      地图
+                    </a>
+                  )}
+                  {p.ticketNeeded && p.ticketUrl && (
+                    <a className="underline" href={p.ticketUrl} target="_blank" rel="noreferrer">
+                      订门票
+                    </a>
+                  )}
+                </div>
+                {hop && (
+                  <div className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>
+                    ↓ {TRANSPORT[hop.mode].icon} {TRANSPORT[hop.mode].label} · {hop.km.toFixed(1)} km / {hop.minutes} min
+                    {' · '}
+                    <a className="underline" href={hop.url} target="_blank" rel="noreferrer">
+                      路线
+                    </a>
+                  </div>
+                )}
               </div>
-            </div>
-          </li>
-        ))}
+            </li>
+          )
+        })}
       </ol>
       <div className="flex flex-wrap gap-2 px-5 pb-5">
         <button
@@ -135,6 +161,11 @@ export default function DaySuggest({
           <button className="btn btn-ghost" onClick={() => onReplace(current.places.map((p) => ({ ...p, id: uid() })))}>
             换成这一套
           </button>
+        )}
+        {mapsDayRoute(current.places) && (
+          <a className="btn btn-ghost no-underline" href={mapsDayRoute(current.places)} target="_blank" rel="noreferrer">
+            打开当天路线
+          </a>
         )}
       </div>
     </section>

@@ -16,6 +16,7 @@ import {
 import { useTrip } from './store'
 import { cls, formatRange } from './lib'
 import { Mark } from './Shell'
+import { useLiveWeather } from './weather'
 
 const items = [
   { to: '', label: '总览', icon: LayoutGrid, end: true },
@@ -35,6 +36,7 @@ export default function TripShell() {
   const { id } = useParams()
   const trip = useTrip(id)
   const nav = useNavigate()
+  useLiveWeather(trip)
 
   if (!trip) {
     return (

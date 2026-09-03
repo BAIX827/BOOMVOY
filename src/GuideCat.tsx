@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useApp } from './store'
-import boomi from './assets/boomcat_pet.png'
+import boomi from './assets/boomi.png'
 import { useT, type TFn } from './i18n'
 
 type Step = {

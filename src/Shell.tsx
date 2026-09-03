@@ -4,7 +4,7 @@ import { cls } from './lib'
 import { useT } from './i18n'
 import { LangSwitch } from './ui'
 import { useApp } from './store'
-import boomiIcon from './assets/boom_cat_icon.png'
+import boomiIcon from './assets/boomi_icon.png'
 
 export default function Shell() {
   const nav = useNavigate()

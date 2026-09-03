@@ -396,22 +396,21 @@ header.sticky {
   height: 36px;
   border-radius: 10px;
   object-fit: contain;
-  background: #fff;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent);
+  background: transparent;
 }
 
 .guide-cat {
   position: relative;
-  overflow: hidden;
-  border: 2px solid color-mix(in srgb, #e8c36a 70%, var(--line));
-  background: #fff;
+  overflow: visible;
+  border: 0;
+  background: transparent;
   width: 88px;
   height: 110px;
-  border-radius: 18px;
+  border-radius: 0;
   padding: 0;
   display: grid;
   place-items: center;
-  box-shadow: 0 12px 28px -10px color-mix(in srgb, var(--ink) 35%, transparent);
+  box-shadow: none;
 }
 .guide-cat img {
   width: 100%;
@@ -426,7 +425,7 @@ header.sticky {
   max-width: none;
   height: auto;
   margin: -16px -16px 12px;
-  background: #fff;
+  background: transparent;
   object-fit: contain;
 }
 .guide-cat-pulse {

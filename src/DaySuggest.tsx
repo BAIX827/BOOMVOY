@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { useApp } from './store'
 import { uid, formatDay } from './lib'
@@ -32,42 +32,60 @@ export default function DaySuggest({
   const [items, setItems] = useState<DaySuggestion[]>([])
   const [source, setSource] = useState<'local' | 'api'>('local')
   const [loading, setLoading] = useState(false)
+  const [asked, setAsked] = useState(false)
   const [picked, setPicked] = useState(0)
   const [error, setError] = useState('')
 
   const plannedAt = Object.fromEntries((planned || []).map((p) => [p.name.trim().toLowerCase(), p.date]))
+  const gen = useRef(0)
 
   useEffect(() => {
-    let live = true
+    gen.current += 1
+    setAsked(false)
+    setItems([])
+    setError('')
+    setPicked(0)
+    setLoading(false)
+  }, [city, date])
+
+  async function run() {
+    const id = ++gen.current
+    setAsked(true)
     setLoading(true)
     setError('')
-    suggestDays({
-      city,
-      date,
-      weather,
-      existing,
-      planned,
-      llmUrl: llm.llmUrl,
-      llmKey: llm.llmKey,
-      llmModel: llm.llmModel,
-    })
-      .then((r) => {
-        if (!live) return
-        setItems(r.items)
-        setSource(r.source)
-        setPicked(0)
-        setError(r.error ? t(`suggest.${r.error}`) : '')
+    try {
+      const r = await suggestDays({
+        city,
+        date,
+        weather,
+        existing,
+        planned,
+        llmUrl: llm.llmUrl,
+        llmKey: llm.llmKey,
+        llmModel: llm.llmModel,
       })
-      .finally(() => {
-        if (live) setLoading(false)
-      })
-    return () => {
-      live = false
+      if (id !== gen.current) return
+      setItems(r.items)
+      setSource(r.source)
+      setPicked(0)
+      setError(r.error ? t(`suggest.${r.error}`) : '')
+    } finally {
+      if (id === gen.current) setLoading(false)
     }
-  }, [city, date, weather?.rainProb, llm.llmUrl, llm.llmKey, llm.llmModel, t, existing.join('|'), JSON.stringify(planned)])
+  }
 
   const current = items[picked] || items[0]
   const fresh = (current?.places || []).filter((p) => !plannedAt[p.name.trim().toLowerCase()])
+
+  if (!asked && !loading) {
+    return (
+      <section className="paper p-5" data-guide="day-suggest">
+        <button type="button" className="btn" data-guide="recommend" onClick={() => void run()}>
+          <Sparkles size={16} /> {t('suggest.recommend')}
+        </button>
+      </section>
+    )
+  }
 
   if (loading) {
     return (
@@ -78,7 +96,20 @@ export default function DaySuggest({
       </div>
     )
   }
-  if (!current) return null
+  if (!current) {
+    return (
+      <section className="paper p-5" data-guide="day-suggest">
+        {error && (
+          <p className="mb-3 text-sm" style={{ color: 'var(--warn)' }}>
+            {error}
+          </p>
+        )}
+        <button type="button" className="btn" data-guide="recommend" onClick={() => void run()}>
+          <Sparkles size={16} /> {t('suggest.recommend')}
+        </button>
+      </section>
+    )
+  }
 
   return (
     <section className="paper overflow-hidden" data-guide="day-suggest">

@@ -380,7 +380,7 @@ header.sticky {
 .guide-dock > * { pointer-events: auto; }
 
 .guide-card {
-  width: min(320px, calc(100vw - 32px));
+  width: min(340px, calc(100vw - 32px));
   padding: 16px 16px 14px;
   animation: guide-in 0.22s ease;
   overflow: hidden;
@@ -458,4 +458,34 @@ header.sticky {
   pointer-events: none;
   transition: top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease;
   outline: 2px solid var(--accent);
+}
+
+.guide-chat {
+  max-height: 168px;
+  overflow-y: auto;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.guide-msg {
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+.guide-msg-user {
+  align-self: flex-end;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.guide-chat-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+.guide-chat-row .field {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
 }

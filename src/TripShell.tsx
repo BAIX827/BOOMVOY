@@ -21,6 +21,15 @@ import { useLiveWeather } from './weather'
 import { useT } from './i18n'
 import { LangSwitch } from './ui'
 
+const NAV_GUIDE: Record<string, string> = {
+  '': 'nav-overview',
+  plan: 'nav-plan',
+  map: 'nav-map',
+  journal: 'nav-journal',
+  compare: 'nav-compare',
+  weather: 'nav-weather',
+}
+
 export default function TripShell() {
   const { id } = useParams()
   const trip = useTrip(id)
@@ -83,7 +92,7 @@ export default function TripShell() {
                   cls('flex items-center gap-2 rounded-xl px-3 py-2 text-sm no-underline', isActive ? 'btn-soft font-medium' : '')
                 }
                 style={{ color: 'var(--ink)' }}
-                data-guide={it.to === 'plan' ? 'nav-plan' : it.to === 'map' ? 'nav-map' : it.to === 'compare' ? 'nav-compare' : it.to === 'weather' ? 'nav-weather' : it.to === '' ? 'nav-overview' : undefined}
+                data-guide={NAV_GUIDE[it.to]}
               >
                 <it.icon size={16} />
                 {it.label}
@@ -124,7 +133,7 @@ export default function TripShell() {
                   cls('flex min-w-[64px] flex-col items-center rounded-xl px-2 py-1 text-[11px] no-underline', isActive ? 'btn-soft' : '')
                 }
                 style={{ color: 'var(--ink)' }}
-                data-guide={it.to === 'plan' ? 'nav-plan' : it.to === 'map' ? 'nav-map' : it.to === 'compare' ? 'nav-compare' : it.to === 'weather' ? 'nav-weather' : it.to === '' ? 'nav-overview' : undefined}
+                data-guide={NAV_GUIDE[it.to]}
               >
                 <it.icon size={16} />
                 {it.label}

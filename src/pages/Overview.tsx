@@ -176,9 +176,6 @@ function FlightJump({ trip, t, locale }: { trip: Trip; t: TFn; locale: 'zh' | 'e
           <span className="pass-arrow">→</span>
           <span>{toCode}</span>
         </div>
-        <p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>
-          {t('overview.flyHint')}
-        </p>
         {primary && (
           <a className="btn mt-4 no-underline" href={primary.href} target="_blank" rel="noreferrer">
             {t('overview.openX', { name: primary.name })}

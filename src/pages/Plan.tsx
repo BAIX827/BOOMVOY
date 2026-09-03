@@ -143,6 +143,7 @@ export default function Plan() {
         )}
 
         <DaySuggest
+          key={`${day.city}-${day.date}`}
           city={day.city}
           date={day.date}
           weather={day.weather}
@@ -422,14 +423,14 @@ function CheckInBtn({ place, onPatch }: { place: PlaceStop; onPatch: (p: Partial
   const [feeling, setFeeling] = useState(place.feeling || '')
   if (place.checkedIn) {
     return (
-      <button className="btn btn-ghost px-2 py-1 text-xs" onClick={() => onPatch({ checkedIn: false })}>
+      <button className="btn btn-ghost px-2 py-1 text-xs" data-guide="check-in" onClick={() => onPatch({ checkedIn: false })}>
         {t('plan.uncheck')}
       </button>
     )
   }
   return (
     <>
-      <button className="btn btn-soft px-2 py-1 text-xs" onClick={() => setOpen(true)}>
+      <button className="btn btn-soft px-2 py-1 text-xs" data-guide="check-in" onClick={() => setOpen(true)}>
         <Camera size={12} /> {t('plan.checkIn')}
       </button>
       <Modal open={open} title={t('plan.checkInTitle', { name: place.name })} onClose={() => setOpen(false)}>

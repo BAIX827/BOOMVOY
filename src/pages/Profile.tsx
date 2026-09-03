@@ -18,9 +18,6 @@ export default function Profile() {
       <div className="paper mb-6 space-y-4 p-6">
         <div>
           <Label>{t('profile.language')}</Label>
-          <p className="mb-3 text-sm leading-6" style={{ color: 'var(--muted)' }}>
-            {t('profile.langHint')}
-          </p>
           <LangSwitch />
         </div>
       </div>
@@ -103,10 +100,7 @@ export default function Profile() {
           />
         </div>
       </div>
-      <p className="mt-6 text-sm leading-6" style={{ color: 'var(--muted)' }}>
-        {t('profile.accountHint')}
-      </p>
-      <button className="btn btn-ghost mt-4" onClick={resetDemo}>
+      <button className="btn btn-ghost mt-6" onClick={resetDemo}>
         {t('profile.resetDemo')}
       </button>
       <button className="btn mt-3" onClick={() => window.dispatchEvent(new Event('boomvoy-start-guide'))}>

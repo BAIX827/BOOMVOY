@@ -23,9 +23,6 @@ export default function Bookings() {
       <div className="mb-5 flex items-end justify-between">
         <div>
           <h1 className="display text-4xl">{t('book.title')}</h1>
-          <p className="hand mt-1 text-xl" style={{ color: 'var(--muted)' }}>
-            {t('book.blurb')}
-          </p>
         </div>
         <button className="btn" onClick={() => setOpen(true)}>
           {t('book.register')}

@@ -1,7 +1,9 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useApp } from './store'
 import boomi from './assets/boomi.png'
+import { matchBoomi } from './boomiChat'
+import { askBoomi, resolveLlm } from './llm'
 import { useT, type TFn } from './i18n'
 
 type Step = {
@@ -11,6 +13,8 @@ type Step = {
   selector?: string
 }
 
+type ChatMsg = { who: 'user' | 'boomi'; text: string }
+
 const SEEN_KEY = 'boomvoy-met-boom'
 
 function pageTip(pathname: string, t: TFn) {
@@ -19,6 +23,7 @@ function pageTip(pathname: string, t: TFn) {
   if (pathname.includes('/new')) return t('guide.tip.new')
   if (pathname.includes('/profile')) return t('guide.tip.profile')
   if (pathname.includes('/plan')) return t('guide.tip.plan')
+  if (pathname.includes('/journal')) return t('guide.tip.journal')
   if (pathname.includes('/map')) return t('guide.tip.map')
   if (pathname.includes('/saved')) return t('guide.tip.saved')
   if (pathname.includes('/compare')) return t('guide.tip.compare')
@@ -33,16 +38,33 @@ function pageTip(pathname: string, t: TFn) {
   return t('guide.tip.fallback')
 }
 
+function findRect(selector: string) {
+  const el = [...document.querySelectorAll(selector)].find((node) => {
+    const r = node.getBoundingClientRect()
+    return r.width > 2 && r.height > 2
+  })
+  if (!el) return null
+  const r = el.getBoundingClientRect()
+  return new DOMRect(r.x - 8, r.y - 8, r.width + 16, r.height + 16)
+}
+
 export default function GuideCat() {
   const loc = useLocation()
   const nav = useNavigate()
-  const { t } = useT()
+  const { t, locale } = useT()
   const demoId = useApp((s) => s.trips.find((tr) => !tr.template)?.id)
+  const profile = useApp((s) => s.profile)
+  const tripId = loc.pathname.match(/\/trip\/([^/]+)/)?.[1] || demoId
   const [open, setOpen] = useState(false)
   const [touring, setTouring] = useState(false)
   const [step, setStep] = useState(0)
   const [bubble, setBubble] = useState(false)
   const [hi, setHi] = useState<DOMRect | null>(null)
+  const [nudge, setNudge] = useState<DOMRect | null>(null)
+  const [draft, setDraft] = useState('')
+  const [msgs, setMsgs] = useState<ChatMsg[]>([])
+  const [busy, setBusy] = useState(false)
+  const chatEnd = useRef<HTMLDivElement>(null)
 
   const steps = useMemo<Step[]>(() => {
     const trip = demoId ? `/trip/${demoId}` : '/new'
@@ -52,10 +74,10 @@ export default function GuideCat() {
       { title: t('guide.step3t'), say: t('guide.step3s'), selector: '[data-guide="create-trip"]' },
       { title: t('guide.step4t'), say: t('guide.step4s'), route: '/explore', selector: '[data-guide="nav-explore"]' },
       { title: t('guide.step5t'), say: t('guide.step5s'), route: trip, selector: '[data-guide="trip-nav"]' },
-      { title: t('guide.step6t'), say: t('guide.step6s'), route: demoId ? `${trip}/plan` : '/new', selector: '[data-guide="nav-plan"]' },
-      { title: t('guide.step7t'), say: t('guide.step7s'), route: demoId ? `${trip}/map` : '/new', selector: '[data-guide="nav-map"]' },
-      { title: t('guide.step8t'), say: t('guide.step8s'), route: demoId ? `${trip}/compare` : '/new', selector: '[data-guide="nav-compare"]' },
-      { title: t('guide.step9t'), say: t('guide.step9s'), route: demoId ? `${trip}/weather` : '/new', selector: '[data-guide="nav-weather"]' },
+      { title: t('guide.step6t'), say: t('guide.step6s'), route: demoId ? `${trip}/plan` : '/new', selector: '[data-guide="recommend"], [data-guide="day-suggest"]' },
+      { title: t('guide.step7t'), say: t('guide.step7s'), route: demoId ? `${trip}/plan` : '/new', selector: '[data-guide="check-in"], [data-guide="nav-journal"]' },
+      { title: t('guide.step8t'), say: t('guide.step8s'), route: demoId ? `${trip}/map` : '/new', selector: '[data-guide="nav-map"]' },
+      { title: t('guide.step9t'), say: t('guide.step9s'), route: demoId ? `${trip}/bookings` : '/new', selector: '[data-guide="booking-links"]' },
       { title: t('guide.step10t'), say: t('guide.step10s'), route: '/' },
     ]
   }, [demoId, t])
@@ -79,6 +101,10 @@ export default function GuideCat() {
     return () => window.removeEventListener('boomvoy-start-guide', replay)
   }, [])
 
+  useEffect(() => {
+    chatEnd.current?.scrollIntoView({ block: 'end' })
+  }, [msgs, busy])
+
   const current = steps[step]
 
   function measure() {
@@ -86,16 +112,8 @@ export default function GuideCat() {
       setHi(null)
       return
     }
-    const el = [...document.querySelectorAll(current.selector)].find((node) => {
-      const r = node.getBoundingClientRect()
-      return r.width > 2 && r.height > 2
-    })
-    if (!el) {
-      setHi(null)
-      return
-    }
-    const r = el.getBoundingClientRect()
-    setHi(new DOMRect(r.x - 8, r.y - 8, r.width + 16, r.height + 16))
+    const first = current.selector.split(',').map((s) => s.trim()).find((s) => findRect(s))
+    setHi(first ? findRect(first) : null)
   }
 
   useLayoutEffect(() => {
@@ -146,6 +164,55 @@ export default function GuideCat() {
     setOpen((v) => !v)
   }
 
+  function pointAt(selector?: string, wait = 80) {
+    if (!selector) return
+    window.setTimeout(() => {
+      const first = selector.split(',').map((s) => s.trim()).find((s) => findRect(s))
+      const box = first ? findRect(first) : null
+      if (!box) return
+      setNudge(box)
+      window.setTimeout(() => setNudge(null), 3200)
+    }, wait)
+  }
+
+  async function send(text?: string) {
+    const q = (text ?? draft).trim()
+    if (!q || busy) return
+    setDraft('')
+    setMsgs((m) => [...m, { who: 'user', text: q }])
+    setBusy(true)
+    const hit = matchBoomi(q, tripId)
+    try {
+      if (hit) {
+        setMsgs((m) => [...m, { who: 'boomi', text: t(hit.sayKey) }])
+        if (hit.route && hit.route !== loc.pathname) {
+          nav(hit.route)
+          pointAt(hit.selector, 480)
+        } else {
+          pointAt(hit.selector, 80)
+        }
+        return
+      }
+      const llm = resolveLlm(profile)
+      if (llm.ready) {
+        const reply = await askBoomi(llm, q, locale, loc.pathname)
+        setMsgs((m) => [...m, { who: 'boomi', text: reply }])
+        return
+      }
+      setMsgs((m) => [...m, { who: 'boomi', text: t('chat.unknown') }])
+    } catch {
+      setMsgs((m) => [...m, { who: 'boomi', text: t('chat.unknown') }])
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const chips = [
+    { label: t('guide.chip.checkin'), ask: t('guide.chip.checkin') },
+    { label: t('guide.chip.suggest'), ask: t('guide.chip.suggest') },
+    { label: t('guide.chip.map'), ask: t('guide.chip.map') },
+  ]
+
   return (
     <>
       {touring && (
@@ -163,6 +230,17 @@ export default function GuideCat() {
             />
           )}
         </div>
+      )}
+      {!touring && nudge && (
+        <div
+          className="guide-spot"
+          style={{
+            top: nudge.top,
+            left: nudge.left,
+            width: nudge.width,
+            height: nudge.height,
+          }}
+        />
       )}
 
       <div className="guide-dock">
@@ -196,9 +274,45 @@ export default function GuideCat() {
             ) : open ? (
               <>
                 <div className="display text-xl">{t('guide.here')}</div>
-                <p className="mt-2 text-sm leading-6">{pageTip(loc.pathname, t)}</p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button className="btn text-sm" onClick={startTour}>
+                {msgs.length === 0 && <p className="mt-2 text-sm leading-6">{pageTip(loc.pathname, t)}</p>}
+                {msgs.length > 0 && (
+                  <div className="guide-chat">
+                    {msgs.map((m, i) => (
+                      <div key={`${m.who}-${i}`} className={m.who === 'user' ? 'guide-msg guide-msg-user' : 'guide-msg'}>
+                        {m.text}
+                      </div>
+                    ))}
+                    {busy && <div className="guide-msg" style={{ color: 'var(--muted)' }}>{t('chat.thinking')}</div>}
+                    <div ref={chatEnd} />
+                  </div>
+                )}
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {chips.map((c) => (
+                    <button key={c.label} className="chip text-xs" disabled={busy} onClick={() => void send(c.ask)}>
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+                <form
+                  className="guide-chat-row"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    void send()
+                  }}
+                >
+                  <input
+                    className="field"
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    placeholder={t('guide.placeholder')}
+                    disabled={busy}
+                  />
+                  <button className="btn px-3 py-2 text-sm" type="submit" disabled={busy || !draft.trim()}>
+                    {t('guide.send')}
+                  </button>
+                </form>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button className="btn btn-ghost text-sm" onClick={startTour}>
                     {t('guide.takeTour')}
                   </button>
                   <button className="btn btn-ghost text-sm" onClick={() => setOpen(false)}>

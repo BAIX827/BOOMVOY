@@ -69,9 +69,6 @@ export default function BookingSearch({ trip }: { trip: Trip }) {
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="display text-3xl">{t('shop.pass')}</h2>
-            <p className="hand mt-1 text-xl" style={{ color: 'var(--muted)' }}>
-              {t('shop.passHint')}
-            </p>
           </div>
           <button
             className="btn btn-ghost text-sm"
@@ -194,9 +191,6 @@ export default function BookingSearch({ trip }: { trip: Trip }) {
 
       <section className="paper p-5">
         <h2 className="display text-2xl">{t('shop.acts')}</h2>
-        <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-          {t('shop.actsHint')}
-        </p>
         <div className="mt-3 flex flex-wrap gap-4">
           {[...new Set(trip.destinations)].map((city) => (
             <div key={city}>

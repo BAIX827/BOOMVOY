@@ -1,8 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useApp } from './store'
-import boomiFace from './assets/boomi-face.jpg'
-import boomi from './assets/boomi.jpg'
+import boomi from './assets/boomcat_pet.png'
 import { useT, type TFn } from './i18n'
 
 type Step = {
@@ -240,7 +239,7 @@ export default function GuideCat() {
           onClick={onCat}
           aria-label={t('guide.ariaBtn')}
         >
-          <img src={boomiFace} alt="" />
+          <img src={boomi} alt="" />
           {!open && !touring && (
             <span className="guide-badge">{bubble ? t('guide.tap') : 'Boomi'}</span>
           )}

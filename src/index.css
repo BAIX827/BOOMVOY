@@ -391,31 +391,43 @@ header.sticky {
   to { opacity: 1; transform: none; }
 }
 
+.brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  object-fit: contain;
+  background: #fff;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
 .guide-cat {
   position: relative;
   overflow: hidden;
   border: 2px solid color-mix(in srgb, #e8c36a 70%, var(--line));
-  background: #fff6e4;
-  width: 92px;
-  height: 92px;
-  border-radius: 50%;
+  background: #fff;
+  width: 88px;
+  height: 110px;
+  border-radius: 18px;
   padding: 0;
   display: grid;
   place-items: center;
   box-shadow: 0 12px 28px -10px color-mix(in srgb, var(--ink) 35%, transparent);
 }
 .guide-cat img {
-  width: 118%;
-  height: 118%;
-  object-fit: cover;
-  object-position: 50% 12%;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
   pointer-events: none;
 }
 .guide-hero {
-  float: right;
-  width: 92px;
-  margin: -6px -8px 4px 8px;
-  border-radius: 14px;
+  display: block;
+  float: none;
+  width: calc(100% + 32px);
+  max-width: none;
+  height: auto;
+  margin: -16px -16px 12px;
+  background: #fff;
+  object-fit: contain;
 }
 .guide-cat-pulse {
   animation: cat-bob 1.6s ease-in-out infinite;

@@ -4,6 +4,7 @@ import { cls } from './lib'
 import { useT } from './i18n'
 import { LangSwitch } from './ui'
 import { useApp } from './store'
+import boomiIcon from './assets/boom_cat_icon.png'
 
 export default function Shell() {
   const nav = useNavigate()
@@ -81,12 +82,5 @@ export default function Shell() {
 }
 
 export function Mark() {
-  return (
-    <svg width="32" height="32" viewBox="0 0 32 32" aria-hidden>
-      <rect width="32" height="32" rx="9" fill="var(--accent-soft)" />
-      <path d="M6 22c4-10 8-4 10-8s6 2 10-6" fill="none" stroke="var(--accent)" strokeWidth="2.4" strokeLinecap="round" />
-      <circle cx="6" cy="22" r="2.1" fill="var(--ink)" />
-      <circle cx="26" cy="8" r="2.1" fill="var(--ink)" />
-    </svg>
-  )
+  return <img src={boomiIcon} alt="" width={36} height={36} className="brand-mark" />
 }

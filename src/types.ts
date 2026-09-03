@@ -75,6 +75,11 @@ export interface PlaceStop {
   transportToNext?: TransportMode
   coords?: Coords
   address?: string
+  socialBuzz?: string
+  checkedIn?: boolean
+  checkedInAt?: string
+  feeling?: string
+  photos?: string[]
 }
 
 export interface DayPlan {

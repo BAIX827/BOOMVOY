@@ -1,27 +1,84 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { useTrip } from '../store'
-import { DAY_COLORS, TRANSPORT, WEATHER } from '../catalog'
+import { useApp, useTrip } from '../store'
+import { DAY_COLORS, TRANSPORT } from '../catalog'
 import { activePlaces, cityRoute, dayDistance } from '../domain'
 import { formatDay } from '../lib'
-import type { Coords } from '../types'
-import { mapsDayRoute } from '../geo'
+import { ensurePlaceGeo, mapsDayRoute, mapsDirUrl, routeHop, type HopRoute } from '../geo'
+import TripMap, { type MapLine, type MapStop } from '../TripMap'
+import type { PlaceStop, TransportMode } from '../types'
 import { transportLabel, useT } from '../i18n'
+
+const HOP_MODES: TransportMode[] = ['walking', 'public', 'taxi', 'self-drive', 'cycling']
 
 export default function MapPage() {
   const { id } = useParams()
   const trip = useTrip(id)
+  const updatePlace = useApp((s) => s.updatePlace)
   const { t, locale } = useT()
   const [filter, setFilter] = useState<'all' | string>('all')
+  const [routes, setRoutes] = useState<Record<string, HopRoute>>({})
   if (!trip) return null
 
   const days = filter === 'all' ? trip.days : trip.days.filter((d) => d.id === filter)
-  const layers = days.map((d) => {
-    const pts = activePlaces(d).filter((p) => p.coords)
+
+  useEffect(() => {
+    let live = true
+    ;(async () => {
+      for (const d of trip.days) {
+        for (const p of activePlaces(d)) {
+          if (!p.coords) {
+            const g = await ensurePlaceGeo(d.city, p)
+            if (g.coords && live) updatePlace(trip.id, d.id, d.activePlan, p.id, { coords: g.coords, address: g.address })
+          }
+        }
+      }
+    })()
+    return () => {
+      live = false
+    }
+  }, [trip.id])
+
+  useEffect(() => {
+    let live = true
+    ;(async () => {
+      const next: Record<string, HopRoute> = {}
+      for (const d of days) {
+        const pts = activePlaces(d).filter((p) => p.coords)
+        for (let i = 0; i < pts.length - 1; i++) {
+          const a = pts[i]
+          const b = pts[i + 1]
+          const hop = await routeHop(a.coords!, b.coords!, a.transportToNext || 'public')
+          if (!live) return
+          next[`${a.id}-${b.id}`] = hop
+        }
+      }
+      if (live) setRoutes(next)
+    })()
+    return () => {
+      live = false
+    }
+  }, [days.map((d) => `${d.id}:${activePlaces(d).map((p) => `${p.id}:${p.transportToNext}`).join(',')}`).join('|')])
+
+  const stops: MapStop[] = days.flatMap((d) => {
     const color = DAY_COLORS[trip.days.findIndex((x) => x.id === d.id) % DAY_COLORS.length]
-    return { day: d, pts, color }
+    return activePlaces(d)
+      .filter((p) => p.coords)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        time: p.time,
+        coords: p.coords!,
+        color,
+        checkedIn: p.checkedIn,
+        feeling: p.feeling,
+      }))
   })
-  const allPts = layers.flatMap((l) => l.pts.map((p) => p.coords!))
+  const lines: MapLine[] = Object.entries(routes).map(([id, hop]) => {
+    const day = trip.days.find((d) => activePlaces(d).some((p) => id.startsWith(p.id)))
+    const color = DAY_COLORS[Math.max(0, trip.days.findIndex((x) => x.id === day?.id)) % DAY_COLORS.length]
+    return { id, color, pts: hop.geometry }
+  })
   const route = cityRoute(trip)
 
   return (
@@ -44,7 +101,7 @@ export default function MapPage() {
       </div>
 
       <div className="paper overflow-hidden p-3">
-        <RouteCanvas points={allPts} layers={layers} empty={t('map.empty')} />
+        <TripMap stops={stops} lines={lines} empty={t('map.empty')} />
       </div>
 
       {filter === 'all' ? (
@@ -64,7 +121,6 @@ export default function MapPage() {
                       stay: n.stay || t('map.stayTbd'),
                       transport: `${TRANSPORT[n.mode].icon} ${transportLabel(t, n.mode)}`,
                     })}
-                    {n.weather && ` · ${WEATHER[n.weather.condition].icon} ${n.weather.tMin}–${n.weather.tMax}°`}
                   </div>
                 </div>
               </div>
@@ -81,15 +137,23 @@ export default function MapPage() {
               <h2 className="display text-2xl">
                 {d.city} · Plan {d.activePlan}
               </h2>
-              <ol className="mt-3 space-y-2">
+              <ol className="mt-3 space-y-3">
                 {pts.map((p, i) => (
-                  <li key={p.id} className="flex gap-3 text-sm">
-                    <span className="w-12" style={{ color: 'var(--muted)' }}>
-                      {p.time || '—'}
-                    </span>
-                    <span className="flex-1">{p.name}</span>
+                  <li key={p.id} className="text-sm">
+                    <div className="flex gap-3">
+                      <span className="w-12" style={{ color: 'var(--muted)' }}>
+                        {p.time || '—'}
+                      </span>
+                      <span className="flex-1 font-medium">{p.name}</span>
+                      {p.checkedIn && <span className="chip">✓</span>}
+                    </div>
                     {pts[i + 1] && (
-                      <span style={{ color: 'var(--muted)' }}>{TRANSPORT[p.transportToNext || 'public'].icon}</span>
+                      <HopPick
+                        from={p}
+                        to={pts[i + 1]}
+                        hop={routes[`${p.id}-${pts[i + 1].id}`]}
+                        onMode={(mode) => updatePlace(trip.id, d.id, d.activePlan, p.id, { transportToNext: mode })}
+                      />
                     )}
                   </li>
                 ))}
@@ -112,61 +176,43 @@ export default function MapPage() {
   )
 }
 
-function RouteCanvas({
-  points,
-  layers,
-  empty,
+function HopPick({
+  from,
+  to,
+  hop,
+  onMode,
 }: {
-  points: Coords[]
-  layers: { color: string; pts: { id: string; name: string; time?: string; coords?: Coords }[] }[]
-  empty: string
+  from: PlaceStop
+  to: PlaceStop
+  hop?: HopRoute
+  onMode: (m: TransportMode) => void
 }) {
-  const w = 900
-  const h = 520
-  const pad = 48
-  if (!points.length) {
-    return (
-      <div className="grid h-[420px] place-items-center text-sm" style={{ color: 'var(--muted)' }}>
-        {empty}
-      </div>
-    )
-  }
-  const lats = points.map((p) => p.lat)
-  const lngs = points.map((p) => p.lng)
-  const minLat = Math.min(...lats) - 0.08
-  const maxLat = Math.max(...lats) + 0.08
-  const minLng = Math.min(...lngs) - 0.08
-  const maxLng = Math.max(...lngs) + 0.08
-  const xy = (c: Coords) => ({
-    x: pad + ((c.lng - minLng) / (maxLng - minLng || 1)) * (w - pad * 2),
-    y: pad + ((maxLat - c.lat) / (maxLat - minLat || 1)) * (h - pad * 2),
-  })
-
+  const { t } = useT()
+  const mode = from.transportToNext || 'public'
+  const url = from.coords && to.coords ? mapsDirUrl(from.coords, to.coords, mode) : ''
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="h-[min(520px,70vh)] w-full rounded-[18px]" style={{ background: 'var(--map)' }}>
-      {layers.map((l, li) => {
-        const pts = l.pts.filter((p) => p.coords).map((p) => xy(p.coords!))
-        const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
-        return (
-          <g key={li}>
-            {pts.length > 1 && <path d={d} fill="none" stroke={l.color} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />}
-            {l.pts.map((p, idx) => {
-              if (!p.coords) return null
-              const pos = xy(p.coords)
-              return (
-                <g key={p.id}>
-                  <circle cx={pos.x} cy={pos.y} r={idx === 0 || idx === l.pts.length - 1 ? 8 : 6} fill={l.color} stroke="white" strokeWidth="2" />
-                  <text x={pos.x + 10} y={pos.y - 8} fontSize="11" fill="currentColor">
-                    {p.time ? `${p.time} ` : ''}
-                    {p.name}
-                  </text>
-                </g>
-              )
-            })}
-          </g>
-        )
-      })}
-    </svg>
+    <div className="mt-2 ml-12 space-y-1">
+      <div className="flex flex-wrap gap-1">
+        {HOP_MODES.map((m) => (
+          <button key={m} className={mode === m ? 'btn px-2 py-0.5 text-[11px]' : 'btn btn-ghost px-2 py-0.5 text-[11px]'} onClick={() => onMode(m)}>
+            {TRANSPORT[m].icon} {transportLabel(t, m)}
+          </button>
+        ))}
+      </div>
+      <div className="text-xs" style={{ color: 'var(--muted)' }}>
+        {hop
+          ? t('map.hopEta', { km: hop.km.toFixed(1), min: hop.minutes })
+          : t('map.hopWait')}
+        {url && (
+          <>
+            {' · '}
+            <a className="underline" href={url} target="_blank" rel="noreferrer">
+              {t('map.google')}
+            </a>
+          </>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -178,7 +224,7 @@ function Chip({
 }: {
   active: boolean
   onClick: () => void
-  children: ReactNode
+  children: React.ReactNode
   color?: string
 }) {
   return (

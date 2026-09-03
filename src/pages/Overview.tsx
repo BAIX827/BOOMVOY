@@ -99,8 +99,8 @@ export default function Overview() {
       <div className="paper p-6">
         <div className="mb-5 flex items-center justify-between">
           <h2 className="display text-3xl">{t('overview.route')}</h2>
-          <Link to={`/trip/${trip.id}/map`} className="text-sm" style={{ color: 'var(--muted)' }}>
-            {t('overview.openMap')}
+          <Link to={`/trip/${trip.id}/journal`} className="text-sm" style={{ color: 'var(--muted)' }}>
+            {t('overview.journal')}
           </Link>
         </div>
         <ol className="relative ml-3">

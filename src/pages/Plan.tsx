@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   DndContext,
@@ -10,15 +10,15 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Plus, Sparkles, Trash2 } from 'lucide-react'
+import { Camera, GripVertical, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { useApp, useTrip } from '../store'
 import type { PlaceSetting, PlaceStop, PlanVariant, Priority, TransportMode } from '../types'
 import { TRANSPORT, WEATHER } from '../catalog'
-import { formatDayLong, money, nearestNeighbor } from '../lib'
+import { formatDayLong, money, nearestNeighbor, addMinutesToTime, compressPhoto } from '../lib'
 import { Label, Modal, Tone } from '../ui'
 import { activePlaces, dayDistance, outdoorRatio, suggestedSwap, weatherAdvice } from '../domain'
 import DaySuggest from '../DaySuggest'
-import { hopMeta, mapsDayRoute, mapsPlaceUrl } from '../geo'
+import { ensurePlaceGeo, ensurePlacesGeo, hopMeta, mapsDayRoute, mapsDirUrl, mapsPlaceUrl, routeHop, type HopRoute } from '../geo'
 import { PLACE_CATS, placeCatLabel, priorityLabel, settingLabel, transportLabel, useT } from '../i18n'
 
 export default function Plan() {
@@ -35,6 +35,29 @@ export default function Plan() {
   const advice = day ? weatherAdvice(day, t) : null
   const dist = dayDistance(places)
   const swap = day ? suggestedSwap(day) : null
+  const planned = useMemo(
+    () =>
+      (trip?.days || []).flatMap((d) =>
+        [...d.planA, ...d.planB].map((p) => ({ name: p.name, date: d.date })),
+      ),
+    [trip?.days],
+  )
+
+  useEffect(() => {
+    if (!trip || !day) return
+    let live = true
+    ;(async () => {
+      for (const p of places) {
+        if (!p.coords) {
+          const g = await ensurePlaceGeo(day.city, p)
+          if (g.coords && live) updatePlace(trip.id, day.id, day.activePlan, p.id, { coords: g.coords, address: g.address })
+        }
+      }
+    })()
+    return () => {
+      live = false
+    }
+  }, [trip?.id, day?.id, places.map((p) => p.id).join(',')])
 
   if (!trip || !day) return null
   const currentTrip = trip
@@ -124,8 +147,22 @@ export default function Plan() {
           date={day.date}
           weather={day.weather}
           existing={places.map((p) => p.name)}
-          onApply={(next) => next.forEach((place) => addDayPlace(trip.id, day.id, plan, place))}
-          onReplace={(next) => replacePlaces(trip.id, day.id, plan, next)}
+          planned={planned}
+          onApply={(next) => {
+            void ensurePlacesGeo(currentDay.city, next).then((geo) =>
+              geo.forEach((place) => addDayPlace(currentTrip.id, currentDay.id, plan, place)),
+            )
+          }}
+          onReplace={(next) => {
+            void ensurePlacesGeo(currentDay.city, next).then((geo) =>
+              replacePlaces(
+                currentTrip.id,
+                currentDay.id,
+                plan,
+                geo.map((p) => ({ ...p, id: p.id })),
+              ),
+            )
+          }}
         />
 
         {day.transportMode === 'self-drive' && (
@@ -213,8 +250,10 @@ export default function Plan() {
           city={day.city}
           onClose={() => setOpen(false)}
           onAdd={(place) => {
-            addDayPlace(trip.id, day.id, plan, place)
-            setOpen(false)
+            void ensurePlaceGeo(day.city, place).then((g) => {
+              addDayPlace(trip.id, day.id, plan, g)
+              setOpen(false)
+            })
           }}
         />
       </div>
@@ -279,40 +318,149 @@ function SortablePlace({
               </a>
             )}
           </div>
+          {place.socialBuzz && (
+            <p className="mt-1 text-xs" style={{ color: 'var(--accent)' }}>
+              {place.socialBuzz}
+            </p>
+          )}
           {place.notes && (
             <p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>
               {place.notes}
             </p>
           )}
-          {next && (
-            <div className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>
-              {(() => {
-                const hop = hopMeta(place, next)
-                return hop ? (
-                  <>
-                    ↓ {TRANSPORT[hop.mode].icon} {transportLabel(t, hop.mode)} · {hop.km.toFixed(1)} km / {hop.minutes} min
-                    {' · '}
-                    <a className="underline" href={hop.url} target="_blank" rel="noreferrer">
-                      {t('plan.routeLink')}
-                    </a>
-                  </>
-                ) : (
-                  <>
-                    ↓ {TRANSPORT[place.transportToNext || 'public'].icon} {transportLabel(t, place.transportToNext || 'public')}
-                  </>
-                )
-              })()}
+          {place.checkedIn && (
+            <div className="mt-2 text-sm">
+              <span className="chip">✓ {t('plan.checkedIn')}</span>
+              {place.feeling && <p className="mt-1 leading-6">{place.feeling}</p>}
+              {place.photos && place.photos.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {place.photos.map((src, i) => (
+                    <img key={i} src={src} alt="" className="h-16 w-16 rounded-lg object-cover" />
+                  ))}
+                </div>
+              )}
             </div>
           )}
+          {next && (
+            <PlaceHop from={place} to={next} onMode={(mode) => onPatch({ transportToNext: mode })} />
+          )}
         </div>
-        <label className="text-xs" style={{ color: 'var(--muted)' }}>
-          <input type="checkbox" checked={!!place.booked} onChange={(e) => onPatch({ booked: e.target.checked })} /> {t('plan.bookingCheck')}
-        </label>
-        <button className="opacity-50 hover:opacity-100" onClick={onRemove} aria-label={t('plan.delete')}>
-          <Trash2 size={16} />
-        </button>
+        <div className="flex flex-col items-end gap-2">
+          <CheckInBtn place={place} onPatch={onPatch} />
+          <label className="text-xs" style={{ color: 'var(--muted)' }}>
+            <input type="checkbox" checked={!!place.booked} onChange={(e) => onPatch({ booked: e.target.checked })} /> {t('plan.bookingCheck')}
+          </label>
+          <button className="opacity-50 hover:opacity-100" onClick={onRemove} aria-label={t('plan.delete')}>
+            <Trash2 size={16} />
+          </button>
+        </div>
       </div>
     </div>
+  )
+}
+
+const HOP_MODES: TransportMode[] = ['walking', 'public', 'taxi', 'self-drive', 'cycling']
+
+function PlaceHop({
+  from,
+  to,
+  onMode,
+}: {
+  from: PlaceStop
+  to: PlaceStop
+  onMode: (m: TransportMode) => void
+}) {
+  const { t } = useT()
+  const [hop, setHop] = useState<HopRoute | null>(from.coords && to.coords ? hopMeta(from, to) && {
+    mode: from.transportToNext || 'public',
+    minutes: hopMeta(from, to)!.minutes,
+    km: hopMeta(from, to)!.km,
+    geometry: [],
+    source: 'estimate' as const,
+  } : null)
+  const mode = from.transportToNext || 'public'
+  useEffect(() => {
+    if (!from.coords || !to.coords) return
+    let live = true
+    void routeHop(from.coords, to.coords, mode).then((h) => {
+      if (live) setHop(h)
+    })
+    return () => {
+      live = false
+    }
+  }, [from.coords?.lat, from.coords?.lng, to.coords?.lat, to.coords?.lng, mode])
+  const eta = addMinutesToTime(from.time, (from.durationMin || 45) + (hop?.minutes || 0))
+  const url = from.coords && to.coords ? mapsDirUrl(from.coords, to.coords, mode) : ''
+  return (
+    <div className="mt-2 space-y-1">
+      <div className="flex flex-wrap gap-1">
+        {HOP_MODES.map((m) => (
+          <button key={m} className={mode === m ? 'btn px-2 py-0.5 text-[11px]' : 'btn btn-ghost px-2 py-0.5 text-[11px]'} onClick={() => onMode(m)}>
+            {TRANSPORT[m].icon} {transportLabel(t, m)}
+          </button>
+        ))}
+      </div>
+      <div className="text-xs" style={{ color: 'var(--muted)' }}>
+        {hop ? t('plan.hopEta', { km: hop.km.toFixed(1), min: hop.minutes }) : t('plan.hopWait')}
+        {eta ? ` · ${t('plan.arrive', { time: eta })}` : ''}
+        {url && (
+          <>
+            {' · '}
+            <a className="underline" href={url} target="_blank" rel="noreferrer">
+              {t('plan.routeLink')}
+            </a>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function CheckInBtn({ place, onPatch }: { place: PlaceStop; onPatch: (p: Partial<PlaceStop>) => void }) {
+  const { t } = useT()
+  const [open, setOpen] = useState(false)
+  const [feeling, setFeeling] = useState(place.feeling || '')
+  if (place.checkedIn) {
+    return (
+      <button className="btn btn-ghost px-2 py-1 text-xs" onClick={() => onPatch({ checkedIn: false })}>
+        {t('plan.uncheck')}
+      </button>
+    )
+  }
+  return (
+    <>
+      <button className="btn btn-soft px-2 py-1 text-xs" onClick={() => setOpen(true)}>
+        <Camera size={12} /> {t('plan.checkIn')}
+      </button>
+      <Modal open={open} title={t('plan.checkInTitle', { name: place.name })} onClose={() => setOpen(false)}>
+        <div className="space-y-3">
+          <textarea className="field min-h-[90px]" placeholder={t('plan.feeling')} value={feeling} onChange={(e) => setFeeling(e.target.value)} />
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={async (e) => {
+              const files = [...(e.target.files || [])].slice(0, 3)
+              const photos = [...(place.photos || [])]
+              for (const f of files) {
+                if (photos.length >= 3) break
+                photos.push(await compressPhoto(f))
+              }
+              onPatch({ photos })
+            }}
+          />
+          <button
+            className="btn w-full"
+            onClick={() => {
+              onPatch({ checkedIn: true, checkedInAt: new Date().toISOString(), feeling })
+              setOpen(false)
+            }}
+          >
+            {t('plan.saveCheckIn')}
+          </button>
+        </div>
+      </Modal>
+    </>
   )
 }
 

@@ -119,3 +119,81 @@ export function hopMeta(a: { coords?: PlaceStop['coords']; transportToNext?: Tra
     url: mapsDirUrl(a.coords, b.coords, mode),
   }
 }
+
+export async function ensurePlaceGeo<T extends { name: string; coords?: PlaceStop['coords']; address?: string }>(
+  city: string,
+  place: T,
+): Promise<T> {
+  if (place.coords) return place
+  const g = await geocodePlace(`${place.name}, ${city}`)
+  if (!g) return place
+  return { ...place, coords: { lat: g.lat, lng: g.lng }, address: place.address || g.address }
+}
+
+export async function ensurePlacesGeo<T extends { name: string; coords?: PlaceStop['coords']; address?: string }>(
+  city: string,
+  places: T[],
+): Promise<T[]> {
+  const out: T[] = []
+  for (const place of places) out.push(await ensurePlaceGeo(city, place))
+  return out
+}
+
+export type HopRoute = {
+  mode: TransportMode
+  minutes: number
+  km: number
+  geometry: [number, number][]
+  source: 'osrm' | 'estimate'
+}
+
+const routeCache = new Map<string, HopRoute>()
+
+function osrmProfile(mode: TransportMode): 'driving' | 'walking' | 'cycling' {
+  if (mode === 'walking') return 'walking'
+  if (mode === 'cycling') return 'cycling'
+  return 'driving'
+}
+
+export async function routeHop(a: Coords, b: Coords, mode: TransportMode = 'public'): Promise<HopRoute> {
+  const key = `${mode}:${a.lat.toFixed(5)},${a.lng.toFixed(5)}:${b.lat.toFixed(5)},${b.lng.toFixed(5)}`
+  const hit = routeCache.get(key)
+  if (hit) return hit
+  const profile = osrmProfile(mode)
+  try {
+    const url = `https://router.project-osrm.org/route/v1/${profile}/${a.lng},${a.lat};${b.lng},${b.lat}?overview=simplified&geometries=geojson`
+    const res = await fetch(url)
+    if (res.ok) {
+      const data = await res.json()
+      const r = data.routes?.[0]
+      if (r) {
+        let minutes = Math.max(1, Math.round(r.duration / 60))
+        if (mode === 'public') minutes = Math.round(minutes * 1.35)
+        const hop: HopRoute = {
+          mode,
+          minutes,
+          km: Math.round((r.distance / 1000) * 10) / 10,
+          geometry: (r.geometry.coordinates as [number, number][]).map(([lng, lat]) => [lat, lng]),
+          source: 'osrm',
+        }
+        routeCache.set(key, hop)
+        return hop
+      }
+    }
+  } catch {
+    /* fall through to estimate */
+  }
+  const km = haversineKm(a, b)
+  const hop: HopRoute = {
+    mode,
+    minutes: estimateMinutes(km, mode),
+    km: Math.round(km * 10) / 10,
+    geometry: [
+      [a.lat, a.lng],
+      [b.lat, b.lng],
+    ],
+    source: 'estimate',
+  }
+  routeCache.set(key, hop)
+  return hop
+}

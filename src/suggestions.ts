@@ -19,10 +19,10 @@ const PACKS: Record<string, DaySuggestion[]> = {
       vibe: '神社 → 原宿 → 涩谷日落',
       rainFriendly: false,
       places: [
-        p({ name: '明治神宫', category: '景点', setting: 'outdoor', time: '10:00', durationMin: 90, coords: { lat: 35.6764, lng: 139.6993 } }),
-        p({ name: '原宿 Takeshita', category: '购物', setting: 'mixed', time: '12:00', durationMin: 80, coords: { lat: 35.6702, lng: 139.7026 } }),
+        p({ name: '明治神宫', category: '景点', setting: 'outdoor', time: '10:00', durationMin: 90, socialBuzz: '小红书/Instagram 常晒的东京必去神社', coords: { lat: 35.6764, lng: 139.6993 } }),
+        p({ name: '原宿 Takeshita', category: '购物', setting: 'mixed', time: '12:00', durationMin: 80, socialBuzz: '竹下通排队小吃出镜率很高', coords: { lat: 35.6702, lng: 139.7026 } }),
         p({ name: '涩谷十字路口', category: '景点', setting: 'outdoor', time: '14:00', durationMin: 40, coords: { lat: 35.6595, lng: 139.7004 } }),
-        p({ name: 'Shibuya Sky', category: '景点', setting: 'mixed', time: '16:00', durationMin: 80, ticketNeeded: true, ticketUrl: 'https://www.klook.com/en-AU/search/?query=Shibuya%20Sky', coords: { lat: 35.658, lng: 139.7026 } }),
+        p({ name: 'Shibuya Sky', category: '景点', setting: 'mixed', time: '16:00', durationMin: 80, ticketNeeded: true, ticketUrl: 'https://www.klook.com/en-AU/search/?query=Shibuya%20Sky', socialBuzz: '观景台日落是社媒高频打卡', coords: { lat: 35.658, lng: 139.7026 } }),
         p({ name: '涩谷晚饭', category: '餐饮', setting: 'indoor', time: '19:00', durationMin: 90 }),
       ],
     },
@@ -54,7 +54,7 @@ const PACKS: Record<string, DaySuggestion[]> = {
       vibe: '伏见稻荷 → 清水寺 → 祇园',
       rainFriendly: false,
       places: [
-        p({ name: '伏见稻荷大社', category: '景点', setting: 'outdoor', time: '09:00', durationMin: 120, priority: 'must', coords: { lat: 34.9671, lng: 135.7727 } }),
+        p({ name: '伏见稻荷大社', category: '景点', setting: 'outdoor', time: '09:00', durationMin: 120, priority: 'must', socialBuzz: '千本鸟居几乎每条京都攻略都会提', coords: { lat: 34.9671, lng: 135.7727 } }),
         p({ name: '清水寺', category: '景点', setting: 'outdoor', time: '12:30', durationMin: 90, ticketNeeded: true, ticketUrl: 'https://www.klook.com/en-AU/search/?query=Kiyomizu-dera', coords: { lat: 34.9949, lng: 135.785 } }),
         p({ name: '二年坂 / 三年坂', category: '景点', setting: 'outdoor', time: '14:30', durationMin: 60, coords: { lat: 34.9965, lng: 135.7825 } }),
         p({ name: '祇园', category: '景点', setting: 'outdoor', time: '16:30', durationMin: 70, coords: { lat: 35.0036, lng: 135.7784 } }),
@@ -89,7 +89,7 @@ const PACKS: Record<string, DaySuggestion[]> = {
       rainFriendly: false,
       places: [
         p({ name: '大阪城', category: '景点', setting: 'mixed', time: '11:00', durationMin: 90, ticketNeeded: true, ticketUrl: 'https://www.klook.com/en-AU/search/?query=Osaka%20Castle', coords: { lat: 34.6873, lng: 135.5262 } }),
-        p({ name: '心斋桥 / 道顿堀', category: '购物', setting: 'outdoor', time: '15:00', durationMin: 150, coords: { lat: 34.6687, lng: 135.5013 } }),
+        p({ name: '心斋桥 / 道顿堀', category: '购物', setting: 'outdoor', time: '15:00', durationMin: 150, socialBuzz: '道顿堀夜景和固力果招牌是 Ins 常客', coords: { lat: 34.6687, lng: 135.5013 } }),
         p({ name: '章鱼烧晚饭', category: '餐饮', setting: 'outdoor', time: '18:30' }),
       ],
     },
@@ -196,11 +196,13 @@ export async function suggestDays(input: {
   date?: string
   weather?: WeatherSnap
   existing?: string[]
+  planned?: { name: string; date: string }[]
   llmUrl?: string
   llmKey?: string
   llmModel?: string
 }): Promise<{ items: DaySuggestion[]; source: 'local' | 'api'; error?: 'offline' | 'failed' | 'empty' }> {
-  const packed = localSuggestions(input.city, input.weather, input.existing)
+  const already = input.planned?.map((p) => p.name) || input.existing || []
+  const packed = localSuggestions(input.city, input.weather, already)
   const localItems: DaySuggestion[] = []
   for (const s of packed) {
     localItems.push({ ...s, places: await enrichStops(input.city, s.places) })
@@ -211,7 +213,8 @@ export async function suggestDays(input: {
       city: input.city,
       date: input.date,
       weather: input.weather,
-      existing: input.existing,
+      existing: already,
+      planned: input.planned,
       llmUrl: input.llmUrl,
       llmKey: input.llmKey,
       llmModel: input.llmModel,
@@ -234,6 +237,7 @@ async function fromLlm(input: {
   date?: string
   weather?: WeatherSnap
   existing?: string[]
+  planned?: { name: string; date: string }[]
   llmUrl: string
   llmKey: string
   llmModel?: string
@@ -246,7 +250,7 @@ async function fromLlm(input: {
       {
         role: 'system',
         content:
-          'You suggest walkable day itineraries. Reply JSON only: {"suggestions":[{"title":"","vibe":"","rainFriendly":false,"places":[{"name":"","category":"景点|餐饮|活动|购物","setting":"outdoor|indoor|mixed","time":"10:00","durationMin":60,"notes":"","ticketNeeded":false,"ticketUrl":"","transportToNext":"walking|public|taxi"}]}]} 2 or 3 suggestions. Chinese titles ok. ticketNeeded true only if advance tickets are usually required; then ticketUrl should be a Klook/GetYourGuide search or official ticket page. If tickets are not needed, omit ticketUrl. Do not invent coordinates. No markdown.',
+          'You suggest walkable day itineraries. Prefer restaurants, cafes, and sights that are frequently recommended on Xiaohongshu (小红书), Instagram, and Google Maps reviews — well-known local favorites, not obscure inventions. Put a short socialBuzz like "小红书常排队" or "Instagram sunset spot" when that is why you picked it. Skip anything in alreadyHave (already on this trip). Reply JSON only: {"suggestions":[{"title":"","vibe":"","rainFriendly":false,"places":[{"name":"","category":"景点|餐饮|活动|购物","setting":"outdoor|indoor|mixed","time":"10:00","durationMin":60,"notes":"","socialBuzz":"","ticketNeeded":false,"ticketUrl":"","transportToNext":"walking|public|taxi"}]}]} 2 or 3 suggestions. Chinese titles ok. ticketNeeded true only if advance tickets are usually required; then ticketUrl should be a Klook/GetYourGuide search or official ticket page. If tickets are not needed, omit ticketUrl. Do not invent coordinates. No markdown.',
       },
       {
         role: 'user',
@@ -254,7 +258,7 @@ async function fromLlm(input: {
           city: input.city,
           date: input.date,
           weather: input.weather,
-          alreadyHave: input.existing,
+          alreadyHave: input.planned || input.existing,
         }),
       },
     ],
@@ -289,6 +293,7 @@ async function fromLlm(input: {
         time: pl.time,
         durationMin: pl.durationMin,
         notes: pl.notes,
+        socialBuzz: pl.socialBuzz,
         ticketNeeded: !!pl.ticketNeeded,
         ticketUrl: pl.ticketNeeded ? pl.ticketUrl : undefined,
         transportToNext: (['walking', 'public', 'taxi', 'self-drive'].includes(String(pl.transportToNext))

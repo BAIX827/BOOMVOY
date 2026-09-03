@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom'
 import {
   BookOpen,
+  Camera,
   CloudSun,
   Compass,
   LayoutGrid,
@@ -31,6 +32,7 @@ export default function TripShell() {
     { to: '', label: t('trip.overview'), icon: LayoutGrid, end: true },
     { to: 'plan', label: t('trip.plan'), icon: BookOpen },
     { to: 'map', label: t('trip.map'), icon: Map },
+    { to: 'journal', label: t('trip.journal'), icon: Camera },
     { to: 'saved', label: t('trip.saved'), icon: Compass },
     { to: 'compare', label: t('trip.compare'), icon: NotebookPen },
     { to: 'bookings', label: t('trip.bookings'), icon: Receipt },
@@ -113,7 +115,7 @@ export default function TripShell() {
             style={{ background: 'var(--paper)', borderColor: 'var(--line)' }}
             data-guide="trip-nav"
           >
-            {items.slice(0, 6).map((it) => (
+            {items.slice(0, 7).map((it) => (
               <NavLink
                 key={it.to}
                 end={it.end}

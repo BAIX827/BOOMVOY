@@ -347,10 +347,14 @@ header.sticky {
   box-shadow: 0 14px 32px -22px color-mix(in srgb, var(--ink) 40%, transparent);
 }
 
-.leaflet-container {
+.leaflet-container,
+.trip-leaflet {
   font-family: inherit;
   background: var(--map);
   border-radius: 22px;
+  height: min(520px, 70vh);
+  width: 100%;
+  z-index: 0;
 }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }

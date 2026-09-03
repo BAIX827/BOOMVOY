@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { useApp } from './store'
-import { uid } from './lib'
+import { uid, formatDay } from './lib'
 import { TRANSPORT } from './catalog'
 import { suggestDays, type DaySuggestion } from './suggestions'
 import { resolveLlm } from './llm'
@@ -14,6 +14,7 @@ export default function DaySuggest({
   date,
   weather,
   existing,
+  planned,
   onApply,
   onReplace,
 }: {
@@ -21,17 +22,20 @@ export default function DaySuggest({
   date?: string
   weather?: WeatherSnap
   existing: string[]
+  planned?: { name: string; date: string }[]
   onApply: (places: Omit<PlaceStop, 'id'>[]) => void
   onReplace: (places: PlaceStop[]) => void
 }) {
   const profile = useApp((s) => s.profile)
   const llm = resolveLlm(profile)
-  const { t } = useT()
+  const { t, locale } = useT()
   const [items, setItems] = useState<DaySuggestion[]>([])
   const [source, setSource] = useState<'local' | 'api'>('local')
   const [loading, setLoading] = useState(false)
   const [picked, setPicked] = useState(0)
   const [error, setError] = useState('')
+
+  const plannedAt = Object.fromEntries((planned || []).map((p) => [p.name.trim().toLowerCase(), p.date]))
 
   useEffect(() => {
     let live = true
@@ -41,7 +45,8 @@ export default function DaySuggest({
       city,
       date,
       weather,
-      existing: [],
+      existing,
+      planned,
       llmUrl: llm.llmUrl,
       llmKey: llm.llmKey,
       llmModel: llm.llmModel,
@@ -59,16 +64,10 @@ export default function DaySuggest({
     return () => {
       live = false
     }
-  }, [city, date, weather?.rainProb, llm.llmUrl, llm.llmKey, llm.llmModel, t])
+  }, [city, date, weather?.rainProb, llm.llmUrl, llm.llmKey, llm.llmModel, t, existing.join('|'), JSON.stringify(planned)])
 
-  const named = existing.map((n) => n.toLowerCase())
-  const visible = items
-    .map((s) => ({
-      ...s,
-      places: s.places.filter((p) => !named.includes(p.name.toLowerCase())),
-    }))
-    .filter((s) => s.places.length > 0)
-  const current = visible[picked] || visible[0]
+  const current = items[picked] || items[0]
+  const fresh = (current?.places || []).filter((p) => !plannedAt[p.name.trim().toLowerCase()])
 
   if (loading) {
     return (
@@ -97,12 +96,15 @@ export default function DaySuggest({
           <p className="hand mt-1 text-xl" style={{ color: 'var(--muted)' }}>
             {current.vibe}
           </p>
+          <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>
+            {t('suggest.socialHint')}
+          </p>
         </div>
         <span className="stamp">{current.rainFriendly ? 'Rain plan' : 'Clear day'}</span>
       </div>
-      {visible.length > 1 && (
+      {items.length > 1 && (
         <div className="flex flex-wrap gap-2 px-5 pt-3">
-          {visible.map((s, i) => (
+          {items.map((s, i) => (
             <button key={s.title} className={i === picked ? 'btn px-3 py-1 text-xs' : 'btn btn-ghost px-3 py-1 text-xs'} onClick={() => setPicked(i)}>
               {s.title}
             </button>
@@ -116,8 +118,9 @@ export default function DaySuggest({
           const setting = (['outdoor', 'indoor', 'mixed'] as PlaceSetting[]).includes(p.setting as PlaceSetting)
             ? (p.setting as PlaceSetting)
             : 'mixed'
+          const already = plannedAt[p.name.trim().toLowerCase()]
           return (
-            <li key={p.name} className="flex items-start gap-3 text-sm">
+            <li key={p.name} className="flex items-start gap-3 text-sm" style={{ opacity: already ? 0.55 : 1 }}>
               <span className="chip mt-0.5 min-w-10 justify-center">{p.time || `${i + 1}`}</span>
               <div className="min-w-0 flex-1">
                 <div className="font-medium">{p.name}</div>
@@ -125,6 +128,16 @@ export default function DaySuggest({
                   {placeCatLabel(t, p.category)} · {settingLabel(t, setting)}
                   {p.durationMin ? ` · ${p.durationMin} min` : ''}
                 </div>
+                {already && (
+                  <div className="mt-0.5 text-xs" style={{ color: 'var(--accent)' }}>
+                    {t('suggest.already', { date: formatDay(already, locale) })}
+                  </div>
+                )}
+                {p.socialBuzz && !already && (
+                  <div className="mt-0.5 text-xs" style={{ color: 'var(--accent)' }}>
+                    {p.socialBuzz}
+                  </div>
+                )}
                 {p.address && <div className="mt-0.5 text-xs" style={{ color: 'var(--muted)' }}>{p.address}</div>}
                 <div className="mt-1 flex flex-wrap gap-2 text-xs">
                   {p.coords && (
@@ -155,9 +168,10 @@ export default function DaySuggest({
       <div className="flex flex-wrap gap-2 px-5 pb-5">
         <button
           className="btn"
+          disabled={fresh.length === 0}
           onClick={() => {
-            onApply(current.places)
-            setPicked((n) => Math.min(n, Math.max(0, visible.length - 2)))
+            onApply(fresh)
+            setPicked((n) => Math.min(n, Math.max(0, items.length - 2)))
           }}
         >
           {t('suggest.add')}

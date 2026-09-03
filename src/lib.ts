@@ -88,6 +88,40 @@ export function estimateMinutes(km: number, mode: string) {
   return Math.max(8, Math.round((km / kph) * 60))
 }
 
+export function addMinutesToTime(time: string | undefined, minutes: number): string | undefined {
+  if (!time || !/^\d{1,2}:\d{2}$/.test(time.trim())) return undefined
+  const [h, m] = time.trim().split(':').map(Number)
+  const total = ((h * 60 + m + minutes) % 1440 + 1440) % 1440
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
+}
+
+export function compressPhoto(file: File, max = 720): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      const scale = Math.min(1, max / Math.max(img.width, img.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(img.width * scale))
+      canvas.height = Math.max(1, Math.round(img.height * scale))
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        URL.revokeObjectURL(url)
+        reject(new Error('canvas'))
+        return
+      }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      URL.revokeObjectURL(url)
+      resolve(canvas.toDataURL('image/jpeg', 0.72))
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('image'))
+    }
+    img.src = url
+  })
+}
+
 export function nearestNeighbor<T extends { coords?: { lat: number; lng: number } }>(items: T[]): T[] {
   if (items.length < 3) return items
   const withCoords = items.filter((i) => i.coords)

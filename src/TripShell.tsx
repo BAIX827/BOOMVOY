@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom'
 import {
   BookOpen,
+  Briefcase,
   Camera,
   CloudSun,
   Compass,
@@ -24,6 +25,7 @@ import { LangSwitch } from './ui'
 const NAV_GUIDE: Record<string, string> = {
   '': 'nav-overview',
   plan: 'nav-plan',
+  pack: 'nav-pack',
   map: 'nav-map',
   journal: 'nav-journal',
   compare: 'nav-compare',
@@ -42,6 +44,7 @@ export default function TripShell() {
     { to: 'plan', label: t('trip.plan'), icon: BookOpen },
     { to: 'map', label: t('trip.map'), icon: Map },
     { to: 'journal', label: t('trip.journal'), icon: Camera },
+    { to: 'pack', label: t('trip.pack'), icon: Briefcase },
     { to: 'saved', label: t('trip.saved'), icon: Compass },
     { to: 'compare', label: t('trip.compare'), icon: NotebookPen },
     { to: 'bookings', label: t('trip.bookings'), icon: Receipt },

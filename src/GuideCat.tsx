@@ -24,6 +24,7 @@ function pageTip(pathname: string, t: TFn) {
   if (pathname.includes('/profile')) return t('guide.tip.profile')
   if (pathname.includes('/plan')) return t('guide.tip.plan')
   if (pathname.includes('/journal')) return t('guide.tip.journal')
+  if (pathname.includes('/pack')) return t('guide.tip.pack')
   if (pathname.includes('/map')) return t('guide.tip.map')
   if (pathname.includes('/saved')) return t('guide.tip.saved')
   if (pathname.includes('/compare')) return t('guide.tip.compare')

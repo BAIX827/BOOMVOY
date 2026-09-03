@@ -163,6 +163,30 @@ export interface GiftItem {
   status: 'need' | 'bought' | 'packed'
 }
 
+export type PackPhase = 'out' | 'back'
+export type PackGroupBy = 'category' | 'bag'
+export type PackCategory = 'docs' | 'money' | 'keys' | 'tech' | 'clothes' | 'toiletries' | 'health' | 'other'
+export type PackBag = 'suitcase' | 'carryon' | 'personal'
+
+export interface PackItem {
+  id: string
+  name: string
+  catalogId?: string
+  category: PackCategory
+  bag: PackBag
+  qty: number
+  packedOut: boolean
+  packedBack: boolean
+  suggested?: boolean
+}
+
+export interface PackingState {
+  phase: PackPhase
+  groupBy: PackGroupBy
+  dismissed: string[]
+  items: PackItem[]
+}
+
 export interface Trip {
   id: string
   name: string
@@ -185,6 +209,7 @@ export interface Trip {
   budget: BudgetCategory[]
   expenses: Expense[]
   gifts: GiftItem[]
+  packing?: PackingState
   notes: string
   share: { visibility: 'private' | 'friends' | 'public' }
   createdAt: string

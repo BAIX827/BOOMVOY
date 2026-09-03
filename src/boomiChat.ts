@@ -41,6 +41,13 @@ export function matchBoomi(q: string, tripId?: string): BoomiHit | null {
       selector: '[data-guide="create-trip"]',
     }
   }
+  if (/行李|打包|托运|packing|suitcase|随身包|行李清单|带什么/.test(s)) {
+    return {
+      sayKey: 'chat.pack',
+      route: trip ? `${trip}/pack` : undefined,
+      selector: '[data-guide="pack-list"]',
+    }
+  }
   if (/预订|机票|酒店|门票|比价|book|flight|hotel|ticket/.test(s)) {
     return {
       sayKey: 'chat.booking',

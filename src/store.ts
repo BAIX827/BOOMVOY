@@ -15,6 +15,7 @@ import type {
   WeatherSnap,
 } from './types'
 import { baliTrip, emptyBudget, japanTrip, oceanRoadTrip } from './data'
+import { emptyPacking } from './packing'
 import { copyJSON, eachDate, uid } from './lib'
 
 interface AppState {
@@ -131,6 +132,7 @@ export const useApp = create<AppState>()(
           budget: emptyBudget(draft.budgetPerPerson * draft.travellers),
           expenses: [],
           gifts: [],
+          packing: emptyPacking({ days } as Trip),
           notes: '',
           share: { visibility: 'private' },
           createdAt: new Date().toISOString().slice(0, 10),
@@ -156,6 +158,12 @@ export const useApp = create<AppState>()(
           planA: d.planA.map(remap),
           planB: d.planB.map(remap),
         }))
+        if (copy.packing) {
+          copy.packing = {
+            ...copy.packing,
+            items: copy.packing.items.map((it) => ({ ...it, id: uid() })),
+          }
+        }
         set({ trips: [copy, ...get().trips] })
         return copy.id
       },

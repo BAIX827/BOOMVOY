@@ -18,6 +18,7 @@ import Weather from './pages/Weather'
 import Group from './pages/Group'
 import Notes from './pages/Notes'
 import Journal from './pages/Journal'
+import Pack from './pages/Pack'
 import Share from './pages/Share'
 import GuideCat from './GuideCat'
 import { useT } from './i18n'
@@ -67,6 +68,7 @@ export default function App() {
           <Route path="group" element={<Group />} />
           <Route path="notes" element={<Notes />} />
           <Route path="journal" element={<Journal />} />
+          <Route path="pack" element={<Pack />} />
         </Route>
         <Route path="/share/:id" element={<Share />} />
         <Route path="*" element={<Navigate to="/" replace />} />

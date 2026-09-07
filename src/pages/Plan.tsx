@@ -18,13 +18,13 @@ import { formatDayLong, money, nearestNeighbor, addMinutesToTime, compressPhoto 
 import { Label, Modal, Tone } from '../ui'
 import { activePlaces, dayDistance, outdoorRatio, suggestedSwap, weatherAdvice } from '../domain'
 import DaySuggest from '../DaySuggest'
-import { ensurePlaceGeo, ensurePlacesGeo, hopMeta, mapsDayRoute, mapsDirUrl, mapsPlaceUrl, routeHop, type HopRoute } from '../geo'
+import { ensurePlaceGeo, hopMeta, mapsDayRoute, mapsDirUrl, mapsPlaceUrl, routeHop, type HopRoute } from '../geo'
 import { PLACE_CATS, placeCatLabel, priorityLabel, settingLabel, transportLabel, useT } from '../i18n'
 
 export default function Plan() {
   const { id } = useParams()
   const trip = useTrip(id)
-  const { addDayPlace, removePlace, reorderPlaces, setActivePlan, updatePlace, updateTrip, replacePlaces } = useApp()
+  const { addDayPlace, removePlace, reorderPlaces, setActivePlan, updatePlace, updateTrip, replacePlaces, applyRecommendation, undoRecommendation } = useApp()
   const { t, locale } = useT()
   const [dayId, setDayId] = useState(trip?.days[0]?.id)
   const [open, setOpen] = useState(false)
@@ -37,10 +37,10 @@ export default function Plan() {
   const swap = day ? suggestedSwap(day) : null
   const planned = useMemo(
     () =>
-      (trip?.days || []).flatMap((d) =>
-        [...d.planA, ...d.planB].map((p) => ({ name: p.name, date: d.date })),
+      (trip?.days || []).filter((d) => d.id !== day?.id).flatMap((d) =>
+        activePlaces(d).map((p) => ({ name: p.name, date: d.date, city: d.city, coords: p.coords })),
       ),
-    [trip?.days],
+    [trip?.days, day?.id],
   )
 
   useEffect(() => {
@@ -48,7 +48,7 @@ export default function Plan() {
     let live = true
     ;(async () => {
       for (const p of places) {
-        if (!p.coords) {
+        if (!p.coords && !p.locationPending) {
           const g = await ensurePlaceGeo(day.city, p)
           if (g.coords && live) updatePlace(trip.id, day.id, day.activePlan, p.id, { coords: g.coords, address: g.address })
         }
@@ -143,27 +143,16 @@ export default function Plan() {
         )}
 
         <DaySuggest
-          key={`${day.city}-${day.date}`}
+          key={`${trip.id}-${day.id}-${plan}-${locale}`}
           city={day.city}
           date={day.date}
           weather={day.weather}
-          existing={places.map((p) => p.name)}
+          existing={places}
+          plan={plan}
+          transportMode={day.transportMode}
           planned={planned}
-          onApply={(next) => {
-            void ensurePlacesGeo(currentDay.city, next).then((geo) =>
-              geo.forEach((place) => addDayPlace(currentTrip.id, currentDay.id, plan, place)),
-            )
-          }}
-          onReplace={(next) => {
-            void ensurePlacesGeo(currentDay.city, next).then((geo) =>
-              replacePlaces(
-                currentTrip.id,
-                currentDay.id,
-                plan,
-                geo.map((p) => ({ ...p, id: p.id })),
-              ),
-            )
-          }}
+          onApply={(next, mode, expected) => applyRecommendation(trip.id, day.id, plan, mode, next, expected)}
+          onUndo={(undo) => undoRecommendation(trip.id, day.id, plan, undo)}
         />
 
         {day.transportMode === 'self-drive' && (
@@ -207,6 +196,7 @@ export default function Plan() {
                 <SortablePlace
                   key={place.id}
                   place={place}
+                  city={day.city}
                   next={places[i + 1]}
                   onRemove={() => removePlace(trip.id, day.id, plan, place.id)}
                   onPatch={(patch) => updatePlace(trip.id, day.id, plan, place.id, patch)}
@@ -264,11 +254,13 @@ export default function Plan() {
 
 function SortablePlace({
   place,
+  city,
   next,
   onRemove,
   onPatch,
 }: {
   place: PlaceStop
+  city: string
   next?: PlaceStop
   onRemove: () => void
   onPatch: (p: Partial<PlaceStop>) => void
@@ -311,6 +303,11 @@ function SortablePlace({
             {place.coords && (
               <a className="underline" href={mapsPlaceUrl(place.name, place.coords)} target="_blank" rel="noreferrer">
                 {t('plan.mapLink')}
+              </a>
+            )}
+            {!place.coords && place.locationPending && (
+              <a className="underline" href={mapsPlaceUrl(`${place.name} ${city}`)} target="_blank" rel="noreferrer">
+                {t('suggest.confirmLocation')}
               </a>
             )}
             {place.ticketNeeded && place.ticketUrl && (

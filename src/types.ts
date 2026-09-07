@@ -61,6 +61,8 @@ export interface WeatherSnap {
 
 export interface PlaceStop {
   id: string
+  /** Recommendation lookup could not confirm this location; require user review. */
+  locationPending?: boolean
   name: string
   category: string
   setting: PlaceSetting

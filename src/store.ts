@@ -18,6 +18,7 @@ import type {
 import { baliTrip, emptyBudget, japanTrip, oceanRoadTrip } from './data'
 import { emptyPacking } from './packing'
 import { cityForDay, copyJSON, eachDate, uid } from './lib'
+import { hasTravelRecord, planFingerprint, prepareRecommendation, type RecommendationApplyResult, type RecommendationMode, type RecommendationUndo } from './recommendationApplication'
 
 interface AppState {
   profile: Profile
@@ -47,6 +48,8 @@ interface AppState {
   reorderPlaces: (tripId: string, dayId: string, plan: PlanVariant, ids: string[]) => void
   setActivePlan: (tripId: string, dayId: string, plan: PlanVariant) => void
   replacePlaces: (tripId: string, dayId: string, plan: PlanVariant, places: PlaceStop[]) => void
+  applyRecommendation: (tripId: string, dayId: string, plan: PlanVariant, mode: RecommendationMode, places: Omit<PlaceStop, 'id'>[], expected: string) => RecommendationApplyResult
+  undoRecommendation: (tripId: string, dayId: string, plan: PlanVariant, undo: RecommendationUndo) => boolean
   addSaved: (tripId: string, item: Omit<SavedItem, 'id' | 'votes'>) => void
   updateSaved: (tripId: string, itemId: string, patch: Partial<SavedItem>) => void
   removeSaved: (tripId: string, itemId: string) => void
@@ -235,6 +238,27 @@ export const useApp = create<AppState>()(
             patchDay(t, dayId, (d) => ({ ...d, [plan === 'A' ? 'planA' : 'planB']: places })),
           ),
         }),
+      applyRecommendation: (tripId, dayId, plan, mode, places, expected) => {
+        const trip = get().trips.find((item) => item.id === tripId)
+        const day = trip?.days.find((item) => item.id === dayId)
+        const key = plan === 'A' ? 'planA' : 'planB'
+        if (!day || day.activePlan !== plan || planFingerprint(day[key]) !== expected) return { ok: false, reason: 'changed' }
+        if (mode === 'replace' && hasTravelRecord(day[key])) return { ok: false, reason: 'protected' }
+        if (!places.length) return { ok: false, reason: 'empty' }
+        const next = prepareRecommendation(day[key], places, mode)
+        const count = mode === 'append' ? next.length - day[key].length : next.length
+        if (!count) return { ok: false, reason: 'empty' }
+        const undo = { before: day[key], after: planFingerprint(next) }
+        set({ trips: patchTrip(get().trips, tripId, (t) => patchDay(t, dayId, (d) => ({ ...d, [key]: next }))) })
+        return { ok: true, count, undo }
+      },
+      undoRecommendation: (tripId, dayId, plan, undo) => {
+        const day = get().trips.find((item) => item.id === tripId)?.days.find((item) => item.id === dayId)
+        const key = plan === 'A' ? 'planA' : 'planB'
+        if (!day || day.activePlan !== plan || planFingerprint(day[key]) !== undo.after) return false
+        set({ trips: patchTrip(get().trips, tripId, (t) => patchDay(t, dayId, (d) => ({ ...d, [key]: undo.before }))) })
+        return true
+      },
       addSaved: (tripId, item) =>
         set({
           trips: patchTrip(get().trips, tripId, (t) => ({

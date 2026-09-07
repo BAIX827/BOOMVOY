@@ -23,6 +23,7 @@ import { Mark } from './Shell'
 import { useLiveWeather } from './weather'
 import { useT } from './i18n'
 import { LangSwitch } from './ui'
+import { ThemeAtmosphere } from './ThemeDecor'
 
 const NAV_GUIDE: Record<string, string> = {
   '': 'nav-overview',
@@ -76,8 +77,9 @@ export default function TripShell() {
   }
 
   return (
-    <div className={`theme-${trip.theme} min-h-screen`}>
-      <div className="mx-auto flex max-w-[1400px]">
+    <div className={`theme-${trip.theme} relative isolate min-h-screen overflow-x-clip`}>
+      <ThemeAtmosphere theme={trip.theme} />
+      <div className="relative z-10 mx-auto flex max-w-[1400px]">
         <aside className="sticky top-0 hidden h-screen w-[230px] shrink-0 flex-col border-r p-4 lg:flex" style={{ borderColor: 'var(--line)' }}>
           <button className="mb-6 flex items-center gap-2 text-left" onClick={() => nav('/')} data-guide="brand">
             <Mark />

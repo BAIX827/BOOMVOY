@@ -17,12 +17,7 @@ export default function Budget() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="display text-4xl">{t('budget.title')}</h1>
-        <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-          {t('budget.blurb', { currency: trip.homeCurrency })}
-        </p>
-      </div>
+      <h1 className="display text-4xl">{t('budget.title')}</h1>
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label={t('budget.est')} value={money(tot.estimated, trip.homeCurrency)} />
         <Stat label={t('budget.booked')} value={money(tot.booked, trip.homeCurrency)} />

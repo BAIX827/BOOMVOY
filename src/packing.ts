@@ -38,7 +38,7 @@ const RETURN_SEEDS: Seed[] = [
   { catalogId: 'hotelCharger', category: 'tech', bag: 'personal', qty: 1, suggested: true },
 ]
 
-export function tripNights(trip: Trip) {
+export function tripDays(trip: Trip) {
   return Math.max(1, trip.days.length)
 }
 
@@ -78,22 +78,25 @@ function toItem(s: Seed): PackItem {
 }
 
 export function clothingSeeds(trip: Trip): Seed[] {
-  const n = tripNights(trip)
+  const n = tripDays(trip)
   const w = weatherRange(trip)
+  const laundryWindow = Math.min(n, 7)
+  const warmDays = trip.days.filter((day) => day.weather.tMax >= 20).length || n
+  const coolDays = trip.days.filter((day) => day.weather.tMin <= 18).length
   const out: Seed[] = [
-    { catalogId: 'underwear', category: 'clothes', bag: 'suitcase', qty: n + 1, suggested: true },
-    { catalogId: 'socks', category: 'clothes', bag: 'suitcase', qty: n + 1, suggested: true },
-    { catalogId: 'pants', category: 'clothes', bag: 'suitcase', qty: Math.max(2, Math.ceil(n * 0.5)), suggested: true },
+    { catalogId: 'underwear', category: 'clothes', bag: 'suitcase', qty: Math.min(n + 1, 8), suggested: true },
+    { catalogId: 'socks', category: 'clothes', bag: 'suitcase', qty: Math.min(n + 1, 8), suggested: true },
+    { catalogId: 'pants', category: 'clothes', bag: 'suitcase', qty: Math.min(3, Math.max(1, Math.ceil(n / 3))), suggested: true },
   ]
-  if (w.tMax >= 20) {
-    out.push({ catalogId: 'tees', category: 'clothes', bag: 'suitcase', qty: Math.max(2, Math.ceil(n * 0.7)), suggested: true })
+  if (warmDays > 0) {
+    out.push({ catalogId: 'tees', category: 'clothes', bag: 'suitcase', qty: Math.min(warmDays, laundryWindow), suggested: true })
   }
-  if (w.tMin <= 18) {
+  if (coolDays > 0) {
     out.push({
       catalogId: 'longSleeve',
       category: 'clothes',
       bag: 'suitcase',
-      qty: Math.max(1, Math.ceil(n * (w.tMin <= 12 ? 0.8 : 0.5))),
+      qty: Math.min(3, Math.max(1, Math.ceil(coolDays / (w.tMin <= 12 ? 1.5 : 2)))),
       suggested: true,
     })
   }
@@ -136,7 +139,7 @@ export function emptyPacking(trip: Trip): PackingState {
   }
 }
 
-export function applyWeather(trip: Trip, packing: PackingState): PackingState {
+export function applyPackingSuggestions(trip: Trip, packing: PackingState): PackingState {
   return mergeSeeds(packing, clothingSeeds(trip))
 }
 

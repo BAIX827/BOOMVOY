@@ -784,12 +784,6 @@ export function japanTrip(): Trip {
         title: '去程机票',
         itemIds: ['sv-f1', 'sv-f2'],
       },
-      {
-        id: 'cmp-hotel-osa',
-        kind: 'hotel',
-        title: '大阪住哪',
-        itemIds: ['sv-h4'],
-      },
     ],
     bookings: [
       {
@@ -1036,61 +1030,4 @@ function BUDGET_EMPTY(total: number) {
 
 export function emptyBudget(total: number) {
   return BUDGET_EMPTY(total)
-}
-
-export function baliTrip(): Trip {
-  return {
-    id: 'template-bali',
-    name: 'Bali Slow Week',
-    origin: 'Melbourne',
-    destinations: ['Canggu', 'Ubud'],
-    startDate: '2026-05-10',
-    endDate: '2026-05-17',
-    travellers: 2,
-    members: [{ id: 'm-a', name: 'You', role: 'owner', color: '#3E8EBE' }],
-    budgetPerPerson: 2200,
-    totalBudget: 4400,
-    homeCurrency: 'AUD',
-    theme: 'ocean',
-    cover: 'bali',
-    transportModes: ['taxi', 'walking'],
-    template: true,
-    days: [
-      {
-        id: uid(),
-        date: '2026-05-10',
-        city: 'Canggu',
-        stay: 'Echo Beach',
-        transportMode: 'taxi',
-        weather: w('sunny', 24, 31, 20),
-        activePlan: 'A',
-        planA: [
-          p({
-            name: 'Echo Beach 日落',
-            category: '景点',
-            setting: 'outdoor',
-            time: '17:30',
-            coords: { lat: -8.655, lng: 115.135 },
-          }),
-        ],
-        planB: [
-          p({
-            name: '咖啡馆躲雷阵雨',
-            category: '餐饮',
-            setting: 'indoor',
-            time: '16:00',
-          }),
-        ],
-      },
-    ],
-    saved: [],
-    compares: [],
-    bookings: [],
-    budget: BUDGET_EMPTY(4400),
-    expenses: [],
-    gifts: [],
-    notes: '慢节奏。下午雷阵雨几乎天天有，户外活动尽量上午。',
-    share: { visibility: 'public' },
-    createdAt: '2026-01-01',
-  }
 }

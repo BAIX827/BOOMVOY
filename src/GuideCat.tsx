@@ -78,6 +78,7 @@ export default function GuideCat() {
       { title: t('guide.step6t'), say: t('guide.step6s'), route: demoId ? `${trip}/plan` : '/new', selector: '[data-guide="recommend"], [data-guide="day-suggest"]' },
       { title: t('guide.step7t'), say: t('guide.step7s'), route: demoId ? `${trip}/plan` : '/new', selector: '[data-guide="check-in"], [data-guide="nav-journal"]' },
       { title: t('guide.step8t'), say: t('guide.step8s'), route: demoId ? `${trip}/map` : '/new', selector: '[data-guide="nav-map"]' },
+      { title: t('guide.stepPackt'), say: t('guide.stepPacks'), route: demoId ? `${trip}/pack` : '/new', selector: '[data-guide="pack-list"]' },
       { title: t('guide.step9t'), say: t('guide.step9s'), route: demoId ? `${trip}/bookings` : '/new', selector: '[data-guide="booking-links"]' },
       { title: t('guide.step10t'), say: t('guide.step10s'), route: '/' },
     ]

@@ -7,12 +7,12 @@ import {
   PACK_BAGS,
   PACK_CATS,
   FLIGHT_TIPS,
+  applyPackingSuggestions,
   applyReturnExtras,
-  applyWeather,
   customPackItem,
   emptyPacking,
+  tripDays,
   tripFlies,
-  tripNights,
   weatherRange,
 } from '../packing'
 import { Label } from '../ui'
@@ -82,7 +82,7 @@ export default function Pack() {
   const done = list.items.filter((it) => it[packedKey]).length
   const leftBehind = list.items.filter((it) => it.packedOut && !it.packedBack).length
   const wx = weatherRange(currentTrip)
-  const nights = tripNights(currentTrip)
+  const days = tripDays(currentTrip)
   const flies = tripFlies(currentTrip)
 
   return (
@@ -132,10 +132,11 @@ export default function Pack() {
 
       <div className="paper flex flex-wrap items-center justify-between gap-3 p-4">
         <div className="text-sm" style={{ color: 'var(--muted)' }}>
-          {t('pack.weatherLine', { n: nights, min: wx.tMin, max: wx.tMax })}
+          <span>{t('pack.weatherLine', { n: days, min: wx.tMin, max: wx.tMax })}</span>
+          {days > 7 && <span className="chip ml-2">{t('pack.weeklyLaundry')}</span>}
         </div>
-        <button className="btn btn-ghost text-sm" onClick={() => save(applyWeather(currentTrip, list))}>
-          {t('pack.fillWeather')}
+        <button className="btn btn-ghost text-sm" onClick={() => save(applyPackingSuggestions(currentTrip, list))}>
+          {t('pack.refreshSuggestions')}
         </button>
       </div>
 

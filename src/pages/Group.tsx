@@ -19,12 +19,7 @@ export default function Group() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="display text-4xl">{t('group.title')}</h1>
-        <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-          {t('group.blurb')}
-        </p>
-      </div>
+      <h1 className="display text-4xl">{t('group.title')}</h1>
       <div className="grid gap-3 sm:grid-cols-2">
         {trip.members.map((m) => (
           <div key={m.id} className="paper flex items-center gap-3 p-4">

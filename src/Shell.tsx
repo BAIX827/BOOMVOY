@@ -4,6 +4,7 @@ import { cls } from './lib'
 import { useT } from './i18n'
 import { LangSwitch } from './ui'
 import { useApp } from './store'
+import { ThemeAtmosphere } from './ThemeDecor'
 import boomiIcon from './assets/boomi_icon.png'
 
 export default function Shell() {
@@ -18,7 +19,8 @@ export default function Shell() {
   ]
 
   return (
-    <div className={`theme-${theme} min-h-screen`}>
+    <div className={`theme-${theme} relative isolate min-h-screen overflow-x-clip`}>
+      <ThemeAtmosphere theme={theme} />
       <header className="sticky top-0 z-40 border-b backdrop-blur-md" style={{ borderColor: 'var(--line)', backgroundColor: 'color-mix(in srgb, var(--bg) 82%, transparent)' }}>
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <NavLink to="/" className="flex items-center gap-2 no-underline" style={{ color: 'var(--ink)' }} data-guide="brand">
@@ -56,7 +58,7 @@ export default function Shell() {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 pb-24 pt-8">
+      <main className="relative z-10 mx-auto max-w-6xl px-4 pb-24 pt-8">
         <Outlet />
       </main>
       <nav

@@ -22,12 +22,7 @@ export default function Compare() {
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="display text-4xl">{t('compare.title')}</h1>
-          <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-            {t('compare.blurb')}
-          </p>
-        </div>
+        <h1 className="display text-4xl">{t('compare.title')}</h1>
         <button className="btn" onClick={() => setOpen(true)}>{t('compare.create')}</button>
       </div>
       <DecisionAssistant key={`${trip.id}-${locale}-${decisionApiUrl || ''}`} trip={trip} />

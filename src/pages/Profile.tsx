@@ -5,6 +5,7 @@ import type { ThemeId } from '../types'
 import { resolveLlm } from '../llm'
 import { themeLabel, useT } from '../i18n'
 import type { Profile as ProfileData, Trip } from '../types'
+import { ThemeBadge } from '../ThemeDecor'
 
 export default function Profile() {
   const profile = useApp((s) => s.profile)
@@ -84,6 +85,7 @@ export default function Profile() {
                   ))}
                 </div>
                 <div className="font-medium">{themeLabel(t, id)}</div>
+                <ThemeBadge theme={id} />
               </button>
             ))}
           </div>

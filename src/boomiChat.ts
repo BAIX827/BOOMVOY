@@ -41,7 +41,7 @@ export function matchBoomi(q: string, tripId?: string): BoomiHit | null {
       selector: '[data-guide="create-trip"]',
     }
   }
-  if (/行李|打包|托运|packing|suitcase|随身包|行李清单|带什么/.test(s)) {
+  if (/行李|打包|托运|短袖|长袖|衣服|换洗|几件|packing|suitcase|随身包|行李清单|带什么/.test(s)) {
     return {
       sayKey: 'chat.pack',
       route: trip ? `${trip}/pack` : undefined,

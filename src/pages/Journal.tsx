@@ -59,12 +59,7 @@ export default function Journal() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="display text-4xl">{t('journal.title')}</h1>
-        <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-          {t('journal.blurb')}
-        </p>
-      </div>
+      <h1 className="display text-4xl">{t('journal.title')}</h1>
       <div className="paper p-5">
         <div className="display text-3xl">
           {stamped.length}/{total}

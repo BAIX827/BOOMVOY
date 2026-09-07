@@ -23,12 +23,7 @@ export default function Saved() {
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="display text-4xl">{t('saved.title')}</h1>
-          <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-            {t('saved.blurb')}
-          </p>
-        </div>
+        <h1 className="display text-4xl">{t('saved.title')}</h1>
         <button className="btn" onClick={() => setOpen(true)}>
           {t('saved.add')}
         </button>

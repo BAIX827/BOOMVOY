@@ -1,6 +1,6 @@
 # BOOMVOY 工作交接文档（给下一个 AI / 开发者）
 
-> 更新日期：2026-09-07（包含当前工作区尚未提交的智能决策功能）
+> 更新日期：2026-09-07（智能决策已在远端，界面、主题与智能行李优化待推送）
 >
 > 目的：记录当前代码、历轮修改、运行方式、验证结果与待办，供后续开发接手。版本状态以本次本地核对为准，线上发布状态需另查。
 > 产品口号：`Plan less. Decide better.`
@@ -21,16 +21,16 @@
 
 | 项 | 值 |
 | --- | --- |
-| 本地路径 | `/Users/baricy/Library/Mobile Documents/com~apple~CloudDocs/BOOMVOY`（iCloud Drive） |
+| 当前工作区 | `C:\Users\64969\Desktop\BOOMVOY` |
 | Git 远程 | `https://github.com/BAIX827/BOOMVOY.git` |
-| 分支 | `main`；本地记录的 `origin/main` 与 HEAD 一致，本次未 fetch 核对远程服务器 |
+| 分支 | `main`；远端基线 `origin/main` 为 `b44d8a1`，本地另有 1 个优化提交待推送 |
 | 包版本 | `package.json` 仍为 `0.1.0`，尚未递增版本号 |
-| 最新提交 | `64b89ce` — `update`（2026-09-07）：行程推荐优化 |
-| 前一轮提交 | `588d6f0` — `update`（2026-09-07）：基础功能完善、测试、交接文档入库 |
-| 部署 | 已配置 GitHub Actions → GitHub Pages（`.github/workflows/pages.yml`）；本轮未检查线上构建，也未部署新增决策功能 |
+| 远端最新提交 | `b44d8a1` — `update`（2026-09-07）：酒店/餐厅智能决策与可选查询服务 |
+| 前一轮提交 | `64b89ce` — `update`（2026-09-07）：行程推荐优化 |
+| 部署 | 已配置 GitHub Actions → GitHub Pages（`.github/workflows/pages.yml`）；本轮未检查线上构建，也未部署本地优化 |
 | Pages base | 构建时 `GITHUB_PAGES_BASE=/${{ github.event.repository.name }}/` → 线上路径一般为 `https://baix827.github.io/BOOMVOY/` |
-| 当前工作区 | 智能决策模块、可选服务端、测试及接入说明尚未提交；本次同步更新 `HANDOFF.md`。完整文件清单见第 17 节 |
-| 文档入库 | `boomi.md` 与 `HANDOFF.md` 已在 `588d6f0` 入库 |
+| 当前工作区 | 智能决策已在远端；界面与示例精简、主题装饰和按天数智能行李优化已完成，待推送 |
+| 文档入库 | `boomi.md` 与 `HANDOFF.md` 已入库并随功能同步维护 |
 
 ### Git 账号注意（历史坑）
 
@@ -122,11 +122,12 @@ src/
   TripShell.tsx    # 站内：某趟旅行侧栏/底栏
   store.ts         # Zustand 全部状态与 CRUD
   types.ts         # 领域类型
-  data.ts          # 示例行程 Japan / Ocean Road / Bali（很大）
+  data.ts          # 完整示例 Japan + 自驾模板 Ocean Road（很大）
   i18n.ts          # 中英文文案（很大，改文案必改这里）
   index.css        # 主题变量、手账视觉、主题装饰
   pages/*          # 各页面
   GuideCat.tsx     # Boomi 浮动助手：引导 + 对话
+  ThemeDecor.tsx   # 三套主题的图标氛围层与主题预览图标
   DaySuggest.tsx   # 「推荐行程」按钮与预览应用
   BookingSearch.tsx# 登机牌式机票/酒店搜索外链
   TripMap.tsx      # Leaflet 地图组件
@@ -203,9 +204,11 @@ DECISION_SETUP.md   # 本地接入、生产部署边界与 Google 数据政策
 13. **行李清单 Pack** — 去程/回程、分类/箱包、默认必备、按天气/天数衣物建议、航班托运小提示卡片  
 14. **基础功能完善（`588d6f0`）** — 创建旅行的日期/城市天数分配与输入校验；行程地点编辑；自建比较板与预订衔接；预订编辑和支出关联；预算按预订/实际支出汇总；AA 自定义分摊、手动汇率与编辑；JSON 备份恢复；移动端更多导航、路由懒加载、天气状态及核心回归测试。
 15. **行程推荐优化（`64b89ce`）** — 节奏、起止时间、交通和室内偏好；区域化本地路线；跨语言去重；时间/交通预算；请求取消与错误回退；逐项选择、追加/替换、旅行记录保护、版本冲突检查及撤销。详见 9.3。
-16. **酒店/餐厅智能决策（当前未提交）** — 自然语言预算/海景/停车/菜系需求、评分门槛、来源与预订链接、每日菜系轮换、选定后跨模块联动；可选 Google Places 服务与相关测试。详见第 17 节。
+16. **酒店/餐厅智能决策（`b44d8a1`）** — 自然语言预算/海景/停车/菜系需求、评分门槛、来源与预订链接、每日菜系轮换、选定后跨模块联动；可选 Google Places 服务与相关测试。详见第 18 节。
+17. **界面与示例精简** — 移除 Bali 半成品模板和单候选对比板；创建入口统一为「创建旅行」；删除多页重复说明文案。
+18. **主题与行李增强** — Cream / Ocean / Forest 加入独立旅行图标氛围层；衣物按逐日温度和旅行天数配量，长途按一周换洗上限。
 
-示例数据：Profile「恢复示例数据」→ Japan 2026（Melbourne → Tokyo → Fuji → Kyoto → Osaka）等。
+示例数据：Profile「恢复示例数据」→ Japan 2026（Melbourne → Tokyo → Fuji → Kyoto → Osaka）+ Great Ocean Road 自驾模板。
 
 ---
 
@@ -214,6 +217,7 @@ DECISION_SETUP.md   # 本地接入、生产部署边界与 Google 数据政策
 ### 9.1 状态
 
 - `useApp`（`store.ts`）persist 到 `localStorage['boomvoy-v1']`。
+- persist 版本为 2；迁移会从既有浏览器数据移除内置 Bali 模板与 Japan 示例中的单候选对比板，不碰用户自己创建的旅行。
 - 新手引导已看过：`localStorage['boomvoy-met-boom'] = '1'`。  
   要重看引导：Profile 有入口，或手动清该 key。
 - 默认 locale：`zh`。
@@ -261,7 +265,7 @@ DECISION_SETUP.md   # 本地接入、生产部署边界与 Google 数据政策
 
 ### 9.8 主题
 
-- `cream` / `ocean` / `forest`：不只要换色，还要有装饰元素（海浪贝壳、森林等），在 CSS / 布局里。  
+- `cream` / `ocean` / `forest`：不只换色；`ThemeDecor.tsx` 提供各自的旅行图标氛围层，CSS 继续负责纹理、边缘与纸张装饰。
 - Profile `themePref`；`auto` 实际落到 cream。
 
 ### 9.9 行李 Pack
@@ -270,7 +274,8 @@ DECISION_SETUP.md   # 本地接入、生产部署边界与 Google 数据政策
 - 去程 / 回程两套勾选状态（`packedOut` / `packedBack`）  
 - 分类：docs/money/keys/tech/clothes/…  
 - 箱包：suitcase / carryon / personal  
-- 天气衣物种子：`clothingSeeds(trip)`  
+- 智能衣物种子：`clothingSeeds(trip)` 按旅行天数、逐日冷暖与降雨配量；3 天暖天最多 3 件短袖，8 天以上按一周换洗量封顶
+- 手动刷新：`applyPackingSuggestions(trip, packing)`；用户手调数量仍保留
 - 坐飞机时显示可展开托运提示：`FLIGHT_TIPS`
 
 ### 9.10 预订模型
@@ -292,6 +297,15 @@ DECISION_SETUP.md   # 本地接入、生产部署边界与 Google 数据政策
 | 每天吃不同菜系 | 按行程日期/城市轮换，保留已选；当前每天保存一条用餐选择 | 三餐分别安排、复杂饮食禁忌尚待扩展 |
 | 永久免费网址 | GitHub Pages 已配；自定义域名曾报错（`boomvoy` 格式非法，需完整域名） | 自定义域名要用 `boomvoy.com` 这类 |
 | 原生 App | 未做；仍是 Web | 可考虑 PWA / Capacitor 等后续 |
+
+### 10.1 外部 API 现状与建议顺序
+
+- 当前已接：OpenAI 兼容接口（可选行程建议）、Open-Meteo（天气）、Photon + Nominatim（地理编码）、OSRM（路线）；机票/酒店/活动以 deep link 外跳。
+- 下一阶段第一优先：地点/餐厅/商店详情与搜索 + 统一的后端代理。若保留 Leaflet/OSM，优先评估 Foursquare Places 或其他允许搭配第三方地图的授权；若要 Google Places 的评分/照片，应一起评估切到 Google 地图并遵守展示、归因和缓存限制。
+- 第二优先：机票与酒店库存（Duffel / Amadeus / Booking.com Demand 选一套主供应商，不要同时接很多套）。
+- 第三优先：活动门票（Viator / GetYourGuide 等合作方）和汇率。
+- 小红书 / Instagram 不应依赖爬虫；优先做用户粘贴分享链接、浏览器分享进入 BOOMVOY、人工策展来源和可追溯引用。
+- 真实库存、预订、用户同步和第三方密钥都要求后端；不可继续只靠 GitHub Pages + `localStorage`。
 
 ---
 
@@ -315,8 +329,8 @@ DECISION_SETUP.md   # 本地接入、生产部署边界与 Google 数据政策
 3. 可选：清 `boomvoy-met-boom` 重看引导  
 4. 行程页点「推荐行程」（不要假设自动生成）  
 5. 天气页刷新需网络  
-6. 行李页看去程/回程 + 天气建议  
-7. 问 Boomi：「怎么打卡」「推荐行程」  
+6. 行李页看去程/回程 + 天数/逐日天气智能配量
+7. 问 Boomi：「怎么打卡」「推荐行程」「三天带几件短袖」
 8. 行程推荐修改节奏/时间/交通 → 预览勾选 → 追加或替换 → 检查记录保护与撤销。
 9. 决策输入「每晚 AUD 300 以内、海景房、免费停车」或「想吃墨西哥菜、人均 AUD 50、每天不同菜系」→ 识别需求 → 核对字段 → 查找推荐。
 10. 检查待确认标签、评分来源和官网/预订链接；选定后核对收藏、比较板、用餐安排和预订日期。
@@ -334,19 +348,28 @@ DECISION_SETUP.md   # 本地接入、生产部署边界与 Google 数据政策
 2. **PWA / 移动端体验**：底栏与更多入口已完善；离线、安装到主屏及原生封装仍待做。
 3. **分享链接真实可协作**：现在 Share 偏海报预览；多人真实同步需要数据后端与权限。
 4. **地理编码稳定性**：手动钉坐标、城市归属核验、常用点维护。
-5. **决策覆盖**：扩充官网策展城市、区分早午晚餐、接入有授权的房型/价格/库存来源。
-6. **预订捕获与行李**：外链回来快捷登记；箱包级规则、清单导出/打印。
+5. **决策与发现页覆盖**：扩充有来源的真实内容和策展城市、区分早午晚餐、接入有授权的房型/价格/库存来源。
+6. **预订捕获与行李**：外链回来快捷登记；更细的箱包级规则、清单导出/打印。
 7. **安全与数据恢复**：轮换历史泄露的 OpenAI key；Profile key 仍在 localStorage；JSON 导入当前仅有浅层校验，需补完整 schema、迁移与覆盖确认。
-8. **测试**：已有自动回归测试；继续补真实数据集联调与自动浏览器端到端测试。当前浏览器验证为手动执行。
+8. **测试**：已有核心、推荐、行李、智能决策与接口回归测试；继续补真实数据联调和浏览器端到端 smoke（创建旅行、切 Plan B、Pack）。
 
 ---
 
-## 14. 给下一个 AI 的开工指令模板
+## 14. 固定协作规则
+
+1. 每次实际改动后同步更新本 `HANDOFF.md`。
+2. 保持代码干净整洁，删除失效示例、无用文案和未使用代码。
+3. 每次更新完成后，给用户一组可直接复制执行的 Git 提交与推送命令；未经明确要求不要代为 commit / push。
+4. 每次更新后同步检查 Boomi：`GuideCat.tsx`、`boomiChat.ts`、`i18n.ts` 和 `boomi.md`，只修改受影响内容。
+
+---
+
+## 15. 给下一个 AI 的开工指令模板
 
 可直接复制：
 
 ```
-你在维护 BOOMVOY：React+Vite+TS 旅行手账 SPA，仓库 BAIX827/BOOMVOY，本地在 iCloud BOOMVOY 文件夹。
+你在维护 BOOMVOY：React+Vite+TS 旅行手账 SPA，仓库 BAIX827/BOOMVOY，当前工作区 C:\Users\64969\Desktop\BOOMVOY。
 先读 HANDOFF.md、产品需求蓝图.md、src/App.tsx、src/store.ts、src/types.ts。
 数据在 localStorage boomvoy-v1；可选 Node 查询服务在 server/decision-server.mjs，接入见 DECISION_SETUP.md。
 改文案必须中英同步；通用文案在 i18n.ts，决策文案在 decisionI18n.ts。
@@ -354,30 +377,30 @@ DECISION_SETUP.md   # 本地接入、生产部署边界与 Google 数据政策
 地图/地理用 OSM+Photon+Nominatim+OSRM，不要假设付费 Maps key。
 OpenAI key 只在 .env.local（dev）或 Profile；勿 commit。
 Google Places key 只在服务端 GOOGLE_PLACES_API_KEY；实时数据保持来源归属，未知价格/房型/评分明确标注。
-先检查 git status，保留未提交工作；当前 HEAD 64b89ce，智能决策功能仍在工作区。
+先检查 git status，保留未提交工作；智能决策已在 b44d8a1 合入 main。
 改后运行 npm test 与 npm run build；不要把模拟接口通过写成真实付费 API 已验证。
-用户常用中文沟通；改完可给 git 命令，未经要求不要擅自 commit/push。
+用户常用中文沟通；每次改动同步更新 HANDOFF.md 与受影响的 Boomi 内容，并给可直接复制的 git 提交/推送命令；未经要求不要擅自 commit/push。
 当前任务：<在此填写>
 ```
 
 ---
 
-## 15. 相关历史对话（Cursor）
+## 16. 相关历史对话（Cursor）
 
 - [Webpage development request](4a0b0a43-2050-481a-9c8e-9e7cfff72851) — 主开发长线（从蓝图到行李清单）  
 - [Testing video script](897e3b80-e337-4283-ba85-35ece1f60e4b) — 产出 `boomi.md` 测试脚本  
 
 ---
 
-## 16. 一句话现状结论
+## 17. 一句话现状结论
 
-**当前为 `0.1.0` 本地优先 Web MVP：基础功能和行程推荐优化已提交至 `64b89ce`；酒店/餐厅智能决策、可选 Google Places 查询服务及测试已在工作区完成，尚未提交或部署。实时 Google 数据需配置和联调；旅行数据仍在本机浏览器，多人同步、登录、原生 App 待做。**
+**当前为 `0.1.0` 本地优先 Web MVP：酒店/餐厅智能决策与可选 Google Places 查询服务已在 `b44d8a1` 合入远端；界面与示例精简、三套主题装饰和按天数智能行李优化已在本地完成，待推送。实时 Google 数据仍需配置和联调；旅行数据保存在本机浏览器，多人同步、登录、原生 App 待做。**
 
 ---
 
-## 17. 本轮智能决策实现与文件清单（未提交）
+## 18. 智能决策实现与文件清单（`b44d8a1`）
 
-### 17.1 用户流程与边界
+### 18.1 用户流程与边界
 
 - 入口为 `/trip/:id/compare`，智能助手位于原有比较板上方。中英文自然语言规则解析将预算、币种、酒店/餐厅、海景房、停车/免费停车、菜系和每日换菜等转为可编辑字段；用户核对后主动查找。
 - 筛选包含城市/地区、入住/退房、人数、每房每晚或每人每餐预算、包含/排除菜系、最低评分和评价数。当前解析采用规则引擎，复杂自由表达仍需手动核对字段。
@@ -390,13 +413,13 @@ Google Places key 只在服务端 GOOGLE_PLACES_API_KEY；实时数据保持来�
 - Google 候选仅会话展示供应商内容，保存时要求用户填写自定义标签；长期保存 place ID、用户标签/偏好和引用链接，评分、价格、地址及官网等供应商内容不写入持久缓存。
 - 页面支持取消、超时、错误回退和过期结果隔离；切换旅行/语言/接口时重置查询上下文。
 
-### 17.2 本地来源
+### 18.2 本地来源
 
 `decisionCatalog.ts` 收录 10 个官网核对候选，核对日期 2026-09-07：Tokyo 的 Hacienda del cielo、el caliente、NABUCCO、Sushi Gonpachi、Hilton Tokyo Odaiba；Melbourne 的 Mamasita、DOC Osteria；Canggu 的 Motel Mexicola、Holiday Inn Resort Bali Canggu、COMO Uma Canggu。
 
 策展记录附官网证据和预订入口，不填虚构评分或即时价格。Holiday Inn 有海景房型及免费停车来源；COMO 的海景房型有来源、停车待确认；Hilton 为东京湾景房与收费停车。实际可用房型、日期与价格仍以预订页面为准。候选覆盖有限，其他城市可使用搜索入口或启用实时服务。
 
-### 17.3 服务端与安全
+### 18.3 服务端与安全
 
 - `POST /api/decisions/search` → 固定 Google Places API (New) Text Search 上游，key 只在服务端环境变量读取。
 - 16 KB 请求上限、10 秒上游超时、Origin/Host 限制、直连 IP 每分钟 30 次基础限流、通用错误响应、`Cache-Control: no-store`。客户端 12 秒超时、最多 20 个候选，并再次检查字段及链接。
@@ -404,7 +427,7 @@ Google Places key 只在服务端 GOOGLE_PLACES_API_KEY；实时数据保持来�
 - 当前绑定 loopback，适合本地或同机反向代理。公开部署仍需认证、用户级配额和消费保护；CORS 仅是浏览器来源控制。
 - 保留 Google Maps 标识、第三方 attribution、来源与查询时间；公开上线前核对 Google 使用政策及应用隐私/条款。
 
-### 17.4 文件变更
+### 18.4 文件变更
 
 新增：
 
@@ -441,7 +464,7 @@ HANDOFF.md                  # 本次交接同步
 
 关键字段：`SavedItem.decision?`、`Trip.decisionPreferences?`、`Trip.mealSelections?`、`Profile.decisionApiUrl?`、`Booking.checkout?`、`CompareBoard.city?`。沿用 `boomvoy-v1`，新增字段为可选；旧收藏的评分会标为来源/量表待确认。旧数据及导入数据进入决策候选时有字段清理，但整个备份导入的深层 schema 校验仍待补。
 
-## 18. 验证记录与发布状态
+## 19. 验证记录与发布状态
 
 2026-09-07 功能交付验证：
 
@@ -451,4 +474,4 @@ HANDOFF.md                  # 本次交接同步
 - 模拟实时候选验证：4.8/5、640 条评价与匹配度分别显示；Google 保存要求自定义标签。测试候选清楚标记为 QA 模拟，未用于真实推荐。
 - 测试中发现并修复英文 `ocean-view room under AUD 300 per night with free parking` 的类型/预算解析和每日已选重复判定，已加入回归覆盖。
 - 未发起真实 Google 付费查询、外部订位或付款；真实 key、地区覆盖与生产部署仍待联调。
-- 临时测试页面和开发/模拟服务已关闭。本轮未 commit、push 或部署；后续发布先核对工作区和账号权限，再按用户授权操作。
+- 临时测试页面和开发/模拟服务已关闭。智能决策已提交至远端；界面、主题和智能行李优化待推送，本轮尚未重新部署。

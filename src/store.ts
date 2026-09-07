@@ -15,7 +15,7 @@ import type {
   Trip,
   WeatherSnap,
 } from './types'
-import { baliTrip, emptyBudget, japanTrip, oceanRoadTrip } from './data'
+import { emptyBudget, japanTrip, oceanRoadTrip } from './data'
 import { emptyPacking } from './packing'
 import { cityForDay, copyJSON, eachDate, uid } from './lib'
 import { hasTravelRecord, planFingerprint, prepareRecommendation, type RecommendationApplyResult, type RecommendationMode, type RecommendationUndo } from './recommendationApplication'
@@ -73,7 +73,22 @@ interface AppState {
 }
 
 function seed(): Trip[] {
-  return [japanTrip(), oceanRoadTrip(), baliTrip()]
+  return [japanTrip(), oceanRoadTrip()]
+}
+
+function migratePersisted(state: unknown) {
+  const stored = state as Partial<AppState>
+  if (!Array.isArray(stored.trips)) return { ...stored, trips: seed() }
+  return {
+    ...stored,
+    trips: stored.trips
+      .filter((trip) => trip.id !== 'template-bali')
+      .map((trip) =>
+        trip.id === 'japan-2026'
+          ? { ...trip, compares: trip.compares.filter((board) => board.id !== 'cmp-hotel-osa') }
+          : trip,
+      ),
+  }
 }
 
 function patchTrip(trips: Trip[], id: string, fn: (t: Trip) => Trip): Trip[] {
@@ -398,7 +413,12 @@ export const useApp = create<AppState>()(
         }),
       resetDemo: () => set({ trips: seed() }),
     }),
-    { name: 'boomvoy-v1', storage: createJSONStorage(() => localStorage) },
+    {
+      name: 'boomvoy-v1',
+      version: 2,
+      storage: createJSONStorage(() => localStorage),
+      migrate: migratePersisted,
+    },
   ),
 )
 

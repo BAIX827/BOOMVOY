@@ -83,12 +83,7 @@ export default function MapPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="display text-4xl">{t('map.title')}</h1>
-        <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-          {t('map.blurb')}
-        </p>
-      </div>
+      <h1 className="display text-4xl">{t('map.title')}</h1>
       <div className="flex gap-2 overflow-auto pb-1">
         <Chip active={filter === 'all'} onClick={() => setFilter('all')}>
           {t('map.all')}

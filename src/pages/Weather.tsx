@@ -37,12 +37,7 @@ export default function Weather() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="display text-4xl">{t('wx.title')}</h1>
-          <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-            {t('wx.blurb')}
-          </p>
-        </div>
+        <h1 className="display text-4xl">{t('wx.title')}</h1>
         <button className="btn" disabled={busy} onClick={refresh}>
           {busy ? t('wx.busy') : t('wx.refresh')}
         </button>

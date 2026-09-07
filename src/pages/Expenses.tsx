@@ -22,12 +22,7 @@ export default function Expenses() {
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between">
-        <div>
-          <h1 className="display text-4xl">{t('aa.title')}</h1>
-          <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-            {t('aa.blurb')}
-          </p>
-        </div>
+        <h1 className="display text-4xl">{t('aa.title')}</h1>
         <button className="btn" onClick={() => { setEditing(undefined); setOpen(true) }}>
           {t('aa.add')}
         </button>

@@ -6,6 +6,7 @@ import type { ThemeId, TransportMode } from '../types'
 import { Label } from '../ui'
 import { themeBlurb, themeLabel, transportLabel, useT } from '../i18n'
 import { eachDate, toISODate } from '../lib'
+import { ThemeBadge } from '../ThemeDecor'
 
 const modes: TransportMode[] = ['self-drive', 'public', 'walking', 'taxi', 'cycling', 'mixed']
 
@@ -210,6 +211,7 @@ export default function CreateTrip() {
                     <div className="font-medium">
                       {themeLabel(t, id)} · {THEMES[id].name}
                     </div>
+                    <ThemeBadge theme={id} />
                     <div className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>
                       {themeBlurb(t, id)}
                     </div>

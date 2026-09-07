@@ -19,6 +19,8 @@ import { baliTrip, emptyBudget, japanTrip, oceanRoadTrip } from './data'
 import { emptyPacking } from './packing'
 import { cityForDay, copyJSON, eachDate, uid } from './lib'
 import { hasTravelRecord, planFingerprint, prepareRecommendation, type RecommendationApplyResult, type RecommendationMode, type RecommendationUndo } from './recommendationApplication'
+import { selectDecision } from './decisionSelection'
+import type { DecisionCandidate, DecisionPreferences } from './decisionTypes'
 
 interface AppState {
   profile: Profile
@@ -51,6 +53,7 @@ interface AppState {
   applyRecommendation: (tripId: string, dayId: string, plan: PlanVariant, mode: RecommendationMode, places: Omit<PlaceStop, 'id'>[], expected: string) => RecommendationApplyResult
   undoRecommendation: (tripId: string, dayId: string, plan: PlanVariant, undo: RecommendationUndo) => boolean
   addSaved: (tripId: string, item: Omit<SavedItem, 'id' | 'votes'>) => void
+  saveDecision: (tripId: string, candidate: DecisionCandidate, preferences: DecisionPreferences, label: string, choose: boolean, boardTitle: string) => string | null
   updateSaved: (tripId: string, itemId: string, patch: Partial<SavedItem>) => void
   removeSaved: (tripId: string, itemId: string) => void
   toggleVote: (tripId: string, itemId: string, memberId: string) => void
@@ -266,6 +269,14 @@ export const useApp = create<AppState>()(
             saved: [...t.saved, { ...item, id: uid(), votes: {} }],
           })),
         }),
+      saveDecision: (tripId, candidate, preferences, label, choose, boardTitle) => {
+        const trip = get().trips.find((entry) => entry.id === tripId)
+        if (!trip) return 'trip'
+        const result = selectDecision(trip, candidate, preferences, label, choose, boardTitle)
+        if ('error' in result) return result.error
+        set({ trips: get().trips.map((entry) => entry.id === tripId ? result.trip : entry) })
+        return null
+      },
       updateSaved: (tripId, itemId, patch) =>
         set({
           trips: patchTrip(get().trips, tripId, (t) => ({
@@ -278,6 +289,7 @@ export const useApp = create<AppState>()(
           trips: patchTrip(get().trips, tripId, (t) => ({
             ...t,
             saved: t.saved.filter((s) => s.id !== itemId),
+            mealSelections: t.mealSelections?.filter((meal) => meal.savedId !== itemId),
             compares: t.compares.map((board) => ({
               ...board,
               itemIds: board.itemIds.filter((id) => id !== itemId),

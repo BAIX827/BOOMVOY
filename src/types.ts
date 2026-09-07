@@ -1,3 +1,5 @@
+import type { Cuisine, DecisionCandidate, DecisionPreferences } from './decisionTypes'
+
 export type ThemeId = 'cream' | 'ocean' | 'forest'
 export type TransportMode =
   | 'self-drive'
@@ -114,10 +116,13 @@ export interface SavedItem {
   watchTarget?: number
   priceHistory?: { date: string; amount: number }[]
   meta?: Record<string, string>
+  /** Only manually entered / independently sourced facts; never persist Google response content. */
+  decision?: DecisionCandidate
 }
 
 export interface CompareBoard {
   id: string
+  city?: string
   kind: SavedKind
   title: string
   itemIds: string[]
@@ -129,6 +134,7 @@ export interface Booking {
   name: string
   status: BookingStatus
   date?: string
+  checkout?: string
   confirmation?: string
   url?: string
   cost?: Money
@@ -223,6 +229,8 @@ export interface Trip {
   createdAt: string
   template?: boolean
   weatherUpdatedAt?: string
+  decisionPreferences?: DecisionPreferences
+  mealSelections?: { date: string; city: string; cuisine: Cuisine; savedId: string }[]
 }
 
 export interface Profile {
@@ -234,4 +242,5 @@ export interface Profile {
   llmUrl?: string
   llmKey?: string
   llmModel?: string
+  decisionApiUrl?: string
 }

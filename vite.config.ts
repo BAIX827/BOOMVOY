@@ -16,6 +16,10 @@ export default defineConfig({
     port: 5173,
     host: true,
     proxy: {
+      '/api/decisions': {
+        target: 'http://127.0.0.1:8787',
+        changeOrigin: true,
+      },
       '/openai': {
         target: 'https://api.openai.com',
         changeOrigin: true,

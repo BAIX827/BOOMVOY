@@ -59,6 +59,7 @@ export default function Bookings() {
                         <div className="font-medium">{b.name}</div>
                         <div className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
                           {b.date || t('book.dateTbd')}
+                          {b.kind === 'hotel' && b.checkout ? ` → ${b.checkout}` : ''}
                           {b.confirmation ? ` · ${b.confirmation}` : ''}
                           {b.cost ? ` · ${money(b.cost.amount, b.cost.currency)}` : ''}
                         </div>
@@ -159,6 +160,7 @@ function AddBooking({
   const [url, setUrl] = useState(initial?.url || '')
   const [status, setStatus] = useState<BookingStatus>(initial?.status || 'need')
   const [date, setDate] = useState(initial?.date || '')
+  const [checkout, setCheckout] = useState(initial?.checkout || '')
   const [confirmation, setConfirmation] = useState(initial?.confirmation || '')
   const [cost, setCost] = useState(initial?.cost ? String(initial.cost.amount) : '')
   const [currency, setCurrency] = useState(initial?.cost?.currency || homeCurrency)
@@ -169,6 +171,7 @@ function AddBooking({
 
   function save() {
     if (!name.trim()) return
+    if (kind === 'hotel' && checkout && (!date || checkout <= date)) return setError(t('decision.dateError'))
     if (needsRate && Number(rate) <= 0) return setError(t('book.rateRequired'))
     const exchangeRate = needsRate ? Number(rate) : cost ? 1 : undefined
     onAdd({
@@ -176,6 +179,7 @@ function AddBooking({
       name: name.trim(),
       status,
       date: date || undefined,
+      checkout: kind === 'hotel' ? checkout || undefined : undefined,
       confirmation: confirmation || undefined,
       cost: cost ? { amount: Number(cost), currency } : undefined,
       homeAmount: cost && exchangeRate ? Number(cost) * exchangeRate : undefined,
@@ -211,6 +215,7 @@ function AddBooking({
             </select>
           </div>
         </div>
+        {kind === 'hotel' && <label className="block space-y-2 text-sm"><span>{t('decision.checkout')}</span><input className="field" type="date" value={checkout} onChange={(event) => setCheckout(event.target.value)} /></label>}
         <input className="field" placeholder={t('book.confirmation')} value={confirmation} onChange={(e) => setConfirmation(e.target.value)} />
         <div className="grid grid-cols-2 gap-2">
           <input className="field" type="number" min={0} placeholder={t('book.cost')} value={cost} onChange={(e) => setCost(e.target.value)} />

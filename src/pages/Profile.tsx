@@ -125,6 +125,11 @@ export default function Profile() {
         </div>
       </div>
       <div className="paper mt-6 space-y-3 p-6">
+        <h2 className="display text-2xl">{t('decision.setup')}</h2>
+        <p className="text-sm leading-6" style={{ color: 'var(--muted)' }}>{t('decision.endpointHint')}</p>
+        <label className="block space-y-2 text-sm"><span>{t('decision.endpoint')}</span><input className="field" type="url" placeholder="/api/decisions/search" value={profile.decisionApiUrl || ''} onChange={(event) => setProfile({ decisionApiUrl: event.target.value })} /></label>
+      </div>
+      <div className="paper mt-6 space-y-3 p-6">
         <h2 className="display text-2xl">{t('profile.data')}</h2>
         <p className="text-sm" style={{ color: 'var(--muted)' }}>{t('profile.dataHint')}</p>
         <div className="flex flex-wrap gap-2">

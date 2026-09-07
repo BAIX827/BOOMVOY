@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
+import DecisionAssistant from '../DecisionAssistant'
+import { safeDecisionUrl } from '../decision'
 import { useParams } from 'react-router-dom'
 import { useApp, useTrip } from '../store'
 import { KINDS, STATUS } from '../catalog'
@@ -11,7 +13,8 @@ export default function Compare() {
   const { id } = useParams()
   const trip = useTrip(id)
   const { toggleVote, updateSaved, addCompareBoard, updateCompareBoard, removeCompareBoard, addBooking } = useApp()
-  const { t } = useT()
+  const { t, locale } = useT()
+  const decisionApiUrl = useApp((state) => state.profile.decisionApiUrl)
   const [open, setOpen] = useState(false)
   const [bookingCandidate, setBookingCandidate] = useState<SavedItem | undefined>()
   if (!trip) return null
@@ -27,6 +30,7 @@ export default function Compare() {
         </div>
         <button className="btn" onClick={() => setOpen(true)}>{t('compare.create')}</button>
       </div>
+      <DecisionAssistant key={`${trip.id}-${locale}-${decisionApiUrl || ''}`} trip={trip} />
       {trip.compares.map((board) => {
         const items = board.itemIds.map((i) => trip.saved.find((s) => s.id === i)).filter(Boolean)
         return (
@@ -72,7 +76,10 @@ export default function Compare() {
               </thead>
               <tbody>
                 <Row label={t('compare.price')} items={items.map((it) => (it!.price ? money(it!.price.amount, it!.price.currency) : '—'))} />
-                <Row label={t('compare.rating')} items={items.map((it) => (it!.rating ? String(it!.rating) : '—'))} />
+                <Row label={t('compare.rating')} items={items.map((it) => (it!.rating ? t('decision.legacyRating', { n: it!.rating }) : t('decision.noRating')))} />
+                <Row label={t('decision.source')} items={items.map((it) => safeDecisionUrl(it!.url) ? <a className="underline" href={safeDecisionUrl(it!.url)} target="_blank" rel="noreferrer">{t('decision.detail')}</a> : '—')} />
+                {board.kind === 'hotel' && <Row label={t('decision.seaView')} items={items.map((it) => it!.decision?.seaView === 'room' ? t('decision.viewRoom') : t('decision.unknown'))} />}
+                {board.kind === 'restaurant' && <Row label={t('decision.cuisine')} items={items.map((it) => it!.decision?.cuisines?.map((cuisine) => t('decision.cuisine.' + cuisine)).join(' · ') || '—')} />}
                 <Row label="👍" items={items.map((it) => it!.pros?.join('、') || '—')} />
                 <Row label="👎" items={items.map((it) => it!.cons?.join('、') || '—')} />
                 {board.kind === 'hotel' && (
@@ -253,7 +260,7 @@ function CreateBoard({
   )
 }
 
-function Row({ label, items }: { label: string; items: string[] }) {
+function Row({ label, items }: { label: string; items: ReactNode[] }) {
   return (
     <tr className="border-t" style={{ borderColor: 'var(--line)' }}>
       <td className="py-3" style={{ color: 'var(--muted)' }}>

@@ -1,8 +1,27 @@
 import assert from 'node:assert/strict'
 import { buildDecisionLinks, CUISINES, parseDecisionIntent, planMeals, rankDecisions, safeDecisionUrl } from '../src/decision'
 import type { DecisionCandidate, DecisionPreferences } from '../src/decisionTypes'
+import { decisionDiscoveryKey } from '../src/DecisionAssistant'
 
 const base: DecisionPreferences = { kind: 'hotel', city: 'Sydney', currency: 'AUD', budgetMax: 500, seaView: false, parking: false, freeParking: false, cuisine: 'any', variety: false, minRating: 4.3, minReviews: 100, checkin: '2026-10-01', checkout: '2026-10-04', travellers: 2 }
+const discovery = decisionDiscoveryKey(base, 'en', '/api/decisions/search')
+for (const patch of [{ budgetMax: 250 }, { currency: 'USD' }, { minRating: 4.7 }, { minReviews: 500 }, { travellers: 4 },
+  { checkin: '2026-11-01' }, { checkout: '2026-11-05' }, { variety: true }, { excludedCuisines: ['thai'] as const }]) {
+  assert.equal(decisionDiscoveryKey({ ...base, ...patch }, 'en', '/api/decisions/search'), discovery, 'Local ranking changes reuse discovered candidates')
+}
+for (const patch of [{ kind: 'restaurant' as const }, { city: 'Melbourne' }, { seaView: true }, { parking: true }, { freeParking: true }]) {
+  assert.notEqual(decisionDiscoveryKey({ ...base, ...patch }, 'en', '/api/decisions/search'), discovery, 'Provider discovery changes invalidate live candidates')
+}
+assert.notEqual(decisionDiscoveryKey({ ...base, kind: 'restaurant', cuisine: 'thai' }, 'en', '/api/decisions/search'), decisionDiscoveryKey({ ...base, kind: 'restaurant', cuisine: 'any' }, 'en', '/api/decisions/search'), 'A restaurant cuisine changes the provider query')
+assert.notEqual(decisionDiscoveryKey(base, 'zh', '/api/decisions/search'), discovery)
+assert.notEqual(decisionDiscoveryKey(base, 'en', 'https://example.test/api/decisions/search'), discovery)
+assert.equal(decisionDiscoveryKey({ ...base, city: '  SYDNEY  ' }, 'en', '/api/decisions/search'), discovery, 'Equivalent city whitespace and case do not re-query')
+const restaurantWithoutBudget = { ...base, kind: 'restaurant' as const, budgetMax: undefined }
+const restaurantWithBudget = { ...restaurantWithoutBudget, budgetMax: 40 }
+assert.notEqual(decisionDiscoveryKey(restaurantWithBudget, 'en', '/api/decisions/search'), decisionDiscoveryKey(restaurantWithoutBudget, 'en', '/api/decisions/search'), 'Enabling restaurant budget refreshes candidates with price fields')
+assert.equal(decisionDiscoveryKey({ ...restaurantWithBudget, budgetMax: 80 }, 'en', '/api/decisions/search'), decisionDiscoveryKey(restaurantWithBudget, 'en', '/api/decisions/search'), 'Changing an enabled restaurant budget only re-ranks locally')
+assert.equal(decisionDiscoveryKey({ ...base, parking: true, freeParking: true }, 'en', '/api/decisions/search'), decisionDiscoveryKey({ ...base, parking: true, freeParking: false }, 'en', '/api/decisions/search'), 'A stricter free-parking preference reuses candidates that already include parking data')
+assert.equal(decisionDiscoveryKey({ ...restaurantWithoutBudget, cuisine: 'local' }, 'en', '/api/decisions/search'), decisionDiscoveryKey(restaurantWithoutBudget, 'en', '/api/decisions/search'), 'Equivalent broad restaurant searches share discovered candidates')
 const parse = (text: string, preferences = base) => parseDecisionIntent(text, preferences)
 assert.equal(parse('想住 300 澳币以内的海景房，需要停车场').budgetMax, 300)
 assert.equal(parse('想住 300 澳币以内的海景房，需要停车场').seaView, true)

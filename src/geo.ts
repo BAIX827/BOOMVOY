@@ -1,7 +1,12 @@
 import type { Coords, PlaceStop, TransportMode } from './types'
 import { estimateMinutes, haversineKm } from './lib'
+import { RequestCache } from './requestCache'
 
-const geoCache = new Map<string, { lat: number; lng: number; address: string } | null>()
+type GeoHit = { lat: number; lng: number; address: string }
+export type PlaceSearchHit = { display_name: string; lat: string; lon: string }
+
+const geoCache = new RequestCache<GeoHit>({ ttlMs: 7 * 24 * 60 * 60 * 1000, maxEntries: 400 })
+const searchCache = new RequestCache<PlaceSearchHit[]>({ ttlMs: 15 * 60 * 1000, maxEntries: 120 })
 
 export function mapsPlaceUrl(name: string, coords?: Coords) {
   if (coords) return `https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}`
@@ -26,17 +31,28 @@ export function ticketSearchUrl(name: string, city: string) {
 
 function cleanTicketUrl(needed: boolean | undefined, url: string | undefined, name: string, city: string) {
   if (!needed) return undefined
-  if (url && /^https?:\/\//i.test(url) && /klook\.com|getyourguide\.com|tiqets\.com|trip\.com/i.test(url)) return url
+  try {
+    const parsed = new URL(url || '')
+    const allowed = ['klook.com', 'getyourguide.com', 'tiqets.com', 'trip.com']
+    if (parsed.protocol === 'https:' && !parsed.username && !parsed.password
+      && allowed.some((domain) => parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`))) return parsed.href
+  } catch { /* use the fixed search URL */ }
   return ticketSearchUrl(name, city)
 }
 
-export async function geocodePlace(query: string): Promise<{ lat: number; lng: number; address: string } | null> {
+export async function geocodePlace(query: string): Promise<GeoHit | null> {
   const key = query.trim().toLowerCase()
-  if (geoCache.has(key)) return geoCache.get(key) || null
-  const photon = await fromPhoton(query)
-  const hit = photon || (await fromNominatim(query))
-  geoCache.set(key, hit)
-  return hit
+  if (!key) return null
+  try {
+    return await geoCache.getOrCreate(key, async () => {
+      const photon = await fromPhoton(query)
+      const hit = photon || (await fromNominatim(query))
+      if (!hit) throw new Error('place not found')
+      return hit
+    })
+  } catch {
+    return null
+  }
 }
 
 async function fromPhoton(query: string) {
@@ -68,6 +84,27 @@ async function fromNominatim(query: string) {
   } catch {
     return null
   }
+}
+
+export async function searchPlaces(query: string, city = '', signal?: AbortSignal): Promise<PlaceSearchHit[]> {
+  const input = query.trim()
+  if (!input) return []
+  const scoped = city.trim() ? `${input}, ${city.trim()}` : input
+  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(scoped)}`
+  return searchCache.getOrCreate(url, async () => {
+    const res = await fetch(url, { headers: { Accept: 'application/json' } })
+    if (!res.ok) throw new Error(`Geocoding API ${res.status}`)
+    const data: unknown = await res.json()
+    if (!Array.isArray(data)) throw new Error('Invalid geocoding response')
+    return data.flatMap((value): PlaceSearchHit[] => {
+      if (!value || typeof value !== 'object') return []
+      const item = value as Record<string, unknown>
+      const lat = typeof item.lat === 'string' ? Number(item.lat) : NaN
+      const lon = typeof item.lon === 'string' ? Number(item.lon) : NaN
+      if (typeof item.display_name !== 'string' || !Number.isFinite(lat) || Math.abs(lat) > 90 || !Number.isFinite(lon) || Math.abs(lon) > 180) return []
+      return [{ display_name: item.display_name, lat: item.lat as string, lon: item.lon as string }]
+    }).slice(0, 5)
+  }, signal)
 }
 
 function guessTransport(km: number): TransportMode {
@@ -133,9 +170,19 @@ export async function ensurePlaceGeo<T extends { name: string; coords?: PlaceSto
 export async function ensurePlacesGeo<T extends { name: string; coords?: PlaceStop['coords']; address?: string }>(
   city: string,
   places: T[],
+  concurrency = 4,
 ): Promise<T[]> {
-  const out: T[] = []
-  for (const place of places) out.push(await ensurePlaceGeo(city, place))
+  if (!places.length) return []
+  const out = new Array<T>(places.length)
+  const limit = Math.min(8, Math.max(1, Number.isFinite(concurrency) ? Math.floor(concurrency) : 1), places.length)
+  let cursor = 0
+  const worker = async () => {
+    while (cursor < places.length) {
+      const index = cursor++
+      out[index] = await ensurePlaceGeo(city, places[index])
+    }
+  }
+  await Promise.all(Array.from({ length: limit }, worker))
   return out
 }
 
@@ -147,7 +194,9 @@ export type HopRoute = {
   source: 'osrm' | 'estimate'
 }
 
-const routeCache = new Map<string, HopRoute>()
+type OsrmRoute = Pick<HopRoute, 'minutes' | 'km' | 'geometry'>
+
+const routeCache = new RequestCache<OsrmRoute>({ ttlMs: 30 * 60 * 1000, maxEntries: 500 })
 
 function osrmProfile(mode: TransportMode): 'driving' | 'walking' | 'cycling' {
   if (mode === 'walking') return 'walking'
@@ -156,30 +205,23 @@ function osrmProfile(mode: TransportMode): 'driving' | 'walking' | 'cycling' {
 }
 
 export async function routeHop(a: Coords, b: Coords, mode: TransportMode = 'public'): Promise<HopRoute> {
-  const key = `${mode}:${a.lat.toFixed(5)},${a.lng.toFixed(5)}:${b.lat.toFixed(5)},${b.lng.toFixed(5)}`
-  const hit = routeCache.get(key)
-  if (hit) return hit
   const profile = osrmProfile(mode)
+  const key = `${profile}:${a.lat.toFixed(5)},${a.lng.toFixed(5)}:${b.lat.toFixed(5)},${b.lng.toFixed(5)}`
   try {
-    const url = `https://router.project-osrm.org/route/v1/${profile}/${a.lng},${a.lat};${b.lng},${b.lat}?overview=simplified&geometries=geojson`
-    const res = await fetch(url)
-    if (res.ok) {
+    const route = await routeCache.getOrCreate(key, async () => {
+      const url = `https://router.project-osrm.org/route/v1/${profile}/${a.lng},${a.lat};${b.lng},${b.lat}?overview=simplified&geometries=geojson`
+      const res = await fetch(url)
+      if (!res.ok) throw new Error(`Route API ${res.status}`)
       const data = await res.json()
       const r = data.routes?.[0]
-      if (r) {
-        let minutes = Math.max(1, Math.round(r.duration / 60))
-        if (mode === 'public') minutes = Math.round(minutes * 1.35)
-        const hop: HopRoute = {
-          mode,
-          minutes,
-          km: Math.round((r.distance / 1000) * 10) / 10,
-          geometry: (r.geometry.coordinates as [number, number][]).map(([lng, lat]) => [lat, lng]),
-          source: 'osrm',
-        }
-        routeCache.set(key, hop)
-        return hop
+      if (!r || !Number.isFinite(r.duration) || !Number.isFinite(r.distance) || !Array.isArray(r.geometry?.coordinates)) throw new Error('Invalid route response')
+      return {
+        minutes: Math.max(1, Math.round(r.duration / 60)),
+        km: Math.round((r.distance / 1000) * 10) / 10,
+        geometry: (r.geometry.coordinates as [number, number][]).map(([lng, lat]) => [lat, lng]),
       }
-    }
+    })
+    return { ...route, mode, minutes: mode === 'public' ? Math.max(1, Math.round(route.minutes * 1.35)) : route.minutes, source: 'osrm' }
   } catch {
     /* fall through to estimate */
   }
@@ -194,6 +236,5 @@ export async function routeHop(a: Coords, b: Coords, mode: TransportMode = 'publ
     ],
     source: 'estimate',
   }
-  routeCache.set(key, hop)
   return hop
 }

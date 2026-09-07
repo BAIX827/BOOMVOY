@@ -4,11 +4,29 @@ import { useApp, useTrip } from '../store'
 import { BOOKING_STATUS, KINDS } from '../catalog'
 import type { BookingStatus, SavedKind } from '../types'
 import { Label, Modal, Tone } from '../ui'
-import { money } from '../lib'
+import { money, safeWebUrl } from '../lib'
 import BookingSearch from '../BookingSearch'
 import { bookingStatusLabel, kindLabel, useT } from '../i18n'
 import type { Booking } from '../types'
 import { bookingBudgetCategory } from '../domain'
+
+const MAX_AMOUNT = 1_000_000_000_000
+const MAX_EXCHANGE_RATE = 1_000_000
+const MAX_TEXT_LENGTH = 20_000
+
+function validAmount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= MAX_AMOUNT
+}
+
+function validExchangeRate(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= MAX_EXCHANGE_RATE
+}
+
+function validDate(value: string | undefined) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const parsed = new Date(`${value}T12:00:00Z`)
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
+}
 
 export default function Bookings() {
   const { id } = useParams()
@@ -52,8 +70,10 @@ export default function Bookings() {
                 </span>
               </div>
               <div className="space-y-2">
-                {items.map((b) => (
-                  <div key={b.id} className="ticket p-4">
+                {items.map((b) => {
+                  const safeUrl = safeWebUrl(b.url)
+                  const expenseCost = b.cost && validAmount(b.cost.amount) && b.cost.currency.length <= 12 ? b.cost : undefined
+                  return <div key={b.id} className="ticket p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <div className="font-medium">{b.name}</div>
@@ -82,30 +102,30 @@ export default function Bookings() {
                           {bookingStatusLabel(t, st)}
                         </button>
                       ))}
-                      {b.url && (
-                        <a className="btn btn-soft px-2 py-1 text-xs no-underline" href={b.url} target="_blank" rel="noreferrer">
+                      {safeUrl && (
+                        <a className="btn btn-soft px-2 py-1 text-xs no-underline" href={safeUrl} target="_blank" rel="noreferrer">
                           {t('book.openSite')}
                         </a>
                       )}
                       <button className="btn btn-ghost px-2 py-1 text-xs" onClick={() => { setEditing(b); setOpen(true) }}>
                         {t('book.edit')}
                       </button>
-                      {b.status === 'paid' && b.cost && !trip.expenses.some((expense) => expense.bookingId === b.id) && (
+                      {b.status === 'paid' && expenseCost && b.name.length <= MAX_TEXT_LENGTH && !trip.expenses.some((expense) => expense.bookingId === b.id) && (
                         <button
                           className="btn btn-soft px-2 py-1 text-xs"
                           onClick={() => addExpense(trip.id, {
                             title: b.name,
-                            amount: b.cost!.amount,
-                            currency: b.cost!.currency,
-                            homeAmount: b.homeAmount ?? (b.cost!.currency === trip.homeCurrency ? b.cost!.amount : undefined),
-                            exchangeRate: b.exchangeRate,
+                            amount: expenseCost.amount,
+                            currency: expenseCost.currency,
+                            homeAmount: validAmount(b.homeAmount) ? b.homeAmount : expenseCost.currency === trip.homeCurrency ? expenseCost.amount : undefined,
+                            exchangeRate: validExchangeRate(b.exchangeRate) ? b.exchangeRate : undefined,
                             category: bookingBudgetCategory(b.kind),
-                            date: b.date || new Date().toISOString().slice(0, 10),
+                            date: validDate(b.date) ? b.date! : new Date().toISOString().slice(0, 10),
                             paidBy: trip.members.find((member) => member.id === 'me')?.id || trip.members[0]?.id || '',
                             split: 'equal',
                             excluded: [],
                             status: 'paid',
-                            notes: b.notes,
+                            notes: b.notes && b.notes.length <= MAX_TEXT_LENGTH ? b.notes : undefined,
                             bookingId: b.id,
                           })}
                         >
@@ -119,7 +139,7 @@ export default function Bookings() {
                     </div>
                     {b.notes && <p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>{b.notes}</p>}
                   </div>
-                ))}
+                })}
               </div>
             </section>
           )
@@ -167,13 +187,19 @@ function AddBooking({
   const [notes, setNotes] = useState(initial?.notes || '')
   const [rate, setRate] = useState(initial?.exchangeRate ? String(initial.exchangeRate) : '')
   const [error, setError] = useState('')
-  const needsRate = !!cost && currency !== homeCurrency
+  const amount = cost.trim() ? Number(cost) : undefined
+  const amountValid = amount === undefined || validAmount(amount)
+  const needsRate = amount !== undefined && amountValid && currency !== homeCurrency
 
   function save() {
-    if (!name.trim()) return
+    if (!name.trim() || !amountValid || name.length > MAX_TEXT_LENGTH || confirmation.length > MAX_TEXT_LENGTH
+      || notes.length > MAX_TEXT_LENGTH || currency.length > 12 || date && !validDate(date) || checkout && !validDate(checkout)) return
     if (kind === 'hotel' && checkout && (!date || checkout <= date)) return setError(t('decision.dateError'))
-    if (needsRate && Number(rate) <= 0) return setError(t('book.rateRequired'))
-    const exchangeRate = needsRate ? Number(rate) : cost ? 1 : undefined
+    const rateValue = rate.trim() ? Number(rate) : undefined
+    if (needsRate && !validExchangeRate(rateValue)) return setError(t('book.rateRequired'))
+    const exchangeRate = needsRate ? rateValue : amount !== undefined ? 1 : undefined
+    const homeAmount = amount !== undefined && exchangeRate !== undefined ? amount * exchangeRate : undefined
+    if (homeAmount !== undefined && !validAmount(homeAmount)) return setError(t('book.rateRequired'))
     onAdd({
       kind,
       name: name.trim(),
@@ -181,10 +207,10 @@ function AddBooking({
       date: date || undefined,
       checkout: kind === 'hotel' ? checkout || undefined : undefined,
       confirmation: confirmation || undefined,
-      cost: cost ? { amount: Number(cost), currency } : undefined,
-      homeAmount: cost && exchangeRate ? Number(cost) * exchangeRate : undefined,
+      cost: amount === undefined ? undefined : { amount, currency },
+      homeAmount,
       exchangeRate,
-      url: url || undefined,
+      url: safeWebUrl(url.trim()),
       notes: notes || undefined,
       sourceSavedId: initial?.sourceSavedId,
     })
@@ -202,7 +228,7 @@ function AddBooking({
             ))}
           </select>
         </div>
-        <input className="field" placeholder={t('book.name')} value={name} onChange={(e) => setName(e.target.value)} />
+        <input className="field" maxLength={MAX_TEXT_LENGTH} placeholder={t('book.name')} value={name} onChange={(e) => setName(e.target.value)} />
         <div className="grid grid-cols-2 gap-2">
           <div>
             <Label>{t('book.date')}</Label>
@@ -216,9 +242,9 @@ function AddBooking({
           </div>
         </div>
         {kind === 'hotel' && <label className="block space-y-2 text-sm"><span>{t('decision.checkout')}</span><input className="field" type="date" value={checkout} onChange={(event) => setCheckout(event.target.value)} /></label>}
-        <input className="field" placeholder={t('book.confirmation')} value={confirmation} onChange={(e) => setConfirmation(e.target.value)} />
+        <input className="field" maxLength={MAX_TEXT_LENGTH} placeholder={t('book.confirmation')} value={confirmation} onChange={(e) => setConfirmation(e.target.value)} />
         <div className="grid grid-cols-2 gap-2">
-          <input className="field" type="number" min={0} placeholder={t('book.cost')} value={cost} onChange={(e) => setCost(e.target.value)} />
+          <input className="field" type="number" min={0} max={MAX_AMOUNT} step="0.01" placeholder={t('book.cost')} value={cost} onChange={(e) => setCost(e.target.value)} />
           <select className="field" value={currency} onChange={(e) => setCurrency(e.target.value)}>
             {['AUD', 'CNY', 'USD', 'JPY', 'EUR', 'IDR'].map((value) => <option key={value}>{value}</option>)}
           </select>
@@ -226,16 +252,16 @@ function AddBooking({
         {needsRate && (
           <div>
             <Label>{t('aa.rate', { from: currency, to: homeCurrency })}</Label>
-            <input className="field" type="number" min={0} step="0.000001" value={rate} onChange={(e) => setRate(e.target.value)} placeholder={t('aa.ratePh')} />
+            <input className="field" type="number" min="0.000001" max={MAX_EXCHANGE_RATE} step="0.000001" value={rate} onChange={(e) => setRate(e.target.value)} placeholder={t('aa.ratePh')} />
             {Number(rate) > 0 && <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>{currency} {Number(cost).toLocaleString()} ≈ {money(Number(cost) * Number(rate), homeCurrency)}</p>}
           </div>
         )}
-        <input className="field" placeholder={t('book.url')} value={url} onChange={(e) => setUrl(e.target.value)} />
-        <textarea className="field min-h-[90px]" placeholder={t('book.notes')} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <input className="field" type="url" maxLength={4096} placeholder={t('book.url')} value={url} onChange={(e) => setUrl(e.target.value)} />
+        <textarea className="field min-h-[90px]" maxLength={MAX_TEXT_LENGTH} placeholder={t('book.notes')} value={notes} onChange={(e) => setNotes(e.target.value)} />
         {error && <p className="text-sm" style={{ color: 'var(--warn)' }}>{error}</p>}
         <button
           className="btn w-full"
-          disabled={!name.trim() || (!!cost && Number(cost) < 0)}
+          disabled={!name.trim() || !amountValid}
           onClick={save}
         >
           {initial ? t('book.save') : t('book.add')}

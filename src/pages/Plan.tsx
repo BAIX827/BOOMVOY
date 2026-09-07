@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   DndContext,
@@ -14,11 +14,11 @@ import { Camera, GripVertical, Pencil, Plus, Sparkles, Trash2 } from 'lucide-rea
 import { useApp, useTrip } from '../store'
 import type { PlaceSetting, PlaceStop, PlanVariant, Priority, TransportMode } from '../types'
 import { TRANSPORT, WEATHER } from '../catalog'
-import { formatDayLong, money, nearestNeighbor, addMinutesToTime, compressPhoto } from '../lib'
+import { formatDayLong, money, nearestNeighbor, addMinutesToTime, compressPhoto, safeWebUrl } from '../lib'
 import { Label, Modal, Tone } from '../ui'
 import { activePlaces, dayDistance, outdoorRatio, suggestedSwap, weatherAdvice } from '../domain'
 import DaySuggest from '../DaySuggest'
-import { ensurePlaceGeo, hopMeta, mapsDayRoute, mapsDirUrl, mapsPlaceUrl, routeHop, type HopRoute } from '../geo'
+import { ensurePlaceGeo, hopMeta, mapsDayRoute, mapsDirUrl, mapsPlaceUrl, routeHop, searchPlaces, type HopRoute, type PlaceSearchHit } from '../geo'
 import { PLACE_CATS, placeCatLabel, priorityLabel, settingLabel, transportLabel, useT } from '../i18n'
 
 export default function Plan() {
@@ -50,7 +50,8 @@ export default function Plan() {
       for (const p of places) {
         if (!p.coords && !p.locationPending) {
           const g = await ensurePlaceGeo(day.city, p)
-          if (g.coords && live) updatePlace(trip.id, day.id, day.activePlan, p.id, { coords: g.coords, address: g.address })
+          if (!live) return
+          if (g.coords) updatePlace(trip.id, day.id, day.activePlan, p.id, { coords: g.coords, address: g.address })
         }
       }
     })()
@@ -268,6 +269,7 @@ function SortablePlace({
   const { t } = useT()
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: place.id })
   const style = { transform: CSS.Transform.toString(transform), transition }
+  const ticketUrl = safeWebUrl(place.ticketUrl)
   return (
     <div ref={setNodeRef} style={style} className="paper relative p-4">
       {place.booked && (
@@ -310,8 +312,8 @@ function SortablePlace({
                 {t('suggest.confirmLocation')}
               </a>
             )}
-            {place.ticketNeeded && place.ticketUrl && (
-              <a className="underline" href={place.ticketUrl} target="_blank" rel="noreferrer">
+            {place.ticketNeeded && ticketUrl && (
+              <a className="underline" href={ticketUrl} target="_blank" rel="noreferrer">
                 {t('plan.buyTicket')}
               </a>
             )}
@@ -389,6 +391,12 @@ function EditPlaceBtn({ place, onPatch }: { place: PlaceStop; onPatch: (p: Parti
   }
 
   const categories = Array.from(new Set([place.category, ...PLACE_CATS]))
+  const durationValue = Number(duration)
+  const costValue = cost ? Number(cost) : undefined
+  const safeTicketUrl = ticketUrl ? safeWebUrl(ticketUrl) : undefined
+  const invalidDuration = !Number.isInteger(durationValue) || durationValue < 5 || durationValue > 1440
+  const invalidCost = costValue !== undefined && (!Number.isFinite(costValue) || costValue < 0 || costValue > 1_000_000_000_000)
+  const invalidTicketUrl = ticketNeeded && Boolean(ticketUrl) && !safeTicketUrl
   return (
     <>
       <button className="btn btn-ghost px-2 py-1 text-xs" onClick={show} aria-label={t('plan.edit')}>
@@ -407,7 +415,7 @@ function EditPlaceBtn({ place, onPatch }: { place: PlaceStop; onPatch: (p: Parti
             </div>
             <div>
               <Label>{t('plan.duration')}</Label>
-              <input className="field" type="number" min={5} step={5} value={duration} onChange={(e) => setDuration(e.target.value)} />
+              <input className="field" type="number" min={5} max={1440} step={5} value={duration} onChange={(e) => setDuration(e.target.value)} />
             </div>
           </div>
           <div>
@@ -435,7 +443,7 @@ function EditPlaceBtn({ place, onPatch }: { place: PlaceStop; onPatch: (p: Parti
           <div className="grid grid-cols-2 gap-2">
             <div>
               <Label>{t('plan.cost')}</Label>
-              <input className="field" type="number" min={0} value={cost} onChange={(e) => setCost(e.target.value)} />
+              <input className="field" type="number" min={0} max={1_000_000_000_000} step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} />
             </div>
             <div>
               <Label>{t('plan.currency')}</Label>
@@ -459,19 +467,19 @@ function EditPlaceBtn({ place, onPatch }: { place: PlaceStop; onPatch: (p: Parti
           </div>
           <button
             className="btn w-full"
-            disabled={!name.trim() || Number(duration) < 5 || (!!cost && Number(cost) < 0)}
+            disabled={!name.trim() || invalidDuration || invalidCost || invalidTicketUrl}
             onClick={() => {
               onPatch({
                 name: name.trim(),
                 time,
-                durationMin: Number(duration),
+                durationMin: durationValue,
                 category,
                 setting,
                 priority,
                 notes,
-                cost: cost ? { amount: Number(cost), currency, status: place.cost?.status || 'estimated' } : undefined,
+                cost: costValue === undefined ? undefined : { amount: costValue, currency, status: place.cost?.status || 'estimated' },
                 ticketNeeded,
-                ticketUrl: ticketNeeded && ticketUrl ? ticketUrl : undefined,
+                ticketUrl: ticketNeeded ? safeTicketUrl : undefined,
               })
               setOpen(false)
             }}
@@ -608,15 +616,67 @@ function AddPlaceModal({
   const [notes, setNotes] = useState('')
   const [ticket, setTicket] = useState(false)
   const [q, setQ] = useState('')
-  const [hits, setHits] = useState<Array<{ display_name: string; lat: string; lon: string }>>([])
+  const [hits, setHits] = useState<PlaceSearchHit[]>([])
+  const [searching, setSearching] = useState(false)
+  const searchGeneration = useRef(0)
+  const searchController = useRef<AbortController | null>(null)
+  const searchInFlight = useRef(false)
   const { t } = useT()
 
+  useEffect(() => {
+    if (open) return
+    searchGeneration.current += 1
+    searchController.current?.abort()
+    searchController.current = null
+    searchInFlight.current = false
+    setSearching(false)
+  }, [open])
+
+  useEffect(() => {
+    searchGeneration.current += 1
+    searchController.current?.abort()
+    searchController.current = null
+    searchInFlight.current = false
+    setSearching(false)
+    setQ('')
+    setHits([])
+  }, [city])
+
+  useEffect(() => () => {
+    searchGeneration.current += 1
+    searchController.current?.abort()
+  }, [])
+
   async function search() {
-    if (!q.trim()) return
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`
-    const res = await fetch(url, { headers: { Accept: 'application/json' } })
-    const data = await res.json()
-    setHits(data.slice(0, 5))
+    const query = q.trim()
+    if (!query || searchInFlight.current) return
+    const controller = new AbortController()
+    searchController.current = controller
+    searchInFlight.current = true
+    const id = ++searchGeneration.current
+    setSearching(true)
+    try {
+      const data = await searchPlaces(query, city, controller.signal)
+      if (id === searchGeneration.current && !controller.signal.aborted) setHits(data)
+    } catch {
+      if (id === searchGeneration.current && !controller.signal.aborted) setHits([])
+    } finally {
+      if (id === searchGeneration.current) {
+        searchController.current = null
+        searchInFlight.current = false
+        setSearching(false)
+      }
+    }
+  }
+
+  function changeSearchQuery(value: string) {
+    searchGeneration.current += 1
+    searchController.current?.abort()
+    searchController.current = null
+    searchInFlight.current = false
+    setSearching(false)
+    setQ(value)
+    setHits([])
   }
 
   const picked = useMemo(() => hits[0], [hits])
@@ -629,8 +689,8 @@ function AddPlaceModal({
         </p>
         <input className="field" placeholder={t('plan.addName')} value={name} onChange={(e) => setName(e.target.value)} />
         <div className="flex gap-2">
-          <input className="field" placeholder={t('plan.searchMap')} value={q} onChange={(e) => setQ(e.target.value)} />
-          <button className="btn btn-ghost" onClick={search}>
+          <input className="field" placeholder={t('plan.searchMap')} value={q} onChange={(e) => changeSearchQuery(e.target.value)} />
+          <button className="btn btn-ghost" disabled={searching || !q.trim()} onClick={search}>
             {t('plan.search')}
           </button>
         </div>

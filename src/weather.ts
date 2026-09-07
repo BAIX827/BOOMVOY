@@ -3,21 +3,26 @@ import type { Trip, WeatherCondition, WeatherSnap } from './types'
 import { toISODate } from './lib'
 import { useApp } from './store'
 import { resolveLocale, t, type Locale } from './i18n'
+import { RequestCache } from './requestCache'
 
-const cityCache = new Map<string, { lat: number; lng: number }>()
+type CityLocation = { lat: number; lng: number }
+const cityCache = new RequestCache<CityLocation>({ ttlMs: 30 * 24 * 60 * 60 * 1000, maxEntries: 160 })
+const forecastCache = new RequestCache<Record<string, WeatherSnap>>({ ttlMs: 30 * 60 * 1000, maxEntries: 240 })
+const archiveCache = new RequestCache<Record<string, WeatherSnap>>({ ttlMs: 24 * 60 * 60 * 1000, maxEntries: 240 })
 
 export async function geocodeCity(city: string, locale: Locale = 'zh') {
-  const key = city.trim().toLowerCase()
-  if (cityCache.has(key)) return cityCache.get(key)!
+  const input = city.trim()
+  if (!input) throw new Error(t(locale, 'wx.cityFail'))
   const lang = locale === 'zh' ? 'zh' : 'en'
-  const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=${lang}`)
-  if (!res.ok) throw new Error(t(locale, 'wx.cityFail'))
-  const data = await res.json()
-  const hit = data.results?.[0]
-  if (!hit) throw new Error(t(locale, 'wx.noCity', { city }))
-  const loc = { lat: hit.latitude as number, lng: hit.longitude as number }
-  cityCache.set(key, loc)
-  return loc
+  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(input)}&count=1&language=${lang}`
+  return cityCache.getOrCreate(url, async () => {
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(t(locale, 'wx.cityFail'))
+    const data = await res.json()
+    const hit = data.results?.[0]
+    if (!hit || !Number.isFinite(hit.latitude) || !Number.isFinite(hit.longitude)) throw new Error(t(locale, 'wx.noCity', { city: input }))
+    return { lat: hit.latitude as number, lng: hit.longitude as number }
+  })
 }
 
 function wmoCondition(code: number): WeatherCondition {
@@ -84,25 +89,33 @@ function snapsFromDaily(daily: Daily, seasonal: boolean, locale: Locale): Record
   return out
 }
 
-async function forecastRange(lat: number, lng: number, start: string, end: string, locale: Locale) {
+async function forecastRange(lat: number, lng: number, start: string, end: string, locale: Locale, force: boolean) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum&timezone=auto&start_date=${start}&end_date=${end}`
-  const res = await fetch(url)
-  if (!res.ok) return {} as Record<string, WeatherSnap>
-  const data = await res.json()
-  if (!data.daily?.time) return {}
-  return snapsFromDaily(data.daily, false, locale)
+  const key = `${locale}|${url}`
+  const load = async () => {
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(`Weather API ${res.status}`)
+    const data = await res.json()
+    if (!data.daily?.time) throw new Error('Invalid weather response')
+    return snapsFromDaily(data.daily, false, locale)
+  }
+  return force ? forecastCache.refresh(key, load) : forecastCache.getOrCreate(key, load)
 }
 
-async function archiveRange(lat: number, lng: number, start: string, end: string, seasonal: boolean, locale: Locale) {
+async function archiveRange(lat: number, lng: number, start: string, end: string, seasonal: boolean, locale: Locale, force: boolean) {
   const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto&start_date=${start}&end_date=${end}`
-  const res = await fetch(url)
-  if (!res.ok) return {} as Record<string, WeatherSnap>
-  const data = await res.json()
-  if (!data.daily?.time) return {}
-  return snapsFromDaily(data.daily, seasonal, locale)
+  const key = `${seasonal}|${locale}|${url}`
+  const load = async () => {
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(`Weather archive API ${res.status}`)
+    const data = await res.json()
+    if (!data.daily?.time) throw new Error('Invalid weather archive response')
+    return snapsFromDaily(data.daily, seasonal, locale)
+  }
+  return force ? archiveCache.refresh(key, load) : archiveCache.getOrCreate(key, load)
 }
 
-export async function weatherForCity(city: string, dates: string[], locale: Locale = 'zh') {
+export async function weatherForCity(city: string, dates: string[], locale: Locale = 'zh', force = false) {
   if (!dates.length) return {} as Record<string, WeatherSnap>
   const loc = await geocodeCity(city, locale)
   const sorted = [...dates].sort()
@@ -112,14 +125,15 @@ export async function weatherForCity(city: string, dates: string[], locale: Loca
   const far = sorted.filter((d) => d > forecastHorizon)
   const past = sorted.filter((d) => d < today)
   const out: Record<string, WeatherSnap> = {}
-  if (near.length) Object.assign(out, await forecastRange(loc.lat, loc.lng, near[0], near[near.length - 1], locale))
+  if (near.length) Object.assign(out, await forecastRange(loc.lat, loc.lng, near[0], near[near.length - 1], locale, force))
   if (far.length) {
-    const analog = await archiveRange(loc.lat, loc.lng, shiftYear(far[0], -1), shiftYear(far[far.length - 1], -1), true, locale)
+    const analog = await archiveRange(loc.lat, loc.lng, shiftYear(far[0], -1), shiftYear(far[far.length - 1], -1), true, locale, force)
     Object.entries(analog).forEach(([date, snap]) => {
       out[shiftYear(date, 1)] = snap
     })
   }
-  if (past.length) Object.assign(out, await archiveRange(loc.lat, loc.lng, past[0], past[past.length - 1], false, locale))
+  if (past.length) Object.assign(out, await archiveRange(loc.lat, loc.lng, past[0], past[past.length - 1], false, locale, force))
+  if (sorted.some((date) => !out[date])) throw new Error('Weather response did not include every requested date')
   return out
 }
 
@@ -137,7 +151,7 @@ export async function refreshTripWeather(trip: Trip, force = false, locale: Loca
   const failedCities: string[] = []
   for (const [city, dates] of byCity) {
     try {
-      const snaps = await weatherForCity(city, dates, locale)
+      const snaps = await weatherForCity(city, dates, locale, force)
       dates.forEach((date) => {
         const snap = snaps[date]
         if (snap) {

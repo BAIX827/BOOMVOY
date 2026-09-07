@@ -1,4 +1,5 @@
 import type { Cuisine, DecisionCandidate, DecisionCriterion, DecisionPreferences, MealChoice, RankedDecision } from './decisionTypes'
+import { safeWebUrl } from './lib'
 
 export const CUISINES: Cuisine[] = ['any', 'mexican', 'japanese', 'italian', 'thai', 'chinese', 'indian', 'korean', 'vietnamese', 'local']
 
@@ -215,11 +216,7 @@ export function rankDecisions(candidates: DecisionCandidate[], prefs: DecisionPr
 }
 
 export function safeDecisionUrl(value: unknown): string | undefined {
-  if (typeof value !== 'string' || value.length > 4096 || /[\u0000-\u001f\u007f]/.test(value)) return undefined
-  try {
-    const url = new URL(value)
-    return (url.protocol === 'https:' || url.protocol === 'http:') && !url.username && !url.password && Boolean(url.hostname) ? url.href : undefined
-  } catch { return undefined }
+  return safeWebUrl(value)
 }
 
 function validDate(value: string): boolean {

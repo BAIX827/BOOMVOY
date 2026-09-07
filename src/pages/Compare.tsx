@@ -14,7 +14,7 @@ export default function Compare() {
   const trip = useTrip(id)
   const { toggleVote, updateSaved, addCompareBoard, updateCompareBoard, removeCompareBoard, addBooking } = useApp()
   const { t, locale } = useT()
-  const decisionApiUrl = useApp((state) => state.profile.decisionApiUrl)
+  const backendUrl = useApp((state) => state.profile.backendUrl)
   const [open, setOpen] = useState(false)
   const [bookingCandidate, setBookingCandidate] = useState<SavedItem | undefined>()
   if (!trip) return null
@@ -25,7 +25,7 @@ export default function Compare() {
         <h1 className="display text-4xl">{t('compare.title')}</h1>
         <button className="btn" onClick={() => setOpen(true)}>{t('compare.create')}</button>
       </div>
-      <DecisionAssistant key={`${trip.id}-${locale}-${decisionApiUrl || ''}`} trip={trip} />
+      <DecisionAssistant key={`${trip.id}-${locale}-${backendUrl || ''}`} trip={trip} />
       {trip.compares.map((board) => {
         const items = board.itemIds.map((i) => trip.saved.find((s) => s.id === i)).filter(Boolean)
         return (

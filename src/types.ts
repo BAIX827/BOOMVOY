@@ -239,8 +239,6 @@ export interface Profile {
   homeCurrency: string
   themePref: ThemeId | 'auto'
   locale?: 'zh' | 'en'
-  llmUrl?: string
-  llmKey?: string
-  llmModel?: string
-  decisionApiUrl?: string
+  /** Optional trusted BOOMVOY backend base, for example /api or https://api.example.com/api. */
+  backendUrl?: string
 }

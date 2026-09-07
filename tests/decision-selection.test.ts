@@ -184,14 +184,14 @@ const googleCandidate = candidate({
   address: 'PROVIDER_ADDRESS_SENTINEL', city: 'PROVIDER_CITY_SENTINEL',
   sourceUrl: 'https://provider-sentinel.example/source', websiteUrl: 'https://provider-sentinel.example/website',
   bookingUrl: 'https://provider-sentinel.example/booking', mapsUrl: 'https://provider-sentinel.example/maps',
-  rating: { value: 4.9876, count: 999876, sourceUrl: 'https://provider-sentinel.example/rating' },
-  price: { min: 9875, max: 9876, currency: 'JPY', basis: 'person' },
+  rating: { value: 4.81234567, count: 91827364, sourceUrl: 'https://provider-sentinel.example/rating' },
+  price: { min: 76543, max: 87654, currency: 'JPY', basis: 'person' },
   attributions: [{ name: 'PROVIDER_ATTRIBUTION_SENTINEL', url: 'https://provider-sentinel.example/attribution' }],
 })
 
 function assertProviderFactsAbsent(value: unknown) {
   const json = JSON.stringify(value)
-  for (const marker of ['PROVIDER_', 'provider-sentinel.example', '4.9876', '999876', '9875', '9876']) assert.equal(json.includes(marker), false, `provider fact ${marker} must stay session-only`)
+  for (const marker of ['PROVIDER_', 'provider-sentinel.example', '4.81234567', '91827364', '76543', '87654']) assert.equal(json.includes(marker), false, `provider fact ${marker} must stay session-only`)
 }
 
 test('Google selection retains place ID and user data only', () => {

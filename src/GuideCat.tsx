@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useApp } from './store'
 import boomi from './assets/boomi.png'
 import { matchBoomi } from './boomiChat'
-import { askBoomi, resolveLlm } from './llm'
+import { askBoomi, resolveBackend } from './llm'
 import { useT, type TFn } from './i18n'
 
 type Step = {
@@ -195,9 +195,9 @@ export default function GuideCat() {
         }
         return
       }
-      const llm = resolveLlm(profile)
-      if (llm.ready) {
-        const reply = await askBoomi(llm, q, locale, loc.pathname)
+      const backend = resolveBackend(profile)
+      if (backend.ready) {
+        const reply = await askBoomi(backend, q, locale, loc.pathname)
         setMsgs((m) => [...m, { who: 'boomi', text: reply }])
         return
       }

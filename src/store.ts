@@ -78,9 +78,12 @@ function seed(): Trip[] {
 
 function migratePersisted(state: unknown) {
   const stored = state as Partial<AppState>
-  if (!Array.isArray(stored.trips)) return { ...stored, trips: seed() }
+  const safeProfile = stored.profile && typeof stored.profile === 'object' ? { ...stored.profile as unknown as Record<string, unknown> } : {}
+  for (const key of ['llmKey', 'llmUrl', 'llmModel', 'decisionApiUrl']) delete safeProfile[key]
+  if (!Array.isArray(stored.trips)) return { ...stored, profile: safeProfile, trips: seed() }
   return {
     ...stored,
+    profile: safeProfile,
     trips: stored.trips
       .filter((trip) => trip.id !== 'template-bali')
       .map((trip) =>
@@ -415,7 +418,7 @@ export const useApp = create<AppState>()(
     }),
     {
       name: 'boomvoy-v1',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => localStorage),
       migrate: migratePersisted,
     },
@@ -424,4 +427,17 @@ export const useApp = create<AppState>()(
 
 export function useTrip(id?: string) {
   return useApp((s) => s.trips.find((t) => t.id === id))
+}
+
+/** Keep memory and persisted state together if localStorage rejects a large replacement. */
+export function replaceTravelData(next: Pick<AppState, 'profile' | 'trips'>) {
+  const previous = useApp.getState()
+  try {
+    useApp.setState(next)
+  } catch (error) {
+    try {
+      useApp.setState({ profile: previous.profile, trips: previous.trips })
+    } catch { /* the previous persisted value remains the recovery source on reload */ }
+    throw error
+  }
 }

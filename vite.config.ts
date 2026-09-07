@@ -14,16 +14,13 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    host: true,
+    // Keep the same-origin proxy private too; otherwise LAN clients could use it
+    // to reach the unauthenticated paid routes bound to the backend loopback.
+    host: '127.0.0.1',
     proxy: {
-      '/api/decisions': {
+      '/api': {
         target: 'http://127.0.0.1:8787',
         changeOrigin: true,
-      },
-      '/openai': {
-        target: 'https://api.openai.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/openai/, ''),
       },
     },
   },

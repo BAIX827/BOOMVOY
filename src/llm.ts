@@ -1,50 +1,80 @@
-export const DEFAULT_LLM_URL = 'https://api.openai.com/v1/chat/completions'
-export const DEFAULT_LLM_MODEL = 'gpt-4o-mini'
+import { RequestCache } from './requestCache'
 
-export function resolveLlm(profile: { llmUrl?: string; llmKey?: string; llmModel?: string }) {
-  const envKey = import.meta.env.DEV ? import.meta.env.VITE_OPENAI_API_KEY || '' : ''
-  const llmKey = profile.llmKey || envKey
-  return {
-    llmUrl: profile.llmUrl || import.meta.env.VITE_OPENAI_API_URL || DEFAULT_LLM_URL,
-    llmKey,
-    llmModel: profile.llmModel || import.meta.env.VITE_OPENAI_MODEL || DEFAULT_LLM_MODEL,
-    fromEnv: Boolean(envKey) && !profile.llmKey,
-    ready: Boolean(llmKey),
+type BackendProfile = { backendUrl?: string }
+
+export type BackendConfig = {
+  baseUrl: string
+  ready: boolean
+  fromEnv: boolean
+}
+
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
+const boomiReplyCache = new RequestCache<string>({ ttlMs: 10 * 60 * 1000, maxEntries: 40 })
+
+export function normalizeBackendUrl(value: string): string {
+  const input = value.trim().replace(/\/+$/, '')
+  if (!input) return ''
+  if (input.startsWith('/') && !input.startsWith('//') && !/[\\\s?#]/.test(input)) return input
+  try {
+    const url = new URL(input)
+    const local = LOCAL_HOSTS.has(url.hostname)
+    if (url.username || url.password || url.search || url.hash || (url.protocol !== 'https:' && !(local && url.protocol === 'http:'))) return ''
+    return url.href.replace(/\/$/, '')
+  } catch {
+    return ''
+  }
+}
+
+export function resolveBackend(profile: BackendProfile): BackendConfig {
+  const envUrl = import.meta.env.VITE_BOOMVOY_API_URL || '/api'
+  const configured = profile.backendUrl || envUrl
+  const baseUrl = normalizeBackendUrl(configured)
+  return { baseUrl, ready: Boolean(baseUrl), fromEnv: !profile.backendUrl }
+}
+
+export function backendEndpoint(baseUrl: string, path: string): string {
+  const base = normalizeBackendUrl(baseUrl)
+  if (!base || !path.startsWith('/') || path.startsWith('//')) throw new Error('invalid backend endpoint')
+  return `${base}${path}`
+}
+
+async function postBackend<T>(url: string, body: unknown, timeoutMs: number): Promise<T> {
+  const controller = new AbortController()
+  const timer = globalThis.setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+      cache: 'no-store',
+      redirect: 'error',
+      credentials: 'same-origin',
+    })
+    if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) throw new Error(`Backend ${response.status}`)
+    return await response.json() as T
+  } finally {
+    globalThis.clearTimeout(timer)
   }
 }
 
 export async function askBoomi(
-  llm: ReturnType<typeof resolveLlm>,
+  backend: BackendConfig,
   question: string,
   locale: 'zh' | 'en',
   page: string,
 ) {
-  if (!llm.ready) throw new Error('no llm')
-  const res = await fetch(llm.llmUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${llm.llmKey}`,
-    },
-    body: JSON.stringify({
-      model: llm.llmModel,
-      temperature: 0.3,
-      max_tokens: 220,
-      messages: [
-        {
-          role: 'system',
-          content:
-            locale === 'zh'
-              ? '你是 BOOMVOY 的导游猫 Boomi。用 2～4 句中文教用户怎么操作这个旅行手账：行程页点「推荐行程」才会生成当天建议；到站后点「打卡」写感受和照片；路线图看绕不绕；预订中心搜机票酒店。不要编造功能，不要客套。'
-              : 'You are Boomi, BOOMVOY’s tour-guide cat. In 2–4 short sentences, teach this travel journal: on Plan, tap “Recommend a day” to generate; at a stop, tap Check in for a note and photos; the map shows detours; Bookings searches flights and hotels. Do not invent features. No filler.',
-        },
-        { role: 'user', content: `page: ${page}\n${question}` },
-      ],
-    }),
+  if (!backend.ready) throw new Error('backend unavailable')
+  const normalizedQuestion = question.trim()
+  const key = JSON.stringify([backend.baseUrl, locale, page, normalizedQuestion])
+  return boomiReplyCache.getOrCreate(key, async () => {
+    const data = await postBackend<{ text?: unknown }>(backendEndpoint(backend.baseUrl, '/ai/chat'), {
+      question: normalizedQuestion,
+      locale,
+      page,
+    }, 35_000)
+    const text = typeof data.text === 'string' ? data.text.trim() : ''
+    if (!text || text.length > 2_000) throw new Error('invalid backend response')
+    return text
   })
-  if (!res.ok) throw new Error(`API ${res.status}`)
-  const data = await res.json()
-  const text = String(data.choices?.[0]?.message?.content || '').trim()
-  if (!text) throw new Error('empty')
-  return text
 }

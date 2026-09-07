@@ -11,6 +11,7 @@ import { useT } from './i18n'
 import { money } from './lib'
 import { Modal } from './ui'
 import { tripHotelStays } from './bookingLinks'
+import { backendEndpoint, resolveBackend } from './llm'
 
 function nextDay(date: string) {
   const value = new Date(date + 'T12:00:00Z')
@@ -23,10 +24,26 @@ function validDate(date: string) {
 }
 const criterionKey = (key: string) => key === 'reviews' ? 'reviewCount' : key
 
+export function decisionDiscoveryKey(preferences: DecisionPreferences, locale: 'zh' | 'en', endpoint: string): string {
+  const restaurantCuisine = preferences.kind === 'restaurant' && !['any', 'local'].includes(preferences.cuisine) ? preferences.cuisine : 'any'
+  return JSON.stringify([
+    preferences.kind,
+    preferences.city.trim().replace(/\s+/g, ' ').toLowerCase(),
+    restaurantCuisine,
+    preferences.kind === 'hotel' && preferences.seaView,
+    preferences.parking || preferences.freeParking,
+    preferences.kind === 'restaurant' && preferences.budgetMax !== undefined,
+    locale,
+    endpoint.trim(),
+  ])
+}
+
 export default function DecisionAssistant({ trip }: { trip: Trip }) {
   const { t, locale } = useT()
   const { saveDecision, updateTrip } = useApp()
-  const endpoint = useApp((state) => state.profile.decisionApiUrl) || '/api/decisions/search'
+  const profile = useApp((state) => state.profile)
+  const backend = resolveBackend(profile)
+  const endpoint = backend.ready ? backendEndpoint(backend.baseUrl, '/decisions/search') : ''
   const stay = tripHotelStays(trip)[0]
   const [prefs, setPrefs] = useState<DecisionPreferences>(() => trip.decisionPreferences || ({
     kind: 'hotel', city: stay?.city || trip.destinations[0] || trip.origin,
@@ -45,9 +62,28 @@ export default function DecisionAssistant({ trip }: { trip: Trip }) {
   const [pending, setPending] = useState<{ ranked: RankedDecision; choose: boolean; preferences: DecisionPreferences } | null>(null)
   const generation = useRef(0)
   const controller = useRef<AbortController | null>(null)
+  const successfulDiscovery = useRef<string | null>(null)
   const panel = useRef<HTMLElement>(null)
   const committing = useRef(false)
-  useEffect(() => () => { generation.current += 1; controller.current?.abort() }, [trip.id, locale, endpoint])
+  const scopeKey = `${trip.id}\u0000${locale}\u0000${endpoint}`
+  const previousScope = useRef(scopeKey)
+  useEffect(() => {
+    if (previousScope.current !== scopeKey) {
+      previousScope.current = scopeKey
+      successfulDiscovery.current = null
+      setLive([])
+      setSearched(false)
+      setLoading(false)
+      setOffline(false)
+      setStatus('')
+      setPending(null)
+    }
+    return () => {
+      generation.current += 1
+      controller.current?.abort()
+      controller.current = null
+    }
+  }, [scopeKey])
 
   const saved = useMemo(() => savedDecisionCandidates(trip.saved), [trip.saved])
   const candidates = useMemo(() => [...live, ...saved, ...DECISION_CATALOG].filter((candidate, index, all) => all.findIndex((other) => other.id === candidate.id) === index), [saved, live])
@@ -60,12 +96,19 @@ export default function DecisionAssistant({ trip }: { trip: Trip }) {
   }))) : []
 
   function change(patch: Partial<DecisionPreferences>) {
-    controller.current?.abort()
-    generation.current += 1
-    setPrefs((previous) => ({ ...previous, ...patch }))
-    setLive([])
-    setSearched(false)
-    setLoading(false)
+    const next = { ...prefs, ...patch }
+    const discoveryChanged = decisionDiscoveryKey(next, locale, endpoint) !== decisionDiscoveryKey(prefs, locale, endpoint)
+    if (discoveryChanged) {
+      controller.current?.abort()
+      controller.current = null
+      generation.current += 1
+      successfulDiscovery.current = null
+      setLive([])
+      setSearched(false)
+      setLoading(false)
+      setOffline(false)
+    }
+    setPrefs(next)
     setStatus('')
     setPending(null)
   }
@@ -76,22 +119,33 @@ export default function DecisionAssistant({ trip }: { trip: Trip }) {
   }
   async function search() {
     if (!valid) { setStatus(t('decision.invalid')); return }
+    const discovery = decisionDiscoveryKey(prefs, locale, endpoint)
+    updateTrip(trip.id, { decisionPreferences: { ...prefs } })
+    if (successfulDiscovery.current === discovery) {
+      setSearched(true)
+      setOffline(false)
+      return
+    }
     controller.current?.abort()
     const abort = new AbortController()
     controller.current = abort
     const id = ++generation.current
     setLoading(true); setStatus(''); setOffline(false); setLive([]); setSearched(false)
-    updateTrip(trip.id, { decisionPreferences: { ...prefs } })
     try {
       const data = await fetchDecisionCandidates(prefs, locale, endpoint, abort.signal)
       if (id !== generation.current || abort.signal.aborted) return
       setLive(data)
       setSearched(true)
+      successfulDiscovery.current = discovery
     } catch {
       if (id !== generation.current || abort.signal.aborted) return
+      successfulDiscovery.current = null
       setOffline(true); setSearched(true)
     } finally {
-      if (id === generation.current) setLoading(false)
+      if (id === generation.current) {
+        controller.current = null
+        setLoading(false)
+      }
     }
   }
   function select(ranked: RankedDecision, choose: boolean) {
@@ -148,7 +202,7 @@ export default function DecisionAssistant({ trip }: { trip: Trip }) {
       {prefs.kind === 'restaurant' && <details className="mt-3 text-xs"><summary className="cursor-pointer">{t('decision.exclusions')}</summary><div className="mt-2 flex flex-wrap gap-3">{CUISINES.filter((cuisine) => cuisine !== 'any').map((cuisine) => <label key={cuisine} className="flex items-center gap-1"><input type="checkbox" checked={prefs.excludedCuisines?.includes(cuisine) || false} onChange={(event) => change({ excludedCuisines: event.target.checked ? [...(prefs.excludedCuisines || []), cuisine] : prefs.excludedCuisines?.filter((value) => value !== cuisine), cuisine: event.target.checked && prefs.cuisine === cuisine ? 'any' : prefs.cuisine })} />{t('decision.cuisine.' + cuisine)}</label>)}</div></details>}
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <button className="btn" disabled={loading || !valid} onClick={() => void search()}><Sparkles size={16} />{t(loading ? 'decision.loading' : 'decision.find')}</button>
-        {loading && <button className="btn btn-ghost" onClick={() => { controller.current?.abort(); generation.current += 1; setLoading(false) }}>{t('decision.cancel')}</button>}
+        {loading && <button className="btn btn-ghost" onClick={() => { controller.current?.abort(); controller.current = null; generation.current += 1; setLoading(false) }}>{t('decision.cancel')}</button>}
       </div>
       {!valid && <p role="alert" className="mt-3 text-sm" style={{ color: 'var(--warn)' }}>{t('decision.invalid')}</p>}
       {status && <p role="status" className="mt-3 text-sm">{status}</p>}

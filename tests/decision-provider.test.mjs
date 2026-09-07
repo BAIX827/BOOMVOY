@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { after, test } from 'node:test'
 import http from 'node:http'
 import { build } from 'esbuild'
-import { createDecisionServer, mapGooglePlace, matchesRequestedGeography, validateDecisionRequest } from '../server/decision-server.mjs'
+import { createDecisionServer, mapGooglePlace, matchesRequestedGeography, validateDecisionRequest, validateRecommendationRequest } from '../server/decision-server.mjs'
 
 // This suite always injects a fake key and fetch. It never reads .env or calls Google.
 const preferences = { kind: 'restaurant', city: 'Melbourne, Australia', currency: 'AUD', budgetMax: 70, seaView: false,
@@ -28,6 +28,24 @@ after(async () => {
 })
 const request = (base, body = { preferences, locale: 'en' }, headers = {}) => fetch(`${base}/api/decisions/search`, {
   method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body),
+})
+const post = (base, path, body, headers = {}) => fetch(`${base}${path}`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body),
+})
+const chat = { question: 'How do I plan a day?', locale: 'en', page: '/trip/test/plan' }
+const recommendation = {
+  city: 'Tokyo', date: '2026-09-08', locale: 'en', existing: ['Senso-ji'],
+  planned: [{ name: 'Meiji Jingu', date: '2026-09-09', city: 'Tokyo' }],
+  preferences: { pace: 'balanced', startTime: '09:00', endTime: '19:00', transportMode: 'public', indoorOnly: false },
+  anchor: { name: 'Tokyo Station', time: '08:00', durationMin: 30 },
+}
+
+test('recommendation requests accept the full persisted weather enum', () => {
+  const result = validateRecommendationRequest({
+    ...recommendation,
+    weather: { condition: 'wind', tMin: 12, tMax: 19, rainProb: 20, summary: 'Windy', source: 'forecast' },
+  })
+  assert.equal(result.weather.condition, 'wind')
 })
 
 test('validates city, budget, dates, enums and numbers without forwarding extra fields', () => {
@@ -113,7 +131,7 @@ test('rejects closed places, bad categories and unsafe links; preserves unknown/
   assert.equal(mapGooglePlace({ ...place, priceRange: { ...place.priceRange, endPrice: { currencyCode: 'USD', units: '80' } } }, preferences, fetchedAt).price, undefined)
 })
 
-test('searches only the fixed Google URL, uses pageSize/field mask, and deduplicates', async () => {
+test('searches only the fixed Google URL, uses pageSize 12 and a minimal dynamic field mask', async () => {
   let observed
   const base = await start({ now: () => Date.parse(fetchedAt), fetchImpl: async (url, options) => {
     observed = { url, options, body: JSON.parse(options.body) }
@@ -129,15 +147,20 @@ test('searches only the fixed Google URL, uses pageSize/field mask, and deduplic
   assert.equal(observed.url, 'https://places.googleapis.com/v1/places:searchText')
   assert.equal(observed.options.headers['X-Goog-Api-Key'], 'fake-test-key')
   assert.equal(observed.options.redirect, 'error')
-  assert.equal(observed.body.pageSize, 20)
+  assert.equal(observed.body.pageSize, 12)
   assert.equal(observed.body.maxResultCount, undefined)
   assert.equal(observed.body.strictTypeFiltering, true)
-  assert.match(observed.options.headers['X-Goog-FieldMask'], /places\.parkingOptions/)
+  assert.doesNotMatch(observed.options.headers['X-Goog-FieldMask'], /places\.parkingOptions/)
+  assert.match(observed.options.headers['X-Goog-FieldMask'], /places\.priceRange/)
   await request(base, { preferences: { ...preferences, kind: 'hotel', seaView: true }, locale: 'zh' })
   assert.equal(observed.body.strictTypeFiltering, undefined)
   assert.equal(observed.body.minRating, undefined)
   assert.equal(observed.body.languageCode, 'zh-CN')
   assert.match(observed.body.textQuery, /sea view hotels/)
+  assert.doesNotMatch(observed.options.headers['X-Goog-FieldMask'], /places\.(?:parkingOptions|priceRange)/)
+  await request(base, { preferences: { ...preferences, budgetMax: undefined, parking: true }, locale: 'en' })
+  assert.match(observed.options.headers['X-Goog-FieldMask'], /places\.parkingOptions/)
+  assert.doesNotMatch(observed.options.headers['X-Goog-FieldMask'], /places\.priceRange/)
 })
 
 test('missing configuration makes zero upstream requests and returns explicit unavailable', async () => {
@@ -194,6 +217,174 @@ test('upstream is aborted on timeout and an explicit retryable error is returned
   assert.equal(response.status, 504)
   assert.deepEqual(await response.json(), { error: 'provider_timeout' })
   assert.equal(aborted, true)
+})
+
+test('health is key-free and never calls a provider', async () => {
+  let calls = 0
+  const base = await start({ apiKey: '', openaiApiKey: '', fetchImpl: async () => { calls++; throw new Error('must not call') } })
+  const response = await fetch(`${base}/api/health`)
+  assert.equal(response.status, 200)
+  assert.deepEqual(await response.json(), { ok: true })
+  assert.equal(calls, 0)
+  assert.equal((await post(base, '/api/health', {})).status, 405)
+})
+
+test('equivalent concurrent Google requests share one call and settled results are not cached', async () => {
+  let calls = 0, release, started
+  const gate = new Promise(resolve => { release = resolve })
+  const providerStarted = new Promise(resolve => { started = resolve })
+  const base = await start({ fetchImpl: async () => {
+    calls += 1
+    started()
+    await gate
+    return json({ places: [place] })
+  } })
+  const first = request(base, { preferences: { ...preferences, minRating: 4.1, travellers: 2 }, locale: 'en' })
+  const second = request(base, { preferences: { ...preferences, minRating: 4.9, travellers: 5 }, locale: 'en' })
+  await providerStarted
+  await new Promise(resolve => setTimeout(resolve, 20))
+  assert.equal(calls, 1, 'only provider-affecting fields participate in the single-flight key')
+  release()
+  assert.deepEqual(await Promise.all([first.then(r => r.status), second.then(r => r.status)]), [200, 200])
+  assert.equal((await request(base)).status, 200)
+  assert.equal(calls, 2, 'Google results are removed from single-flight storage when settled')
+})
+
+test('process concurrency and minute budget reject excess work before fetch', async () => {
+  let concurrentCalls = 0, release
+  const gate = new Promise(resolve => { release = resolve })
+  const concurrent = await start({ upstreamConcurrency: 1, fetchImpl: async () => {
+    concurrentCalls += 1
+    await gate
+    return json({ places: [place] })
+  } })
+  const first = request(concurrent)
+  await new Promise(resolve => setImmediate(resolve))
+  const busy = await request(concurrent, { preferences, locale: 'zh' })
+  assert.equal(busy.status, 429)
+  assert.deepEqual(await busy.json(), { error: 'upstream_busy' })
+  assert.equal(concurrentCalls, 1)
+  release()
+  assert.equal((await first).status, 200)
+
+  let time = Date.parse(fetchedAt), budgetCalls = 0
+  const budgeted = await start({ now: () => time, upstreamRateLimit: 1, upstreamRateWindowMs: 60000, fetchImpl: async () => {
+    budgetCalls += 1
+    return json({ places: [place] })
+  } })
+  assert.equal((await request(budgeted)).status, 200)
+  const exhausted = await request(budgeted, { preferences, locale: 'zh' })
+  assert.equal(exhausted.status, 429)
+  assert.deepEqual(await exhausted.json(), { error: 'budget_exhausted' })
+  assert.ok(exhausted.headers.get('retry-after'))
+  assert.equal(budgetCalls, 1)
+  time += 60000
+  assert.equal((await request(budgeted, { preferences, locale: 'zh' })).status, 200)
+  assert.equal(budgetCalls, 2)
+})
+
+test('AI routes use fixed server configuration, exact-body single-flight and normalized output', async () => {
+  let calls = 0, release, started, observed
+  const gate = new Promise(resolve => { release = resolve })
+  const providerStarted = new Promise(resolve => { started = resolve })
+  const recommendationContent = JSON.stringify({ suggestions: [{ title: 'Ueno route', vibe: 'Museums nearby', places: [
+    { name: 'Tokyo National Museum', category: 'sight', setting: 'indoor', time: '10:00', durationMin: 75,
+      ticketNeeded: true, ticketUrl: 'https://evil.example/phish', priority: 'must', transportToNext: 'walking', coords: { lat: 0, lng: 0 } },
+  ] }] })
+  const base = await start({ openaiApiKey: 'server-only-secret', openaiApiUrl: 'https://ai.example.test/v1/chat/completions', openaiModel: 'fixed-test-model',
+    fetchImpl: async (url, options) => {
+      calls += 1
+      observed = { url, options, body: JSON.parse(options.body) }
+      if (calls === 1) { started(); await gate }
+      const system = observed.body.messages?.[0]?.content || ''
+      return json({ choices: [{ message: { content: system.includes('geographically coherent') ? recommendationContent : 'Open the Plan page and tap Recommend a day.' } }] })
+    } })
+  const first = post(base, '/api/ai/chat', chat)
+  const second = post(base, '/api/ai/chat', { page: chat.page, locale: chat.locale, question: chat.question })
+  await providerStarted
+  await new Promise(resolve => setTimeout(resolve, 20))
+  assert.equal(calls, 1)
+  release()
+  for (const response of await Promise.all([first, second])) {
+    assert.equal(response.status, 200)
+    assert.deepEqual(await response.json(), { text: 'Open the Plan page and tap Recommend a day.' })
+  }
+  assert.equal(observed.url, 'https://ai.example.test/v1/chat/completions')
+  assert.equal(observed.options.headers.Authorization, 'Bearer server-only-secret')
+  assert.equal(observed.body.model, 'fixed-test-model')
+  assert.match(observed.body.messages[0].content, /Do not invent features/)
+
+  const response = await post(base, '/api/recommendations/day', recommendation)
+  assert.equal(response.status, 200)
+  const result = await response.json()
+  assert.equal(calls, 2, 'one recommendation action makes one OpenAI request')
+  assert.equal(result.suggestions.length, 1)
+  assert.deepEqual(result.suggestions[0].places[0], {
+    name: 'Tokyo National Museum', category: '景点', setting: 'indoor', time: '10:00', durationMin: 75,
+    ticketNeeded: true, priority: 'must', transportToNext: 'walking',
+  })
+  assert.match(observed.body.messages[0].content, /Never invent coordinates/)
+  assert.doesNotMatch(observed.body.messages[0].content, /ticketUrl/)
+  assert.equal(JSON.stringify(observed.body).includes('server-only-secret'), false)
+})
+
+test('recommendations use their 256 KiB body limit and make one upstream call for valid large input', async () => {
+  let calls = 0
+  const content = JSON.stringify({ suggestions: [{ title: 'Large-context route', vibe: '', places: [
+    { name: 'Tokyo National Museum', category: 'sight', setting: 'indoor', durationMin: 60, ticketNeeded: false },
+  ] }] })
+  const base = await start({ openaiApiKey: 'server-only-secret', fetchImpl: async () => {
+    calls += 1
+    return json({ choices: [{ message: { content } }] })
+  } })
+  const large = {
+    ...recommendation,
+    existing: Array.from({ length: 100 }, (_, index) => `Existing place ${index} ${'x'.repeat(85)}`),
+    planned: Array.from({ length: 150 }, (_, index) => ({
+      name: `Planned place ${index} ${'y'.repeat(85)}`,
+      date: '2026-09-09',
+      city: 'Tokyo',
+    })),
+  }
+  const bytes = Buffer.byteLength(JSON.stringify(large), 'utf8')
+  assert.ok(bytes > 16 * 1024)
+  assert.ok(bytes < 256 * 1024)
+
+  const response = await post(base, '/api/recommendations/day', large)
+  assert.equal(response.status, 200)
+  assert.equal((await response.json()).suggestions.length, 1)
+  assert.equal(calls, 1)
+
+  const oversized = await post(base, '/api/recommendations/day', { padding: 'z'.repeat(256 * 1024) })
+  assert.equal(oversized.status, 413)
+  assert.deepEqual(await oversized.json(), { error: 'request_too_large' })
+  assert.equal(calls, 1)
+})
+
+test('AI validation and missing keys make zero upstream calls', async () => {
+  let calls = 0
+  const missing = await start({ apiKey: '', openaiApiKey: '', fetchImpl: async () => { calls++; throw new Error('must not call') } })
+  for (const [path, body] of [['/api/ai/chat', chat], ['/api/recommendations/day', recommendation]]) {
+    const response = await post(missing, path, body)
+    assert.equal(response.status, 503)
+    assert.deepEqual(await response.json(), { error: 'provider_not_configured' })
+  }
+  assert.equal(calls, 0)
+
+  const strict = await start({ openaiApiKey: 'fake-ai-key', fetchImpl: async () => { calls++; return json({}) } })
+  const invalid = [
+    ['/api/ai/chat', { ...chat, llmKey: 'client-secret' }],
+    ['/api/ai/chat', { ...chat, page: 'https://evil.example/' }],
+    ['/api/recommendations/day', { ...recommendation, llmModel: 'client-model' }],
+    ['/api/recommendations/day', { ...recommendation, planned: [{ ...recommendation.planned[0], coords: { lat: 1, lng: 2 } }] }],
+    ['/api/recommendations/day', { ...recommendation, preferences: { ...recommendation.preferences, startTime: '20:00', endTime: '09:00' } }],
+  ]
+  for (const [path, body] of invalid) {
+    const response = await post(strict, path, body)
+    assert.equal(response.status, 400)
+    assert.deepEqual(await response.json(), { error: 'invalid_request' })
+  }
+  assert.equal(calls, 0)
 })
 
 const bundle = await build({ entryPoints: ['src/decisionClient.ts'], bundle: true, write: false, platform: 'node', format: 'esm', target: 'node20' })

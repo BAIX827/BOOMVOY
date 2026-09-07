@@ -8,6 +8,13 @@ import { Label, Modal } from '../ui'
 import { namedCat, useT } from '../i18n'
 import type { Expense } from '../types'
 
+const MAX_AMOUNT = 1_000_000_000_000
+function validDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const parsed = new Date(`${value}T12:00:00Z`)
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
+}
+
 export default function Expenses() {
   const { id } = useParams()
   const trip = useTrip(id)
@@ -153,37 +160,42 @@ function AddExpense({
   const [shares, setShares] = useState<Record<string, number>>(initial?.split === 'equal' || !initial ? {} : initial.split)
   const [rate, setRate] = useState(initial?.exchangeRate ? String(initial.exchangeRate) : '')
   const [error, setError] = useState('')
-  const customTotal = members.reduce((sum, member) => sum + (shares[member.id] || 0), 0)
+  const customShares = Object.fromEntries(members.map((member) => [member.id, shares[member.id] || 0]))
+  const shareValuesValid = Object.values(customShares).every((share) => Number.isFinite(share) && share >= 0 && share <= MAX_AMOUNT)
+  const customTotal = Object.values(customShares).reduce((sum, share) => sum + share, 0)
   const needsRate = currency !== homeCurrency
 
   function save() {
-    if (!title.trim() || amount <= 0) return setError(t('aa.errorAmount'))
-    if (needsRate && Number(rate) <= 0) return setError(t('aa.errorRate'))
-    if (mode === 'equal' && members.every((member) => excluded.includes(member.id))) return setError(t('aa.errorEveryoneExcluded'))
-    if (mode === 'custom' && Math.abs(customTotal - amount) > 0.01) return setError(t('aa.errorSplit', { amount: amount.toFixed(2), currency }))
+    if (!title.trim() || title.length > 20_000 || !Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT
+      || !validDate(date)) return setError(t('aa.errorAmount'))
     const exchangeRate = needsRate ? Number(rate) : 1
+    const homeAmount = amount * exchangeRate
+    if (!Number.isFinite(exchangeRate) || exchangeRate <= 0 || exchangeRate > 1_000_000
+      || !Number.isFinite(homeAmount) || homeAmount < 0 || homeAmount > MAX_AMOUNT) return setError(t('aa.errorRate'))
+    if (mode === 'equal' && members.every((member) => excluded.includes(member.id))) return setError(t('aa.errorEveryoneExcluded'))
+    if (mode === 'custom' && (!shareValuesValid || Math.abs(customTotal - amount) > 0.01)) return setError(t('aa.errorSplit', { amount: amount.toFixed(2), currency }))
     onAdd({
       title: title.trim(),
       amount,
       currency,
-      homeAmount: amount * exchangeRate,
+      homeAmount,
       exchangeRate,
       category,
       date,
       paidBy,
-      split: mode === 'equal' ? 'equal' : shares,
-      excluded: mode === 'equal' ? excluded : members.filter((member) => !(shares[member.id] > 0)).map((member) => member.id),
+      split: mode === 'equal' ? 'equal' : customShares,
+      excluded: mode === 'equal' ? excluded : members.filter((member) => !(customShares[member.id] > 0)).map((member) => member.id),
       status: initial?.status || 'paid',
-      notes: initial?.notes,
-      bookingId: initial?.bookingId,
+      notes: initial?.notes && initial.notes.length <= 20_000 ? initial.notes : undefined,
+      bookingId: initial?.bookingId && initial.bookingId.length <= 20_000 ? initial.bookingId : undefined,
     })
   }
   return (
     <Modal open={open} title={initial ? t('aa.editTitle') : t('aa.addTitle')} onClose={onClose}>
       <div className="space-y-3">
-        <input className="field" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <input className="field" maxLength={20_000} value={title} onChange={(e) => setTitle(e.target.value)} />
         <div className="grid grid-cols-2 gap-2">
-          <input className="field" type="number" min={0} value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
+          <input className="field" type="number" min={0} max={MAX_AMOUNT} step="0.01" value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
           <select className="field" value={currency} onChange={(e) => setCurrency(e.target.value)}>
             {Array.from(new Set([homeCurrency, 'AUD', 'JPY', 'USD', 'CNY', 'EUR', 'IDR'])).map((c) => (
               <option key={c}>{c}</option>
@@ -193,8 +205,8 @@ function AddExpense({
         {needsRate && (
           <div>
             <Label>{t('aa.rate', { from: currency, to: homeCurrency })}</Label>
-            <input className="field" type="number" min={0} step="0.000001" value={rate} onChange={(e) => setRate(e.target.value)} placeholder={t('aa.ratePh')} />
-            {Number(rate) > 0 && <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>{currency} {amount.toLocaleString()} ≈ {money(amount * Number(rate), homeCurrency)}</p>}
+            <input className="field" type="number" min="0.000001" max={1_000_000} step="0.000001" value={rate} onChange={(e) => setRate(e.target.value)} placeholder={t('aa.ratePh')} />
+            {Number(rate) > 0 && Number(rate) <= 1_000_000 && <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>{currency} {amount.toLocaleString()} ≈ {money(amount * Number(rate), homeCurrency)}</p>}
           </div>
         )}
         <div>
@@ -245,7 +257,7 @@ function AddExpense({
               {members.map((member) => (
                 <label key={member.id} className="flex items-center justify-between gap-3 text-sm">
                   <span>{member.name}</span>
-                  <input className="field w-32" type="number" min={0} value={shares[member.id] || ''} onChange={(e) => setShares((current) => ({ ...current, [member.id]: Number(e.target.value) }))} />
+                  <input className="field w-32" type="number" min={0} max={MAX_AMOUNT} step="0.01" value={shares[member.id] || ''} onChange={(e) => setShares((current) => ({ ...current, [member.id]: Number(e.target.value) }))} />
                 </label>
               ))}
             </div>

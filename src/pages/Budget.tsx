@@ -48,12 +48,17 @@ export default function Budget() {
                   <input
                     className="field"
                     type="number"
+                    min={0}
+                    max={1_000_000_000_000}
+                    step="0.01"
                     value={c.estimated}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const estimated = Number(e.target.value)
+                      if (!Number.isFinite(estimated) || estimated < 0 || estimated > 1_000_000_000_000) return
                       updateTrip(trip.id, {
-                        budget: trip.budget.map((x) => (x.id === c.id ? { ...x, estimated: Number(e.target.value) } : x)),
+                        budget: trip.budget.map((x) => (x.id === c.id ? { ...x, estimated } : x)),
                       })
-                    }
+                    }}
                   />
                 </label>
                 <ReadOnlyAmount label={t('budget.booked')} value={money(actual.booked, trip.homeCurrency)} />

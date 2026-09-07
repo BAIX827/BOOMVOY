@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { useApp } from './store'
-import { suggestDays, type DaySuggestion } from './suggestions'
-import { resolveLlm } from './llm'
+import { enrichSuggestedPlaces, suggestDays, type DaySuggestion } from './suggestions'
+import { backendEndpoint, resolveBackend } from './llm'
 import { mapsDayRoute, mapsPlaceUrl } from './geo'
 import type { PlaceStop, PlanVariant, TransportMode, WeatherSnap } from './types'
 import { placeCatLabel, settingLabel, transportLabel, useT } from './i18n'
@@ -28,7 +28,7 @@ export default function DaySuggest({ city, date, weather, existing, planned = []
   onUndo: (undo: RecommendationUndo) => boolean
 }) {
   const profile = useApp((s) => s.profile)
-  const llm = resolveLlm(profile)
+  const backend = resolveBackend(profile)
   const { t, locale } = useT()
   const [preferences, setPreferences] = useState<RecommendationPreferences>(() => ({
     ...DEFAULT_RECOMMENDATION_PREFERENCES,
@@ -39,6 +39,7 @@ export default function DaySuggest({ city, date, weather, existing, planned = []
   const [items, setItems] = useState<DaySuggestion[]>([])
   const [source, setSource] = useState<'local' | 'api'>('local')
   const [loading, setLoading] = useState(false)
+  const [locating, setLocating] = useState(false)
   const [asked, setAsked] = useState(false)
   const [picked, setPicked] = useState(0)
   const [excluded, setExcluded] = useState<Set<number>>(new Set())
@@ -50,7 +51,7 @@ export default function DaySuggest({ city, date, weather, existing, planned = []
   const controller = useRef<AbortController | null>(null)
   const applying = useRef(false)
   const revision = useMemo(() => planFingerprint(existing), [existing])
-  const context = useMemo(() => JSON.stringify([city, date, planned, weather, preferences, mode, llm.llmUrl, llm.llmModel]), [city, date, planned, weather, preferences, mode, llm.llmUrl, llm.llmModel])
+  const context = useMemo(() => JSON.stringify([city, date, planned, weather, preferences, mode, backend.baseUrl]), [city, date, planned, weather, preferences, mode, backend.baseUrl])
 
   function clearResults() {
     generation.current += 1
@@ -68,7 +69,7 @@ export default function DaySuggest({ city, date, weather, existing, planned = []
       generation.current += 1
       controller.current?.abort()
     }
-  }, [context, revision, llm.llmKey])
+  }, [context, revision])
 
   const protectedPlan = hasTravelRecord(existing)
   const missingTime = mode === 'append' && existing.some((place) => !TIME.test(place.time || ''))
@@ -119,7 +120,7 @@ export default function DaySuggest({ city, date, weather, existing, planned = []
         city, date, weather, locale, preferences, anchor,
         existing: mode === 'append' ? existing.map((place) => place.name) : [],
         planned, signal: abort.signal,
-        llmUrl: llm.llmUrl, llmKey: llm.llmKey, llmModel: llm.llmModel,
+        apiUrl: backend.ready ? backendEndpoint(backend.baseUrl, '/recommendations/day') : undefined,
       })
       if (id !== generation.current || abort.signal.aborted) return
       setItems(result.items)
@@ -134,11 +135,15 @@ export default function DaySuggest({ city, date, weather, existing, planned = []
     }
   }
 
-  function apply(places: Omit<PlaceStop, 'id'>[], expected: string) {
+  async function apply(places: Omit<PlaceStop, 'id'>[], expected: string) {
     if (applying.current) return
     applying.current = true
+    setLocating(true)
+    const signal = controller.current?.signal
     try {
-      const result = onApply(places, mode, expected)
+      const ready = source === 'api' ? await enrichSuggestedPlaces(places, { city, signal }) : places
+      if (signal?.aborted) return
+      const result = onApply(ready, mode, expected)
       setPending(null)
       if (result.ok) {
         setUndo(result.undo)
@@ -147,13 +152,16 @@ export default function DaySuggest({ city, date, weather, existing, planned = []
       } else {
         setStatus(t(`suggest.apply.${result.reason}`))
       }
+    } catch (error) {
+      if (!(error instanceof Error && error.name === 'AbortError')) setStatus(t('suggest.failed'))
     } finally {
       applying.current = false
+      setLocating(false)
     }
   }
 
   return (
-    <section className="paper overflow-hidden" data-guide="day-suggest" aria-busy={loading}>
+    <section className="paper overflow-hidden" data-guide="day-suggest" aria-busy={loading || locating}>
       <div className="space-y-4 p-5">
         <div>
           <h3 className="display flex items-center gap-2 text-2xl"><Sparkles size={20} />{t('suggest.dayFor', { city })}</h3>
@@ -185,7 +193,7 @@ export default function DaySuggest({ city, date, weather, existing, planned = []
         {orderConflict && <p role="alert" className="text-sm" style={{ color: 'var(--warn)' }}>{t('suggest.orderConflict')}</p>}
         {protectedPlan && <p className="text-xs" style={{ color: 'var(--muted)' }}>{t('suggest.protectedHint')}</p>}
         <div className="flex flex-wrap items-center gap-3">
-          <button type="button" className="btn" disabled={loading || cannotGenerate} data-guide="recommend" onClick={() => void run()}><Sparkles size={16} />{asked ? t('suggest.regenerate') : t('suggest.recommend')}</button>
+          <button type="button" className="btn" disabled={loading || locating || cannotGenerate} data-guide="recommend" onClick={() => void run()}><Sparkles size={16} />{asked ? t('suggest.regenerate') : t('suggest.recommend')}</button>
           {loading && <button type="button" className="btn btn-ghost" onClick={() => { clearResults(); setStatus(t('suggest.cancelled')) }}>{t('suggest.cancel')}</button>}
           {loading && <span role="status" className="text-sm">{t('suggest.loading', { city })}</span>}
         </div>
@@ -228,14 +236,15 @@ export default function DaySuggest({ city, date, weather, existing, planned = []
         </ol>
         {schedule.places.length === 0 && <p className="text-sm">{t(candidates.length ? 'suggest.noRoom' : 'suggest.allPlanned')}</p>}
         <div className="flex flex-wrap gap-2">
-          <button className="btn" disabled={!schedule.places.length || cannotGenerate} onClick={() => mode === 'replace' && existing.length ? setPending({ places: schedule.places, expected: revision }) : apply(schedule.places, revision)}>{t(mode === 'replace' ? 'suggest.replace' : 'suggest.add')}</button>
+          <button className="btn" disabled={locating || !schedule.places.length || cannotGenerate} onClick={() => { if (mode === 'replace' && existing.length) setPending({ places: schedule.places, expected: revision }); else void apply(schedule.places, revision) }}>{t(mode === 'replace' ? 'suggest.replace' : 'suggest.add')}</button>
           {route && schedule.places.length > 0 && <a className="btn btn-ghost no-underline" href={route} target="_blank" rel="noreferrer">{t('suggest.openRoute')}</a>}
+          {locating && <span role="status" className="text-sm">{t('suggest.locating')}</span>}
         </div>
       </div>}
       <Modal open={!!pending} title={t('suggest.confirmReplace')} onClose={() => setPending(null)}>
         <p className="text-sm">{t('suggest.replaceHint', { old: existing.length, n: pending?.places.length || 0, plan })}</p>
         <ol className="my-4 space-y-2 text-sm">{pending?.places.map((place) => <li key={place.name}>{place.time} · {place.name}</li>)}</ol>
-        <button className="btn" onClick={() => pending && apply(pending.places, pending.expected)}>{t('suggest.confirmReplace')}</button>
+        <button className="btn" disabled={locating} onClick={() => { if (pending) void apply(pending.places, pending.expected) }}>{t('suggest.confirmReplace')}</button>
       </Modal>
     </section>
   )

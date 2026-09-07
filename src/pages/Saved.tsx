@@ -4,11 +4,13 @@ import { useApp, useTrip } from '../store'
 import { KINDS } from '../catalog'
 import type { DecisionStatus, SavedKind } from '../types'
 import { Label, Modal, Tone } from '../ui'
-import { money } from '../lib'
+import { money, safeWebUrl } from '../lib'
 import { kindLabel, statusLabel, useT } from '../i18n'
 import { STATUS } from '../catalog'
 
 const kinds: SavedKind[] = ['flight', 'hotel', 'restaurant', 'place', 'activity', 'rental-car', 'souvenir', 'route']
+const MAX_AMOUNT = 1_000_000_000_000
+const MAX_TEXT_LENGTH = 20_000
 
 export default function Saved() {
   const { id } = useParams()
@@ -39,8 +41,9 @@ export default function Saved() {
         ))}
       </div>
       <div className="grid gap-3 md:grid-cols-2">
-        {items.map((s) => (
-          <article key={s.id} className="paper p-4">
+        {items.map((s) => {
+          const safeUrl = safeWebUrl(s.url)
+          return <article key={s.id} className="paper p-4">
             <div className="flex items-start justify-between gap-2">
               <div>
                 <div className="text-xs" style={{ color: 'var(--muted)' }}>
@@ -94,8 +97,8 @@ export default function Saved() {
                 </button>
               ))}
             </div>
-            {s.url && (
-              <a className="mt-3 inline-block text-sm" href={s.url} target="_blank" rel="noreferrer">
+            {safeUrl && (
+              <a className="mt-3 inline-block text-sm" href={safeUrl} target="_blank" rel="noreferrer">
                 {t('saved.open')}
               </a>
             )}
@@ -121,7 +124,7 @@ export default function Saved() {
               </button>
             </div>
           </article>
-        ))}
+        })}
       </div>
       <AddSaved
         open={open}
@@ -159,6 +162,22 @@ function AddSaved({
   const [price, setPrice] = useState('')
   const [url, setUrl] = useState('')
   const [notes, setNotes] = useState('')
+  const amount = price.trim() ? Number(price) : undefined
+  const amountValid = amount === undefined || Number.isFinite(amount) && amount >= 0 && amount <= MAX_AMOUNT
+
+  function save() {
+    if (!name || !amountValid || name.length > MAX_TEXT_LENGTH || subtitle.length > MAX_TEXT_LENGTH || notes.length > MAX_TEXT_LENGTH) return
+    onAdd({
+      kind,
+      name,
+      subtitle,
+      status: 'interested',
+      url: safeWebUrl(url.trim()),
+      notes,
+      price: amount === undefined ? undefined : { amount, currency: 'AUD' },
+    })
+  }
+
   return (
     <Modal open={open} title={t('saved.add')} onClose={onClose}>
       <div className="space-y-3">
@@ -172,25 +191,15 @@ function AddSaved({
             ))}
           </select>
         </div>
-        <input className="field" placeholder={t('saved.name')} value={name} onChange={(e) => setName(e.target.value)} />
-        <input className="field" placeholder={t('saved.extra')} value={subtitle} onChange={(e) => setSubtitle(e.target.value)} />
-        <input className="field" placeholder={t('saved.pricePh')} value={price} onChange={(e) => setPrice(e.target.value)} />
-        <input className="field" placeholder={t('saved.urlPh')} value={url} onChange={(e) => setUrl(e.target.value)} />
-        <textarea className="field" placeholder={t('saved.notesPh')} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <input className="field" maxLength={MAX_TEXT_LENGTH} placeholder={t('saved.name')} value={name} onChange={(e) => setName(e.target.value)} />
+        <input className="field" maxLength={MAX_TEXT_LENGTH} placeholder={t('saved.extra')} value={subtitle} onChange={(e) => setSubtitle(e.target.value)} />
+        <input className="field" type="number" min={0} max={MAX_AMOUNT} step="0.01" placeholder={t('saved.pricePh')} value={price} onChange={(e) => setPrice(e.target.value)} />
+        <input className="field" type="url" maxLength={4096} placeholder={t('saved.urlPh')} value={url} onChange={(e) => setUrl(e.target.value)} />
+        <textarea className="field" maxLength={MAX_TEXT_LENGTH} placeholder={t('saved.notesPh')} value={notes} onChange={(e) => setNotes(e.target.value)} />
         <button
           className="btn w-full"
-          disabled={!name}
-          onClick={() =>
-            onAdd({
-              kind,
-              name,
-              subtitle,
-              status: 'interested',
-              url,
-              notes,
-              price: price ? { amount: Number(price), currency: 'AUD' } : undefined,
-            })
-          }
+          disabled={!name || !amountValid}
+          onClick={save}
         >
           {t('saved.save')}
         </button>

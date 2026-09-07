@@ -46,7 +46,8 @@ export default function CreateTrip() {
     .split(/[,，>/→]/)
     .map((s) => s.trim())
     .filter(Boolean)
-  const tripDates = useMemo(() => eachDate(startDate, endDate), [startDate, endDate])
+  const tripDates = useMemo(() => eachDate(startDate, endDate, 731), [startDate, endDate])
+  const memberNames = members.split(/[,，]/).map((s) => s.trim()).filter(Boolean)
 
   useEffect(() => {
     setDestinationDays(splitDays(tripDates.length, destinations.length))
@@ -64,7 +65,7 @@ export default function CreateTrip() {
       startDate,
       endDate,
       travellers: people,
-      members: members.split(/[,，]/).map((s) => s.trim()).filter(Boolean),
+      members: memberNames,
       budgetPerPerson: budget,
       homeCurrency: profile.homeCurrency,
       theme,
@@ -76,15 +77,18 @@ export default function CreateTrip() {
 
   function validate(currentStep: number) {
     if (currentStep === 0 && (!origin.trim() || destinations.length === 0)) return t('create.errorRoute')
+    if (currentStep === 0 && destinations.length > 100) return t('create.errorLimits')
     if (currentStep === 1) {
       if (!startDate || !endDate || tripDates.length === 0) return t('create.errorDates')
+      if (tripDates.length > 730) return t('create.errorLimits')
       if (tripDates.length < destinations.length) return t('create.errorTooManyCities')
       if (destinationDays.some((n) => !Number.isInteger(n) || n < 1)) return t('create.errorCityDays')
       if (destinationDays.reduce((sum, n) => sum + n, 0) !== tripDates.length) {
         return t('create.errorAllocation', { n: tripDates.length })
       }
     }
-    if (currentStep === 2 && (!Number.isInteger(people) || people < 1 || budget < 0)) return t('create.errorPeopleBudget')
+    if (currentStep === 2 && (!Number.isInteger(people) || people < 1 || people > 100
+      || !Number.isFinite(budget) || budget < 0 || budget > 1_000_000_000_000 || memberNames.length > 100)) return t('create.errorPeopleBudget')
     return ''
   }
 
@@ -165,7 +169,7 @@ export default function CreateTrip() {
           <div className="space-y-4">
             <div>
               <Label>{t('create.people')}</Label>
-              <input className="field" type="number" min={1} value={people} onChange={(e) => setPeople(Number(e.target.value))} />
+              <input className="field" type="number" min={1} max={100} step={1} value={people} onChange={(e) => setPeople(Number(e.target.value))} />
             </div>
             <div>
               <Label>{t('create.members')}</Label>
@@ -173,7 +177,7 @@ export default function CreateTrip() {
             </div>
             <div>
               <Label>{t('create.budget', { currency: profile.homeCurrency })}</Label>
-              <input className="field" type="number" value={budget} onChange={(e) => setBudget(Number(e.target.value))} />
+              <input className="field" type="number" min={0} max={1_000_000_000_000} step="0.01" value={budget} onChange={(e) => setBudget(Number(e.target.value))} />
             </div>
           </div>
         )}

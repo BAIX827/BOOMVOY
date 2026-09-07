@@ -21,6 +21,10 @@ export default function MapPage() {
   if (!trip) return null
 
   const days = filter === 'all' ? trip.days : trip.days.filter((d) => d.id === filter)
+  const geoFingerprint = trip.days.map((d) => `${d.id}:${d.city}:${d.activePlan}:${activePlaces(d)
+    .map((p) => `${p.id}:${p.name}:${p.coords?.lat ?? ''},${p.coords?.lng ?? ''}`).join(',')}`).join('|')
+  const routeFingerprint = days.map((d) => `${d.id}:${activePlaces(d)
+    .map((p) => `${p.id}:${p.coords?.lat ?? ''},${p.coords?.lng ?? ''}:${p.transportToNext ?? ''}`).join(',')}`).join('|')
 
   useEffect(() => {
     let live = true
@@ -37,7 +41,7 @@ export default function MapPage() {
     return () => {
       live = false
     }
-  }, [trip.id])
+  }, [trip.id, geoFingerprint, updatePlace])
 
   useEffect(() => {
     let live = true
@@ -58,7 +62,7 @@ export default function MapPage() {
     return () => {
       live = false
     }
-  }, [days.map((d) => `${d.id}:${activePlaces(d).map((p) => `${p.id}:${p.transportToNext}`).join(',')}`).join('|')])
+  }, [routeFingerprint])
 
   const stops: MapStop[] = days.flatMap((d) => {
     const color = DAY_COLORS[trip.days.findIndex((x) => x.id === d.id) % DAY_COLORS.length]

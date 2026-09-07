@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict'
 import { DEFAULT_RECOMMENDATION_PREFERENCES, normalizePlaceName, recommendationTravelMinutes, samePlace, scheduleSuggestion } from '../src/recommendation'
-import { suggestDays } from '../src/suggestions'
+import { enrichSuggestedPlaces, suggestDays } from '../src/suggestions'
 import type { PlaceStop, WeatherSnap } from '../src/types'
 
 const preferences = { ...DEFAULT_RECOMMENDATION_PREFERENCES }
 const stop = (name: string, overrides: Partial<Omit<PlaceStop, 'id'>> = {}): Omit<PlaceStop, 'id'> => ({ name, category: '景点', setting: 'indoor', durationMin: 60, ...overrides })
 const fixture = (places: unknown[], title = 'Tokyo route') => ({ choices: [{ message: { content: JSON.stringify({ suggestions: [{ title, vibe: 'A nearby route.', places }] }) } }] })
 const json = (data: unknown) => new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } })
-const api = { city: 'Tokyo', llmUrl: 'https://example.test/chat/completions', llmKey: 'test-only-key', locale: 'en' as const }
+const api = { city: 'Tokyo', apiUrl: 'https://example.test/api/recommendations/day', locale: 'en' as const }
 const originalFetch = globalThis.fetch
 const originalSetTimeout = globalThis.setTimeout
 let calls: { url: string; init?: RequestInit }[] = []
@@ -93,15 +93,30 @@ try {
   assert.ok(noTime.items.every((s) => scheduleSuggestion(s.places, { ...preferences, startTime: '08:00', endTime: '08:15' }).places.length === 0))
   assert.ok(local.items.flatMap((s) => s.places).some((p) => p.time === '15:00'), 'Returned candidates keep original recommended times')
 
+  mock(() => json(fixture([stop('Shibuya Crossing')])))
+  await suggestDays({ ...api, existing: ['Meiji Shrine', '明治神宫'], planned: [
+    { name: 'Senso-ji Temple', date: '2026-10-01', city: 'Tokyo' },
+    { name: '浅草寺', date: '2026-10-02', city: '东京' },
+    { name: 'Kiyomizu-dera', date: '2026-10-03', city: 'Kyoto' },
+  ] })
+  const compact = JSON.parse(String(calls[0].init?.body))
+  assert.deepEqual(compact.existing, ['Meiji Shrine'])
+  assert.deepEqual(compact.planned, [{ name: 'Senso-ji Temple', date: '2026-10-01', city: 'Tokyo' }], 'The model receives only unique places relevant to the current city')
+
   mock(() => json(fixture([stop('Meiji Shrine'), stop('明治神宫'), stop('Shibuya Crossing')])))
   const successful = await suggestDays(api)
   assert.equal(successful.source, 'api')
-  assert.equal(calls.length, 1, 'The API runs first and known places need no geocoder requests')
+  assert.equal(calls.length, 1, 'Generating recommendations makes exactly one backend request')
   assert.equal(successful.items[0].places.length, 2)
-  assert.ok(successful.items[0].places.every((p) => p.coords))
+  assert.ok(successful.items[0].places.every((p) => !p.coords), 'Unused route options are not geocoded')
   const request = JSON.parse(String(calls[0].init?.body))
-  assert.match(request.messages[0].content, /in English/)
-  assert.equal(request.temperature, 0.4)
+  assert.equal(request.locale, 'en')
+  assert.equal(request.city, 'Tokyo')
+  assert.equal(request.llmKey, undefined)
+  assert.equal(request.messages, undefined)
+  const known = await enrichSuggestedPlaces(successful.items[0].places, { city: 'Tokyo' })
+  assert.ok(known.every((place) => place.coords))
+  assert.equal(calls.length, 1, 'Known catalog coordinates require no extra request when the route is selected')
 
   mock(() => json(fixture([
     { name: { unsafe: true }, setting: 'indoor' },
@@ -114,12 +129,13 @@ try {
   assert.equal(sanitized[0].setting, 'mixed')
   assert.equal(sanitized[0].time, undefined)
   assert.equal(sanitized[0].durationMin, 60)
-  assert.equal(sanitized[0].ticketUrl, undefined)
+  assert.match(sanitized[0].ticketUrl || '', /^https:\/\/www\.klook\.com\//)
+  assert.doesNotMatch(sanitized[0].ticketUrl || '', /javascript|evil/i)
   assert.equal(sanitized[0].socialBuzz, undefined)
   assert.equal(sanitized[0].notes, 'Quiet courtyard.')
   assert.notEqual(sanitized[0].coords?.lat, 0, 'Discard model-supplied coordinates')
   mock(() => json(fixture([stop('Tokyo National Museum', { ticketNeeded: true, ticketUrl: 'https://www.tnm.jp/' })])))
-  assert.equal((await suggestDays(api)).items[0].places[0].ticketUrl, 'https://www.tnm.jp/')
+  assert.match((await suggestDays(api)).items[0].places[0].ticketUrl || '', /^https:\/\/www\.klook\.com\//)
   mock(() => json(fixture([stop('Meiji Shrine', { setting: 'outdoor' }), stop('Tokyo National Museum', { setting: 'indoor' })])))
   const apiIndoor = await suggestDays({ ...api, preferences: { ...preferences, indoorOnly: true } })
   assert.equal(apiIndoor.items[0].places.length, 1)
@@ -138,19 +154,19 @@ try {
   assert.equal((await suggestDays(api)).error, 'offline')
 
   // Accelerate deadlines while retaining the real cancellation/timer behavior.
-  globalThis.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => originalSetTimeout(handler as (...args: unknown[]) => void, timeout === 25_000 || timeout === 3_500 ? 5 : timeout, ...args)) as typeof setTimeout
+  globalThis.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => originalSetTimeout(handler as (...args: unknown[]) => void, timeout === 35_000 || timeout === 3_500 ? 5 : timeout, ...args)) as typeof setTimeout
   mock(() => new Promise<Response>(() => {}))
   const timedOut = await suggestDays(api)
   assert.equal(timedOut.error, 'timeout')
   assert.equal(calls.length, 1)
   assert.equal(calls[0].init?.signal?.aborted, true)
-  mock((url) => url === api.llmUrl ? json(fixture(Array.from({ length: 30 }, (_, i) => stop(`Museum ${i}`)))) : new Promise<Response>(() => {}))
+  mock((url) => url === api.apiUrl ? json(fixture(Array.from({ length: 30 }, (_, i) => stop(`Museum ${i}`)))) : new Promise<Response>(() => {}))
   const bounded = await suggestDays(api)
   assert.equal(bounded.source, 'api')
   assert.equal(bounded.items[0].places.length, 8)
-  assert.equal(calls.length, 9, 'Geocoding is capped at eight unique places')
+  assert.equal(calls.length, 1, 'Unselected recommendation options do not trigger geocoding')
   assert.ok(bounded.items[0].places.every((p) => !p.coords))
-  assert.ok(bounded.items[0].places.every((p) => p.locationPending === true))
+  assert.ok(bounded.items[0].places.every((p) => !p.locationPending))
   globalThis.setTimeout = originalSetTimeout
 
   const controller = new AbortController()
@@ -163,21 +179,26 @@ try {
   await assert.rejects(suggestDays({ ...api, signal: controller.signal }), { name: 'AbortError' })
   assert.equal(calls.length, 0)
   const geoController = new AbortController()
-  mock((url) => {
-    if (url === api.llmUrl) return json(fixture([stop('Cancellation Museum')]))
+  mock(() => json(fixture([stop('Cancellation Museum')])))
+  const cancellationRoute = await suggestDays(api)
+  mock(() => {
     queueMicrotask(() => geoController.abort())
     return new Promise<Response>(() => {})
   })
-  await assert.rejects(suggestDays({ ...api, signal: geoController.signal }), { name: 'AbortError' })
+  await assert.rejects(enrichSuggestedPlaces(cancellationRoute.items[0].places, { city: 'Tokyo', signal: geoController.signal }), { name: 'AbortError' })
 
-  mock((url) => url === api.llmUrl ? json(fixture([stop('Verified Test Museum')])) : json({ features: [
+  mock(() => json(fixture([stop('Verified Test Museum')])))
+  const verifiedRoute = await suggestDays(api)
+  mock(() => json({ features: [
     { geometry: { coordinates: [139, 91] }, properties: { name: 'Verified Test Museum', city: 'Tokyo' } },
     { geometry: { coordinates: [135, 35] }, properties: { name: 'Verified Test Museum', city: 'Kyoto' } },
     { geometry: { coordinates: [139.77, 35.71] }, properties: { name: 'Verified Test Museum', city: 'Tokyo', country: 'Japan' } },
   ] }))
-  assert.deepEqual((await suggestDays(api)).items[0].places[0].coords, { lat: 35.71, lng: 139.77 })
-  mock((url) => url === api.llmUrl ? json(fixture([stop('Mismatched Test Museum')])) : json({ features: [{ geometry: { coordinates: [139.77, 35.71] }, properties: { name: 'Unrelated Museum', city: 'Tokyo' } }] }))
-  assert.equal((await suggestDays(api)).items[0].places[0].coords, undefined, 'A result in the right city still needs to match the place name')
+  assert.deepEqual((await enrichSuggestedPlaces(verifiedRoute.items[0].places, { city: 'Tokyo' }))[0].coords, { lat: 35.71, lng: 139.77 })
+  mock(() => json(fixture([stop('Mismatched Test Museum')])))
+  const mismatchedRoute = await suggestDays(api)
+  mock(() => json({ features: [{ geometry: { coordinates: [139.77, 35.71] }, properties: { name: 'Unrelated Museum', city: 'Tokyo' } }] }))
+  assert.equal((await enrichSuggestedPlaces(mismatchedRoute.items[0].places, { city: 'Tokyo' }))[0].coords, undefined, 'A result in the right city still needs to match the place name')
 
   console.log('recommendation tests passed')
 } finally {

@@ -57,12 +57,12 @@ export default function Group() {
         <input className="field" placeholder={t('group.invite')} value={name} onChange={(e) => setName(e.target.value)} />
         <button
           className="btn"
-          disabled={!name}
+          disabled={!name.trim() || trip.members.length >= 100 || trip.travellers >= 100}
           onClick={() => {
             updateTrip(trip.id, {
               members: [
                 ...trip.members,
-                { id: uid(), name, role: 'editor', color: MEMBER_COLORS[trip.members.length % MEMBER_COLORS.length] },
+                { id: uid(), name: name.trim(), role: 'editor', color: MEMBER_COLORS[trip.members.length % MEMBER_COLORS.length] },
               ],
               travellers: trip.travellers + 1,
             })

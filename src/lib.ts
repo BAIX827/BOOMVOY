@@ -5,11 +5,23 @@ export function uid() {
   return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-export function eachDate(start: string, end: string): string[] {
+export function safeWebUrl(value: unknown): string | undefined {
+  if (typeof value !== 'string' || value.length > 4096 || /[\u0000-\u001f\u007f]/.test(value)) return undefined
+  try {
+    const url = new URL(value)
+    return (url.protocol === 'https:' || url.protocol === 'http:') && !url.username && !url.password && Boolean(url.hostname)
+      ? url.href
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
+export function eachDate(start: string, end: string, maxDays = 10_000): string[] {
   const out: string[] = []
   const s = new Date(start + 'T00:00:00')
   const e = new Date(end + 'T00:00:00')
-  for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
+  for (let d = new Date(s); d <= e && out.length < maxDays; d.setDate(d.getDate() + 1)) {
     out.push(toISODate(d))
   }
   return out

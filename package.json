@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "server": "node --env-file-if-exists=.env.server server/decision-server.mjs",
     "decision:server": "node --env-file-if-exists=.env.server server/decision-server.mjs",
     "build": "tsc --noEmit && vite build",
     "test": "node scripts/run-tests.mjs",

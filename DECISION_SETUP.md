@@ -1,21 +1,23 @@
 # 酒店与餐厅实时决策数据
 
+本文件只说明 Google Places 决策数据。统一后端的完整启动、AI、同步、限流和部署说明见 [BACKEND_SETUP.md](BACKEND_SETUP.md)。
+
 决策页面支持本地精选来源；实时评分、评论数量、停车信息通过可选 Google Places API (New) 服务查询。Google key 仅由 Node 服务端环境变量读取。前端只接收规范化的候选数据，默认接口为 `/api/decisions/search`。
 
 ## 本地启用
 
 1. 在 Google Cloud 项目启用 **Places API (New)** 和相应账单账户，创建服务器 API key，并限制其 API 范围及适用的服务器来源。当前字段包含评分、价格区间及停车设施，会触发付费 SKU；先设置预算提醒、配额限制并核对 [Text Search 字段与计费档位](https://developers.google.com/maps/documentation/places/web-service/text-search#fieldmask)。
 2. 在项目根目录自行创建 `.env.server`，填写 `GOOGLE_PLACES_API_KEY=你的服务器密钥`；也可以通过终端会话或部署 secret 注入同名环境变量。项目 `.env.example` 包含变量名说明，`.env.server` 已被 Git 忽略。请勿添加 `VITE_` 前缀、写入前端设置、提交到 Git 或粘贴到聊天。
-3. 使用支持 [`--env-file-if-exists`](https://nodejs.org/api/cli.html#--env-file-if-existsfile) 的 Node.js（22.9+），在项目目录运行 `npm run decision:server`。该命令仅显式加载可选 `.env.server`，默认监听 `http://127.0.0.1:8787`；另一个终端运行 `npm run dev`。Vite 开发代理将 `/api/decisions` 转发到该服务。若环境已注入密钥，可直接运行 `node server/decision-server.mjs`；这个直接命令不读取环境文件。
+3. 使用支持 [`--env-file-if-exists`](https://nodejs.org/api/cli.html#--env-file-if-existsfile) 的 Node.js（22.9+），在项目目录运行 `npm run server`。该命令显式加载可选 `.env.server`，默认监听 `http://127.0.0.1:8787`；另一个终端运行 `npm run dev`。Vite 开发代理会把全部 `/api` 请求转发到该服务。`npm run decision:server` 仍保留为兼容别名。
 4. 打开决策页面，输入城市、预算、住宿/餐饮要求后主动查询。成功时卡片显示 Google Maps、评分、评论数量、来源和本次查询时间。服务未启动、未配置 key、达到配额或超时时，界面会提示并保留本地来源入口。
 
 可选环境变量：
 
-- `DECISION_PORT`：本地服务端口，默认 `8787`；变更后同时调整代理目标。
-- `DECISION_ALLOWED_ORIGINS`：额外允许的完整 Origin，以逗号分隔，例如 `https://travel.example.com`。默认只接受 `localhost`、`127.0.0.1`、`[::1]` 的开发端口 `5173/5174/5175/4173/8787`。
-- `DECISION_ALLOWED_HOSTS`：额外允许的请求 Host 主机名，以逗号分隔，不含协议或端口。仅当受控反向代理保留公开域名 Host 时需要。
+- `BOOMVOY_PORT`：本地服务端口，默认 `8787`；变更后同时调整代理目标。旧的 `DECISION_PORT` 仍兼容。
+- `BOOMVOY_ALLOWED_ORIGINS`：额外允许的完整 Origin，以逗号分隔，例如 `https://travel.example.com`。默认只接受 `localhost`、`127.0.0.1`、`[::1]` 的开发端口 `5173/5174/5175/4173/8787`。
+- `BOOMVOY_ALLOWED_HOSTS`：额外允许的请求 Host 主机名，以逗号分隔，不含协议或端口。仅当受控反向代理保留公开域名 Host 时需要。
 
-若前端使用独立接口地址，在设置中填写完整 HTTPS 搜索接口；本地调试允许 `http://127.0.0.1:8787/api/decisions/search`。地址指向上述服务的 `/api/decisions/search` 路由。切换到自建域名会将城市和筛选条件发送给该服务器，请仅配置可信服务。
+若前端使用独立服务，在「我」里填写可信的后端基地址，例如 `https://api.example.com/api`；不要填写 `/decisions/search` 这一条具体路由。本地开发默认使用 `/api`。
 
 ## 数据如何解释
 
@@ -28,12 +30,12 @@
 
 ## 部署前必须补齐
 
-该服务默认绑定 loopback，适合本机或同机反向代理使用。Vite 开发代理只在开发服务器工作；生产部署需把 `/api/decisions/search` 单独反向代理到 Node 服务，或部署等效服务器函数。纯静态托管需另行部署后端并配置允许来源。
+该服务默认绑定 loopback，适合本机或同机反向代理使用。Vite 开发代理只在开发服务器工作；生产部署需把 `/api` 反向代理到 Node 服务，或部署等效服务器函数。纯静态托管需另行部署后端并配置允许来源。
 
-**CORS 是浏览器来源控制，公开接口仍需要认证和计费保护。** 发布前增加登录认证、用户级限流/配额、服务端总消费上限、TLS、secret 管理与运行监控。当前每个直连 IP 每分钟最多 30 次请求；代理模式下通常共享代理 IP，这个限制仅为基础保护。服务有 16 KB 请求上限、固定上游地址、10 秒上游超时，并仅返回通用错误码，不返回上游详细错误或 key。
+**CORS 是浏览器来源控制，公开接口仍需要认证和计费保护。当前 AI / Google 付费路由没有终端用户登录鉴权，不得直接暴露到公网。** 发布前应把服务放到完成登录认证和用户级消费配额的同源反向代理 / BFF 后面，并补齐服务端总消费上限、TLS、secret 管理与运行监控。当前每个直连 IP 每分钟最多 30 次请求；默认整个进程最多 4 个并发、每分钟 60 次供应商调用，且等价并发查询会合并为一次。代理模式下通常共享代理 IP，这些限制仍只是基础保护。服务有 16 KB 决策请求上限、固定上游地址、10 秒 Google 超时，并仅返回通用错误码，不返回上游详细错误或 key。
 
 展示 Google 内容时保留可见的 Google Maps 标识、第三方 attribution 和来源链接。Google 内容在当前会话中查询和展示，服务响应设为 `Cache-Control: no-store`，不将评分、评论数量、地址或官网等内容写入持久缓存；可长期保存 place ID。应用应将 Google 内容与自有内容区分，地图展示时遵守 Google Maps 要求。公开发布前还需完善使用条款与隐私说明，并核对 [Places API 使用政策](https://developers.google.com/maps/documentation/places/web-service/policies) 及适用区域协议。
 
 ## 验证
 
-运行 `node --test tests/decision-provider.test.mjs`。测试使用内存响应与本地临时 HTTP 服务，覆盖字段映射、输入校验、安全链接、关闭商家过滤、CORS、请求体限制、限流、超时、私钥隔离和前端响应校验。测试不加载 `.env`，不向 Google 发出真实请求，因此不产生 Google 查询费用。真实 key、生产认证、实际地区覆盖和商家预订链接仍需部署方联调。
+运行 `node --test tests/decision-provider.test.mjs`。测试使用内存响应与本地临时 HTTP 服务，覆盖动态字段、请求合并、调用预算、字段映射、输入校验、安全链接、关闭商家过滤、CORS、请求体限制、限流、超时、私钥隔离和前端响应校验。测试不加载 `.env`，不向 Google 发出真实请求，因此不产生 Google 查询费用。真实 key、生产认证、实际地区覆盖和商家预订链接仍需部署方联调。

@@ -1,31 +1,58 @@
+import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useApp, useTrip } from '../store'
-import { STATUS } from '../catalog'
+import { KINDS, STATUS } from '../catalog'
 import { money } from '../lib'
-import { Tone } from '../ui'
-import { statusLabel, useT } from '../i18n'
+import { Label, Modal, Tone } from '../ui'
+import { kindLabel, statusLabel, useT } from '../i18n'
+import type { SavedItem, SavedKind } from '../types'
 
 export default function Compare() {
   const { id } = useParams()
   const trip = useTrip(id)
-  const toggleVote = useApp((s) => s.toggleVote)
-  const updateSaved = useApp((s) => s.updateSaved)
+  const { toggleVote, updateSaved, addCompareBoard, updateCompareBoard, removeCompareBoard, addBooking } = useApp()
   const { t } = useT()
+  const [open, setOpen] = useState(false)
+  const [bookingCandidate, setBookingCandidate] = useState<SavedItem | undefined>()
   if (!trip) return null
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="display text-4xl">{t('compare.title')}</h1>
-        <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-          {t('compare.blurb')}
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="display text-4xl">{t('compare.title')}</h1>
+          <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
+            {t('compare.blurb')}
+          </p>
+        </div>
+        <button className="btn" onClick={() => setOpen(true)}>{t('compare.create')}</button>
       </div>
       {trip.compares.map((board) => {
         const items = board.itemIds.map((i) => trip.saved.find((s) => s.id === i)).filter(Boolean)
         return (
           <section key={board.id} className="paper overflow-x-auto p-5">
-            <h2 className="display text-2xl">{board.title}</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <input
+                className="field max-w-sm text-lg font-medium"
+                value={board.title}
+                onChange={(e) => updateCompareBoard(trip.id, board.id, { title: e.target.value })}
+              />
+              <div className="flex items-center gap-2">
+                <select
+                  className="field w-auto text-xs"
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) updateCompareBoard(trip.id, board.id, { itemIds: [...board.itemIds, e.target.value] })
+                  }}
+                >
+                  <option value="">{t('compare.addItem')}</option>
+                  {trip.saved.filter((item) => item.kind === board.kind && !board.itemIds.includes(item.id)).map((item) => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+                </select>
+                <button className="btn btn-ghost px-3 py-1 text-xs" onClick={() => removeCompareBoard(trip.id, board.id)}>{t('compare.deleteBoard')}</button>
+              </div>
+            </div>
             <table className="mt-4 w-full min-w-[640px] text-left text-sm">
               <thead>
                 <tr style={{ color: 'var(--muted)' }}>
@@ -36,6 +63,9 @@ export default function Compare() {
                       <div className="mt-1">
                         <Tone tone={STATUS[it!.status].tone}>{statusLabel(t, it!.status)}</Tone>
                       </div>
+                      <button className="mt-2 text-xs underline" style={{ color: 'var(--muted)' }} onClick={() => updateCompareBoard(trip.id, board.id, { itemIds: board.itemIds.filter((id) => id !== it!.id) })}>
+                        {t('compare.removeItem')}
+                      </button>
                     </th>
                   ))}
                 </tr>
@@ -94,7 +124,14 @@ export default function Compare() {
                   {items.map((it) => (
                     <td key={it!.id} className="py-3">
                       <div className="flex flex-wrap gap-1">
-                        <button className="btn px-2 py-1 text-xs" onClick={() => updateSaved(trip.id, it!.id, { status: 'chosen' })}>
+                        <button
+                          className="btn px-2 py-1 text-xs"
+                          onClick={() => {
+                            updateSaved(trip.id, it!.id, { status: 'chosen' })
+                            const exists = trip.bookings.some((booking) => booking.sourceSavedId === it!.id)
+                            if (!exists) setBookingCandidate(it!)
+                          }}
+                        >
                           {t('compare.choose')}
                         </button>
                         <button
@@ -122,7 +159,97 @@ export default function Compare() {
           {t('compare.empty')}
         </div>
       )}
+      <CreateBoard
+        open={open}
+        saved={trip.saved}
+        onClose={() => setOpen(false)}
+        onCreate={(board) => {
+          addCompareBoard(trip.id, board)
+          setOpen(false)
+        }}
+      />
+      <Modal open={!!bookingCandidate} title={t('compare.createBookingTitle')} onClose={() => setBookingCandidate(undefined)}>
+        <p className="text-sm leading-6">{t('compare.createBookingAsk')}</p>
+        <div className="mt-4 flex gap-2">
+          <button
+            className="btn"
+            onClick={() => {
+              if (!bookingCandidate) return
+              addBooking(trip.id, {
+                kind: bookingCandidate.kind,
+                name: bookingCandidate.name,
+                status: 'need',
+                url: bookingCandidate.url,
+                cost: bookingCandidate.price,
+                notes: bookingCandidate.notes,
+                sourceSavedId: bookingCandidate.id,
+              })
+              setBookingCandidate(undefined)
+            }}
+          >
+            {t('compare.createBooking')}
+          </button>
+          <button className="btn btn-ghost" onClick={() => setBookingCandidate(undefined)}>{t('compare.bookingLater')}</button>
+        </div>
+      </Modal>
     </div>
+  )
+}
+
+function CreateBoard({
+  open,
+  saved,
+  onClose,
+  onCreate,
+}: {
+  open: boolean
+  saved: Array<{ id: string; name: string; kind: SavedKind }>
+  onClose: () => void
+  onCreate: (board: { kind: SavedKind; title: string; itemIds: string[] }) => void
+}) {
+  const { t } = useT()
+  const [kind, setKind] = useState<SavedKind>('hotel')
+  const [title, setTitle] = useState('')
+  const [picked, setPicked] = useState<string[]>([])
+  const candidates = saved.filter((item) => item.kind === kind)
+  return (
+    <Modal open={open} title={t('compare.create')} onClose={onClose}>
+      <div className="space-y-3">
+        <div>
+          <Label>{t('saved.kind')}</Label>
+          <select className="field" value={kind} onChange={(e) => { setKind(e.target.value as SavedKind); setPicked([]) }}>
+            {(Object.keys(KINDS) as SavedKind[]).map((value) => <option key={value} value={value}>{kindLabel(t, value)}</option>)}
+          </select>
+        </div>
+        <div>
+          <Label>{t('compare.boardTitle')}</Label>
+          <input className="field" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('compare.autoTitle', { kind: kindLabel(t, kind) })} />
+        </div>
+        <div>
+          <Label>{t('compare.pickItems')}</Label>
+          <div className="space-y-2">
+            {candidates.map((item) => (
+              <label key={item.id} className="flex items-center gap-2 rounded-xl p-3 text-sm" style={{ background: 'var(--bg-2)' }}>
+                <input
+                  type="checkbox"
+                  checked={picked.includes(item.id)}
+                  onChange={() => setPicked((ids) => ids.includes(item.id) ? ids.filter((id) => id !== item.id) : [...ids, item.id])}
+                />
+                {item.name}
+              </label>
+            ))}
+            {candidates.length === 0 && <p className="text-sm" style={{ color: 'var(--muted)' }}>{t('compare.noCandidates')}</p>}
+          </div>
+        </div>
+        <button
+          className="btn w-full"
+          disabled={picked.length === 0}
+          onClick={() => onCreate({ kind, title: title.trim() || t('compare.autoTitle', { kind: kindLabel(t, kind) }), itemIds: picked })}
+        >
+          {t('compare.create')}
+        </button>
+      </div>
+    </Modal>
   )
 }
 

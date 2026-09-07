@@ -134,18 +134,26 @@ export async function refreshTripWeather(trip: Trip, force = false, locale: Loca
   }
   const byKey: Record<string, WeatherSnap> = {}
   let seasonal = false
+  const failedCities: string[] = []
   for (const [city, dates] of byCity) {
-    const snaps = await weatherForCity(city, dates, locale)
-    dates.forEach((date) => {
-      const snap = snaps[date]
-      if (snap) {
-        byKey[`${date}|${city}`] = snap
-        if (snap.source === 'seasonal' || snap.summary.includes('去年') || snap.summary.includes('last year')) seasonal = true
-      }
-    })
+    try {
+      const snaps = await weatherForCity(city, dates, locale)
+      dates.forEach((date) => {
+        const snap = snaps[date]
+        if (snap) {
+          byKey[`${date}|${city}`] = snap
+          if (snap.source === 'seasonal') seasonal = true
+        }
+      })
+    } catch {
+      failedCities.push(city)
+    }
   }
-  if (!Object.keys(byKey).length) return null
-  return { byKey, fetchedAt: new Date().toISOString(), seasonal }
+  if (!Object.keys(byKey).length) {
+    if (failedCities.length) throw new Error(t(locale, 'wx.failCities', { cities: failedCities.join(', ') }))
+    return null
+  }
+  return { byKey, fetchedAt: new Date().toISOString(), seasonal, failedCities }
 }
 
 export function useLiveWeather(trip: Trip | undefined) {
@@ -165,6 +173,7 @@ export function useLiveWeather(trip: Trip | undefined) {
         if (!live || !r) return
         patchDaysWeather(trip.id, r.byKey, r.fetchedAt)
         setSeasonal(r.seasonal)
+        if (r.failedCities.length) setError(t(locale, 'wx.partial', { cities: r.failedCities.join(', ') }))
       })
       .catch((e) => {
         if (live) setError(e instanceof Error ? e.message : t(locale, 'wx.fail'))
@@ -186,6 +195,7 @@ export function useLiveWeather(trip: Trip | undefined) {
       if (r) {
         patchDaysWeather(trip.id, r.byKey, r.fetchedAt)
         setSeasonal(r.seasonal)
+        if (r.failedCities.length) setError(t(locale, 'wx.partial', { cities: r.failedCities.join(', ') }))
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : t(locale, 'wx.fail'))

@@ -1,7 +1,7 @@
 import { useParams } from 'react-router-dom'
 import { useApp, useTrip } from '../store'
 import { money } from '../lib'
-import { budgetTotals } from '../domain'
+import { budgetCategoryActuals, budgetTotals } from '../domain'
 import { Progress } from '../ui'
 import { namedCat, useT } from '../i18n'
 
@@ -13,6 +13,7 @@ export default function Budget() {
   if (!trip) return null
   const tot = budgetTotals(trip)
   const cap = trip.totalBudget || tot.estimated
+  const percent = cap > 0 ? (tot.estimated / cap) * 100 : 0
 
   return (
     <div className="space-y-5">
@@ -30,41 +31,52 @@ export default function Budget() {
       <div className="paper p-5">
         <div className="mb-2 flex justify-between text-sm">
           <span>{t('budget.vs', { money: money(cap, trip.homeCurrency) })}</span>
-          <span>{Math.round((tot.estimated / cap) * 100) || 0}%</span>
+          <span>{Math.round(percent)}%</span>
         </div>
-        <Progress value={(tot.estimated / cap) * 100} />
+        <Progress value={percent} />
+        <p className="mt-3 text-xs" style={{ color: 'var(--muted)' }}>{t('budget.actualHint')}</p>
       </div>
       <div className="space-y-2">
-        {trip.budget.map((c) => (
-          <div key={c.id} className="paper p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="font-medium">{namedCat(t, c.name)}</div>
-              <div className="text-sm" style={{ color: 'var(--muted)' }}>
-                {t('budget.paidRow', { money: money(c.paid, trip.homeCurrency) })}
+        {trip.budget.map((c) => {
+          const actual = budgetCategoryActuals(trip, c.name)
+          return (
+            <div key={c.id} className="paper p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="font-medium">{namedCat(t, c.name)}</div>
+                <div className="text-sm" style={{ color: 'var(--muted)' }}>
+                  {t('budget.paidRow', { money: money(actual.paid, trip.homeCurrency) })}
+                </div>
               </div>
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-sm">
-              {(['estimated', 'booked', 'paid'] as const).map((k) => (
-                <label key={k}>
-                  <span className="mb-1 block text-[11px] uppercase tracking-wider" style={{ color: 'var(--muted)' }}>
-                    {k === 'estimated' ? t('budget.est') : k === 'booked' ? t('budget.booked') : t('budget.paid')}
-                  </span>
+              <div className="grid grid-cols-3 gap-2 text-sm">
+                <label>
+                  <span className="mb-1 block text-[11px] uppercase tracking-wider" style={{ color: 'var(--muted)' }}>{t('budget.est')}</span>
                   <input
                     className="field"
                     type="number"
-                    value={c[k]}
+                    value={c.estimated}
                     onChange={(e) =>
                       updateTrip(trip.id, {
-                        budget: trip.budget.map((x) => (x.id === c.id ? { ...x, [k]: Number(e.target.value) } : x)),
+                        budget: trip.budget.map((x) => (x.id === c.id ? { ...x, estimated: Number(e.target.value) } : x)),
                       })
                     }
                   />
                 </label>
-              ))}
+                <ReadOnlyAmount label={t('budget.booked')} value={money(actual.booked, trip.homeCurrency)} />
+                <ReadOnlyAmount label={t('budget.paid')} value={money(actual.paid, trip.homeCurrency)} />
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
+    </div>
+  )
+}
+
+function ReadOnlyAmount({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <span className="mb-1 block text-[11px] uppercase tracking-wider" style={{ color: 'var(--muted)' }}>{label}</span>
+      <div className="field flex min-h-[44px] items-center" style={{ background: 'var(--bg-2)' }}>{value}</div>
     </div>
   )
 }

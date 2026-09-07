@@ -1,12 +1,26 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { THEMES, TRANSPORT } from '../catalog'
 import { useApp } from '../store'
 import type { ThemeId, TransportMode } from '../types'
 import { Label } from '../ui'
 import { themeBlurb, themeLabel, transportLabel, useT } from '../i18n'
+import { eachDate, toISODate } from '../lib'
 
 const modes: TransportMode[] = ['self-drive', 'public', 'walking', 'taxi', 'cycling', 'mixed']
+
+function futureDate(days: number) {
+  const date = new Date()
+  date.setDate(date.getDate() + days)
+  return toISODate(date)
+}
+
+function splitDays(total: number, count: number) {
+  if (!count) return []
+  const base = Math.floor(total / count)
+  const extra = total % count
+  return Array.from({ length: count }, (_, i) => base + (i < extra ? 1 : 0))
+}
 
 export default function CreateTrip() {
   const createTrip = useApp((s) => s.createTrip)
@@ -17,18 +31,25 @@ export default function CreateTrip() {
   const [name, setName] = useState('')
   const [origin, setOrigin] = useState(profile.homeCity)
   const [dest, setDest] = useState('')
-  const [startDate, setStartDate] = useState('2026-09-25')
-  const [endDate, setEndDate] = useState('2026-10-04')
+  const [startDate, setStartDate] = useState(() => futureDate(30))
+  const [endDate, setEndDate] = useState(() => futureDate(37))
   const [people, setPeople] = useState(2)
   const [members, setMembers] = useState(profile.name + ', ')
   const [budget, setBudget] = useState(3000)
   const [theme, setTheme] = useState<ThemeId>('cream')
   const [transport, setTransport] = useState<TransportMode[]>(['mixed'])
+  const [destinationDays, setDestinationDays] = useState<number[]>([])
+  const [error, setError] = useState('')
 
   const destinations = dest
     .split(/[,，>/→]/)
     .map((s) => s.trim())
     .filter(Boolean)
+  const tripDates = useMemo(() => eachDate(startDate, endDate), [startDate, endDate])
+
+  useEffect(() => {
+    setDestinationDays(splitDays(tripDates.length, destinations.length))
+  }, [tripDates.length, destinations.join('|')])
 
   function toggleMode(m: TransportMode) {
     setTransport((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]))
@@ -47,8 +68,29 @@ export default function CreateTrip() {
       homeCurrency: profile.homeCurrency,
       theme,
       transportModes: transport.length ? transport : ['mixed'],
+      destinationDays,
     })
     nav(`/trip/${id}`)
+  }
+
+  function validate(currentStep: number) {
+    if (currentStep === 0 && (!origin.trim() || destinations.length === 0)) return t('create.errorRoute')
+    if (currentStep === 1) {
+      if (!startDate || !endDate || tripDates.length === 0) return t('create.errorDates')
+      if (tripDates.length < destinations.length) return t('create.errorTooManyCities')
+      if (destinationDays.some((n) => !Number.isInteger(n) || n < 1)) return t('create.errorCityDays')
+      if (destinationDays.reduce((sum, n) => sum + n, 0) !== tripDates.length) {
+        return t('create.errorAllocation', { n: tripDates.length })
+      }
+    }
+    if (currentStep === 2 && (!Number.isInteger(people) || people < 1 || budget < 0)) return t('create.errorPeopleBudget')
+    return ''
+  }
+
+  function next() {
+    const issue = validate(step)
+    setError(issue)
+    if (!issue) setStep((s) => s + 1)
   }
 
   return (
@@ -80,15 +122,42 @@ export default function CreateTrip() {
           </div>
         )}
         {step === 1 && (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <Label>{t('create.start')}</Label>
-              <input className="field" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label>{t('create.start')}</Label>
+                <input className="field" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              </div>
+              <div>
+                <Label>{t('create.end')}</Label>
+                <input className="field" type="date" min={startDate} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              </div>
             </div>
-            <div>
-              <Label>{t('create.end')}</Label>
-              <input className="field" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-            </div>
+            {destinations.length > 0 && (
+              <div>
+                <Label>{t('create.cityDays')}</Label>
+                <div className="space-y-2">
+                  {destinations.map((city, i) => (
+                    <label key={`${city}-${i}`} className="flex items-center justify-between gap-3 rounded-xl p-3" style={{ background: 'var(--bg-2)' }}>
+                      <span className="font-medium">{city}</span>
+                      <span className="flex items-center gap-2 text-sm">
+                        <input
+                          className="field w-20"
+                          type="number"
+                          min={1}
+                          value={destinationDays[i] ?? 1}
+                          onChange={(e) => setDestinationDays((days) => days.map((n, x) => (x === i ? Number(e.target.value) : n)))}
+                        />
+                        {t('create.daysUnit')}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>
+                  {t('create.totalDays', { n: tripDates.length })}
+                </p>
+              </div>
+            )}
           </div>
         )}
         {step === 2 && (
@@ -150,16 +219,17 @@ export default function CreateTrip() {
             </div>
           </div>
         )}
+        {error && <p className="mt-4 text-sm" style={{ color: 'var(--warn)' }}>{error}</p>}
         <div className="mt-6 flex justify-between">
-          <button className="btn btn-ghost" disabled={step === 0} onClick={() => setStep((s) => s - 1)}>
+          <button className="btn btn-ghost" disabled={step === 0} onClick={() => { setError(''); setStep((s) => s - 1) }}>
             {t('create.prev')}
           </button>
           {step < 3 ? (
-            <button className="btn" onClick={() => setStep((s) => s + 1)}>
+            <button className="btn" onClick={next}>
               {t('create.next')}
             </button>
           ) : (
-            <button className="btn btn-accent" onClick={submit}>
+            <button className="btn btn-accent" onClick={() => { const issue = validate(2); setError(issue); if (!issue) submit() }}>
               {t('create.go')}
             </button>
           )}

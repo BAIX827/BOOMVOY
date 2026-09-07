@@ -1,4 +1,4 @@
-import type { DayPlan, Expense, PlaceStop, TransportMode, Trip } from './types'
+import type { Booking, DayPlan, Expense, PlaceStop, SavedKind, TransportMode, Trip } from './types'
 import { DAY_COLORS } from './catalog'
 import { haversineKm, estimateMinutes } from './lib'
 import type { TFn } from './i18n'
@@ -104,21 +104,52 @@ export function dayDistance(places: PlaceStop[]) {
 }
 
 export function budgetTotals(trip: Trip) {
-  return trip.budget.reduce(
-    (acc, c) => ({
-      estimated: acc.estimated + c.estimated,
-      booked: acc.booked + c.booked,
-      paid: acc.paid + c.paid,
-    }),
-    { estimated: 0, booked: 0, paid: 0 },
-  )
+  const estimated = trip.budget.reduce((sum, category) => sum + category.estimated, 0)
+  const booked = trip.bookings
+    .filter((booking) => booking.status === 'booked' || booking.status === 'paid')
+    .reduce((sum, booking) => sum + (bookingHomeAmount(trip, booking) || 0), 0)
+  const paid = trip.expenses.reduce((sum, expense) => sum + expenseHomeAmount(trip, expense), 0)
+  return { estimated, booked, paid }
+}
+
+const KIND_BUDGET_CATEGORY: Record<SavedKind, string> = {
+  flight: '机票',
+  hotel: '住宿',
+  restaurant: '餐饮',
+  place: '活动',
+  activity: '活动',
+  'rental-car': '交通',
+  souvenir: '伴手礼',
+  route: '交通',
+}
+
+export function bookingBudgetCategory(kind: SavedKind) {
+  return KIND_BUDGET_CATEGORY[kind]
+}
+
+export function bookingHomeAmount(trip: Trip, booking: Booking) {
+  if (!booking.cost) return undefined
+  if (booking.homeAmount != null) return booking.homeAmount
+  if (booking.cost.currency === trip.homeCurrency) return booking.cost.amount
+  if (booking.exchangeRate != null) return booking.cost.amount * booking.exchangeRate
+  return undefined
+}
+
+export function budgetCategoryActuals(trip: Trip, category: string) {
+  const booked = trip.bookings
+    .filter((booking) => (booking.status === 'booked' || booking.status === 'paid') && bookingBudgetCategory(booking.kind) === category)
+    .reduce((sum, booking) => sum + (bookingHomeAmount(trip, booking) || 0), 0)
+  const paid = trip.expenses
+    .filter((expense) => expense.category === category)
+    .reduce((sum, expense) => sum + expenseHomeAmount(trip, expense), 0)
+  return { booked, paid }
 }
 
 export function settle(trip: Trip) {
   const bal: Record<string, number> = {}
   trip.members.forEach((m) => (bal[m.id] = 0))
   for (const e of trip.expenses) {
-    const amount = homeAmount(trip, e)
+    const amount = expenseHomeAmount(trip, e)
     const included = trip.members.filter((m) => !e.excluded.includes(m.id))
     if (!included.length) continue
     if (e.split === 'equal') {
@@ -126,7 +157,8 @@ export function settle(trip: Trip) {
       included.forEach((m) => (bal[m.id] -= share))
     } else {
       const custom = e.split
-      included.forEach((m) => (bal[m.id] -= custom[m.id] ?? 0))
+      const rate = e.amount ? amount / e.amount : 1
+      included.forEach((m) => (bal[m.id] -= (custom[m.id] ?? 0) * rate))
     }
     if (bal[e.paidBy] !== undefined) bal[e.paidBy] += amount
   }
@@ -150,9 +182,10 @@ export function settle(trip: Trip) {
   return { balances: bal, transfers }
 }
 
-function homeAmount(trip: Trip, e: Expense) {
+export function expenseHomeAmount(trip: Trip, e: Expense) {
   if (e.homeAmount != null) return e.homeAmount
   if (e.currency === trip.homeCurrency) return e.amount
+  if (e.exchangeRate != null) return e.amount * e.exchangeRate
   if (e.currency === 'JPY') return e.amount * 0.0102
   if (e.currency === 'USD') return e.amount * 1.52
   if (e.currency === 'IDR') return e.amount * 0.000095

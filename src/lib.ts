@@ -15,6 +15,15 @@ export function eachDate(start: string, end: string): string[] {
   return out
 }
 
+export function cityForDay(destinations: string[], destinationDays: number[], index: number) {
+  let cursor = 0
+  for (let i = 0; i < destinations.length; i++) {
+    cursor += Math.max(0, destinationDays[i] || 0)
+    if (index < cursor) return destinations[i]
+  }
+  return destinations[destinations.length - 1] || ''
+}
+
 export function toISODate(d: Date) {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')

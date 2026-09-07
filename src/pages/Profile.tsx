@@ -4,13 +4,37 @@ import { Label, LangSwitch } from '../ui'
 import type { ThemeId } from '../types'
 import { resolveLlm } from '../llm'
 import { themeLabel, useT } from '../i18n'
+import type { Profile as ProfileData, Trip } from '../types'
 
 export default function Profile() {
   const profile = useApp((s) => s.profile)
+  const trips = useApp((s) => s.trips)
   const setProfile = useApp((s) => s.setProfile)
   const resetDemo = useApp((s) => s.resetDemo)
   const llm = resolveLlm(profile)
   const { t } = useT()
+
+  function exportData() {
+    const safeProfile = { ...profile, llmKey: undefined }
+    const blob = new Blob([JSON.stringify({ schemaVersion: 1, exportedAt: new Date().toISOString(), profile: safeProfile, trips }, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `boomvoy-backup-${new Date().toISOString().slice(0, 10)}.json`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function importData(file: File) {
+    try {
+      const data = JSON.parse(await file.text()) as { profile?: Partial<ProfileData>; trips?: Trip[] }
+      if (!Array.isArray(data.trips)) throw new Error('invalid')
+      useApp.setState({ trips: data.trips, profile: { ...profile, ...(data.profile || {}), llmKey: profile.llmKey } })
+      window.alert(t('profile.importDone', { n: data.trips.length }))
+    } catch {
+      window.alert(t('profile.importFail'))
+    }
+  }
 
   return (
     <div className="mx-auto max-w-xl">
@@ -100,12 +124,34 @@ export default function Profile() {
           />
         </div>
       </div>
-      <button className="btn btn-ghost mt-6" onClick={resetDemo}>
-        {t('profile.resetDemo')}
-      </button>
-      <button className="btn mt-3" onClick={() => window.dispatchEvent(new Event('boomvoy-start-guide'))}>
-        {t('profile.replayGuide')}
-      </button>
+      <div className="paper mt-6 space-y-3 p-6">
+        <h2 className="display text-2xl">{t('profile.data')}</h2>
+        <p className="text-sm" style={{ color: 'var(--muted)' }}>{t('profile.dataHint')}</p>
+        <div className="flex flex-wrap gap-2">
+          <button className="btn" onClick={exportData}>{t('profile.export')}</button>
+          <label className="btn btn-ghost cursor-pointer">
+            {t('profile.import')}
+            <input
+              className="sr-only"
+              type="file"
+              accept="application/json,.json"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) void importData(file)
+                e.target.value = ''
+              }}
+            />
+          </label>
+        </div>
+      </div>
+      <div className="mt-6 flex flex-wrap gap-3">
+        <button className="btn btn-ghost" onClick={() => { if (window.confirm(t('profile.resetConfirm'))) resetDemo() }}>
+          {t('profile.resetDemo')}
+        </button>
+        <button className="btn" onClick={() => window.dispatchEvent(new Event('boomvoy-start-guide'))}>
+          {t('profile.replayGuide')}
+        </button>
+      </div>
     </div>
   )
 }

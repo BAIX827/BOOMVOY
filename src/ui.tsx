@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { cls } from './lib'
 import { useT } from './i18n'
 import { useApp } from './store'
@@ -17,13 +17,52 @@ export function Modal({
   wide?: boolean
 }) {
   const { t } = useT()
+  const titleId = useId()
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+  useEffect(() => {
+    if (!open) return
+    const previous = document.activeElement as HTMLElement | null
+    const oldOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const timer = window.setTimeout(() => {
+      dialogRef.current?.querySelector<HTMLElement>('input, select, textarea, button, a[href]')?.focus()
+    }, 0)
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onCloseRef.current()
+        return
+      }
+      if (event.key !== 'Tab' || !dialogRef.current) return
+      const focusable = [...dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]')]
+      if (!focusable.length) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.clearTimeout(timer)
+      document.removeEventListener('keydown', onKeyDown)
+      document.body.style.overflow = oldOverflow
+      previous?.focus()
+    }
+  }, [open])
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center">
       <button className="absolute inset-0 bg-[color-mix(in_srgb,var(--ink)_35%,transparent)]" onClick={onClose} aria-label={t('ui.close')} />
-      <div className={cls('paper relative z-10 w-full p-5', wide ? 'max-w-2xl' : 'max-w-md')}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className={cls('paper relative z-10 max-h-[90vh] w-full overflow-auto p-5', wide ? 'max-w-2xl' : 'max-w-md')}>
         <div className="mb-4 flex items-start justify-between gap-4">
-          <h3 className="display text-2xl">{title}</h3>
+          <h3 id={titleId} className="display text-2xl">{title}</h3>
           <button className="btn-ghost btn px-3 py-1 text-sm" onClick={onClose}>
             {t('ui.close')}
           </button>

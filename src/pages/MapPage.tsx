@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useApp, useTrip } from '../store'
 import { DAY_COLORS, TRANSPORT } from '../catalog'
-import { activePlaces, cityRoute, dayDistance } from '../domain'
+import { activePlaces, cityRoute } from '../domain'
 import { formatDay } from '../lib'
 import { ensurePlaceGeo, mapsDayRoute, mapsDirUrl, routeHop, type HopRoute } from '../geo'
 import TripMap, { type MapLine, type MapStop } from '../TripMap'
@@ -131,7 +131,10 @@ export default function MapPage() {
       ) : (
         days.map((d) => {
           const pts = activePlaces(d)
-          const dist = dayDistance(pts)
+          const hops = pts.slice(0, -1).map((point, index) => routes[`${point.id}-${pts[index + 1].id}`]).filter(Boolean)
+          const routeKm = hops.reduce((sum, hop) => sum + hop.km, 0)
+          const routeMinutes = hops.reduce((sum, hop) => sum + hop.minutes, 0)
+          const estimated = hops.length < Math.max(0, pts.length - 1) || hops.some((hop) => hop.source === 'estimate')
           return (
             <div key={d.id} className="paper p-5">
               <h2 className="display text-2xl">
@@ -158,9 +161,9 @@ export default function MapPage() {
                   </li>
                 ))}
               </ol>
-              {dist.km > 0 && (
+              {routeKm > 0 && (
                 <p className="mt-3 text-sm" style={{ color: 'var(--muted)' }}>
-                  {t('map.dayKm', { km: dist.km.toFixed(1), min: dist.minutes })}
+                  {t(estimated ? 'map.dayKmEstimate' : 'map.dayKmRoute', { km: routeKm.toFixed(1), min: routeMinutes })}
                 </p>
               )}
               {mapsDayRoute(pts) && (

@@ -10,7 +10,7 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Camera, GripVertical, Plus, Sparkles, Trash2 } from 'lucide-react'
+import { Camera, GripVertical, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { useApp, useTrip } from '../store'
 import type { PlaceSetting, PlaceStop, PlanVariant, Priority, TransportMode } from '../types'
 import { TRANSPORT, WEATHER } from '../catalog'
@@ -347,6 +347,7 @@ function SortablePlace({
           )}
         </div>
         <div className="flex flex-col items-end gap-2">
+          <EditPlaceBtn place={place} onPatch={onPatch} />
           <CheckInBtn place={place} onPatch={onPatch} />
           <label className="text-xs" style={{ color: 'var(--muted)' }}>
             <input type="checkbox" checked={!!place.booked} onChange={(e) => onPatch({ booked: e.target.checked })} /> {t('plan.bookingCheck')}
@@ -357,6 +358,132 @@ function SortablePlace({
         </div>
       </div>
     </div>
+  )
+}
+
+function EditPlaceBtn({ place, onPatch }: { place: PlaceStop; onPatch: (p: Partial<PlaceStop>) => void }) {
+  const { t } = useT()
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState(place.name)
+  const [time, setTime] = useState(place.time || '')
+  const [duration, setDuration] = useState(String(place.durationMin || 60))
+  const [category, setCategory] = useState(place.category)
+  const [setting, setSetting] = useState<PlaceSetting>(place.setting)
+  const [priority, setPriority] = useState<Priority>(place.priority || 'want')
+  const [notes, setNotes] = useState(place.notes || '')
+  const [cost, setCost] = useState(place.cost ? String(place.cost.amount) : '')
+  const [currency, setCurrency] = useState(place.cost?.currency || 'AUD')
+  const [ticketNeeded, setTicketNeeded] = useState(!!place.ticketNeeded)
+  const [ticketUrl, setTicketUrl] = useState(place.ticketUrl || '')
+
+  function show() {
+    setName(place.name)
+    setTime(place.time || '')
+    setDuration(String(place.durationMin || 60))
+    setCategory(place.category)
+    setSetting(place.setting)
+    setPriority(place.priority || 'want')
+    setNotes(place.notes || '')
+    setCost(place.cost ? String(place.cost.amount) : '')
+    setCurrency(place.cost?.currency || 'AUD')
+    setTicketNeeded(!!place.ticketNeeded)
+    setTicketUrl(place.ticketUrl || '')
+    setOpen(true)
+  }
+
+  const categories = Array.from(new Set([place.category, ...PLACE_CATS]))
+  return (
+    <>
+      <button className="btn btn-ghost px-2 py-1 text-xs" onClick={show} aria-label={t('plan.edit')}>
+        <Pencil size={12} /> {t('plan.edit')}
+      </button>
+      <Modal open={open} title={t('plan.editTitle', { name: place.name })} onClose={() => setOpen(false)}>
+        <div className="space-y-3">
+          <div>
+            <Label>{t('plan.placeName')}</Label>
+            <input className="field" value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label>{t('plan.time')}</Label>
+              <input className="field" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+            </div>
+            <div>
+              <Label>{t('plan.duration')}</Label>
+              <input className="field" type="number" min={5} step={5} value={duration} onChange={(e) => setDuration(e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <Label>{t('plan.category')}</Label>
+            <select className="field" value={category} onChange={(e) => setCategory(e.target.value)}>
+              {categories.map((c) => <option key={c} value={c}>{placeCatLabel(t, c)}</option>)}
+            </select>
+          </div>
+          <div>
+            <Label>{t('plan.setting')}</Label>
+            <div className="flex flex-wrap gap-2">
+              {(['outdoor', 'indoor', 'mixed'] as PlaceSetting[]).map((value) => (
+                <button key={value} className={setting === value ? 'btn' : 'btn btn-ghost'} onClick={() => setSetting(value)}>{settingLabel(t, value)}</button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <Label>{t('plan.priority')}</Label>
+            <div className="flex flex-wrap gap-2">
+              {(['must', 'want', 'optional'] as Priority[]).map((value) => (
+                <button key={value} className={priority === value ? 'btn' : 'btn btn-ghost'} onClick={() => setPriority(value)}>{priorityLabel(t, value)}</button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label>{t('plan.cost')}</Label>
+              <input className="field" type="number" min={0} value={cost} onChange={(e) => setCost(e.target.value)} />
+            </div>
+            <div>
+              <Label>{t('plan.currency')}</Label>
+              <select className="field" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                {['AUD', 'CNY', 'USD', 'JPY', 'EUR', 'IDR'].map((value) => <option key={value}>{value}</option>)}
+              </select>
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={ticketNeeded} onChange={(e) => setTicketNeeded(e.target.checked)} /> {t('plan.needTicket')}
+          </label>
+          {ticketNeeded && (
+            <div>
+              <Label>{t('plan.ticketUrl')}</Label>
+              <input className="field" type="url" value={ticketUrl} onChange={(e) => setTicketUrl(e.target.value)} />
+            </div>
+          )}
+          <div>
+            <Label>{t('plan.notes')}</Label>
+            <textarea className="field min-h-[90px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+          <button
+            className="btn w-full"
+            disabled={!name.trim() || Number(duration) < 5 || (!!cost && Number(cost) < 0)}
+            onClick={() => {
+              onPatch({
+                name: name.trim(),
+                time,
+                durationMin: Number(duration),
+                category,
+                setting,
+                priority,
+                notes,
+                cost: cost ? { amount: Number(cost), currency, status: place.cost?.status || 'estimated' } : undefined,
+                ticketNeeded,
+                ticketUrl: ticketNeeded && ticketUrl ? ticketUrl : undefined,
+              })
+              setOpen(false)
+            }}
+          >
+            {t('plan.saveEdit')}
+          </button>
+        </div>
+      </Modal>
+    </>
   )
 }
 

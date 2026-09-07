@@ -13,7 +13,7 @@ const kinds: SavedKind[] = ['flight', 'hotel', 'restaurant', 'place', 'activity'
 export default function Saved() {
   const { id } = useParams()
   const trip = useTrip(id)
-  const { addSaved, updateSaved } = useApp()
+  const { addSaved, updateSaved, removeSaved, addCompareBoard, updateCompareBoard } = useApp()
   const { t } = useT()
   const [kind, setKind] = useState<SavedKind | 'all'>('all')
   const [open, setOpen] = useState(false)
@@ -104,6 +104,27 @@ export default function Saved() {
                 {t('saved.open')}
               </a>
             )}
+            <div className="mt-3 flex flex-wrap gap-2">
+              {(() => {
+                const board = trip.compares.find((item) => item.kind === s.kind)
+                const added = !!board?.itemIds.includes(s.id)
+                return (
+                  <button
+                    className="btn btn-soft px-3 py-1 text-xs"
+                    disabled={added}
+                    onClick={() => {
+                      if (board) updateCompareBoard(trip.id, board.id, { itemIds: [...board.itemIds, s.id] })
+                      else addCompareBoard(trip.id, { kind: s.kind, title: t('compare.autoTitle', { kind: kindLabel(t, s.kind) }), itemIds: [s.id] })
+                    }}
+                  >
+                    {added ? t('saved.inCompare') : t('saved.addCompare')}
+                  </button>
+                )
+              })()}
+              <button className="btn btn-ghost px-3 py-1 text-xs" onClick={() => removeSaved(trip.id, s.id)}>
+                {t('saved.delete')}
+              </button>
+            </div>
           </article>
         ))}
       </div>

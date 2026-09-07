@@ -1,4 +1,5 @@
-import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom'
+import { useState } from 'react'
+import { NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   BookOpen,
   Briefcase,
@@ -7,6 +8,7 @@ import {
   Compass,
   LayoutGrid,
   Map,
+  MoreHorizontal,
   NotebookPen,
   PiggyBank,
   Receipt,
@@ -36,6 +38,8 @@ export default function TripShell() {
   const { id } = useParams()
   const trip = useTrip(id)
   const nav = useNavigate()
+  const location = useLocation()
+  const [moreOpen, setMoreOpen] = useState(false)
   const { t, locale } = useT()
   useLiveWeather(trip)
 
@@ -54,6 +58,11 @@ export default function TripShell() {
     { to: 'group', label: t('trip.group'), icon: Users },
     { to: 'notes', label: t('trip.notes'), icon: Settings2 },
   ]
+  const mobilePrimary = [items[0], items[1], items[2], items[7]]
+  const primaryPaths = new Set(mobilePrimary.map((item) => item.to))
+  const mobileMore = items.filter((item) => !primaryPaths.has(item.to))
+  const section = location.pathname.split('/')[3] || ''
+  const moreActive = mobileMore.some((item) => item.to === section)
 
   if (!trip) {
     return (
@@ -123,17 +132,17 @@ export default function TripShell() {
             <Outlet />
           </div>
           <nav
-            className="fixed bottom-0 left-0 right-0 z-40 flex gap-1 overflow-auto border-t px-2 py-2 lg:hidden"
+            className="fixed bottom-0 left-0 right-0 z-40 grid grid-cols-5 gap-1 border-t px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] lg:hidden"
             style={{ background: 'var(--paper)', borderColor: 'var(--line)' }}
             data-guide="trip-nav"
           >
-            {items.slice(0, 7).map((it) => (
+            {mobilePrimary.map((it) => (
               <NavLink
                 key={it.to}
                 end={it.end}
                 to={it.to ? `/trip/${trip.id}/${it.to}` : `/trip/${trip.id}`}
                 className={({ isActive }) =>
-                  cls('flex min-w-[64px] flex-col items-center rounded-xl px-2 py-1 text-[11px] no-underline', isActive ? 'btn-soft' : '')
+                  cls('flex min-w-0 flex-col items-center rounded-xl px-1 py-1 text-[11px] no-underline', isActive ? 'btn-soft' : '')
                 }
                 style={{ color: 'var(--ink)' }}
                 data-guide={NAV_GUIDE[it.to]}
@@ -142,7 +151,42 @@ export default function TripShell() {
                 {it.label}
               </NavLink>
             ))}
+            <button
+              className={cls('flex min-w-0 flex-col items-center rounded-xl px-1 py-1 text-[11px]', moreActive || moreOpen ? 'btn-soft' : '')}
+              onClick={() => setMoreOpen(true)}
+              aria-haspopup="dialog"
+              aria-expanded={moreOpen}
+            >
+              <MoreHorizontal size={16} />
+              {t('trip.more')}
+            </button>
           </nav>
+          {moreOpen && (
+            <div className="fixed inset-0 z-50 flex items-end lg:hidden" role="dialog" aria-modal="true" aria-label={t('trip.more')}>
+              <button className="absolute inset-0 bg-[color-mix(in_srgb,var(--ink)_35%,transparent)]" onClick={() => setMoreOpen(false)} aria-label={t('ui.close')} />
+              <div className="paper relative z-10 w-full rounded-b-none p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="display text-2xl">{t('trip.more')}</h2>
+                  <button className="btn btn-ghost px-3 py-1 text-sm" onClick={() => setMoreOpen(false)}>{t('ui.close')}</button>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {mobileMore.map((it) => (
+                    <NavLink
+                      key={it.to}
+                      end={it.end}
+                      to={it.to ? `/trip/${trip.id}/${it.to}` : `/trip/${trip.id}`}
+                      onClick={() => setMoreOpen(false)}
+                      className={({ isActive }) => cls('flex min-h-20 flex-col items-center justify-center gap-2 rounded-xl p-2 text-center text-xs no-underline', isActive ? 'btn-soft font-medium' : 'paper')}
+                      style={{ color: 'var(--ink)' }}
+                    >
+                      <it.icon size={20} />
+                      {it.label}
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

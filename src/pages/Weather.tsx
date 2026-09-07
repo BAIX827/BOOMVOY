@@ -23,7 +23,10 @@ export default function Weather() {
     setError('')
     try {
       const r = await refreshTripWeather(current, true, locale)
-      if (r) patchDaysWeather(current.id, r.byKey, r.fetchedAt)
+      if (r) {
+        patchDaysWeather(current.id, r.byKey, r.fetchedAt)
+        if (r.failedCities.length) setError(t('wx.partial', { cities: r.failedCities.join(', ') }))
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : t('wx.fail'))
     } finally {

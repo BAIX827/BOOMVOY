@@ -116,7 +116,7 @@ export interface SavedItem {
 
 export interface CompareBoard {
   id: string
-  kind: 'flight' | 'hotel' | 'activity'
+  kind: SavedKind
   title: string
   itemIds: string[]
 }
@@ -130,6 +130,10 @@ export interface Booking {
   confirmation?: string
   url?: string
   cost?: Money
+  homeAmount?: number
+  exchangeRate?: number
+  notes?: string
+  sourceSavedId?: string
 }
 
 export interface BudgetCategory {
@@ -153,6 +157,8 @@ export interface Expense {
   excluded: string[]
   status: ExpenseStatus
   notes?: string
+  exchangeRate?: number
+  bookingId?: string
 }
 
 export interface GiftItem {

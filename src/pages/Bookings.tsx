@@ -7,16 +7,19 @@ import { Label, Modal, Tone } from '../ui'
 import { money } from '../lib'
 import BookingSearch from '../BookingSearch'
 import { bookingStatusLabel, kindLabel, useT } from '../i18n'
+import type { Booking } from '../types'
+import { bookingBudgetCategory } from '../domain'
 
 export default function Bookings() {
   const { id } = useParams()
   const trip = useTrip(id)
-  const { updateBooking, addBooking } = useApp()
+  const { updateBooking, addBooking, removeBooking, addExpense } = useApp()
   const { t } = useT()
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<Booking | undefined>()
   if (!trip) return null
 
-  const groups = ['flight', 'hotel', 'rental-car', 'activity', 'restaurant'] as SavedKind[]
+  const groups = Object.keys(KINDS) as SavedKind[]
 
   return (
     <div>
@@ -24,7 +27,7 @@ export default function Bookings() {
         <div>
           <h1 className="display text-4xl">{t('book.title')}</h1>
         </div>
-        <button className="btn" onClick={() => setOpen(true)}>
+        <button className="btn" onClick={() => { setEditing(undefined); setOpen(true) }}>
           {t('book.register')}
         </button>
       </div>
@@ -67,7 +70,13 @@ export default function Bookings() {
                         <button
                           key={st}
                           className={b.status === st ? 'btn px-2 py-1 text-xs' : 'btn btn-ghost px-2 py-1 text-xs'}
-                          onClick={() => updateBooking(trip.id, b.id, { status: st })}
+                          onClick={() => {
+                            const needsRate = b.cost && b.cost.currency !== trip.homeCurrency && b.homeAmount == null && b.exchangeRate == null
+                            if (needsRate && (st === 'booked' || st === 'paid')) {
+                              setEditing({ ...b, status: st })
+                              setOpen(true)
+                            } else updateBooking(trip.id, b.id, { status: st })
+                          }}
                         >
                           {bookingStatusLabel(t, st)}
                         </button>
@@ -77,7 +86,37 @@ export default function Bookings() {
                           {t('book.openSite')}
                         </a>
                       )}
+                      <button className="btn btn-ghost px-2 py-1 text-xs" onClick={() => { setEditing(b); setOpen(true) }}>
+                        {t('book.edit')}
+                      </button>
+                      {b.status === 'paid' && b.cost && !trip.expenses.some((expense) => expense.bookingId === b.id) && (
+                        <button
+                          className="btn btn-soft px-2 py-1 text-xs"
+                          onClick={() => addExpense(trip.id, {
+                            title: b.name,
+                            amount: b.cost!.amount,
+                            currency: b.cost!.currency,
+                            homeAmount: b.homeAmount ?? (b.cost!.currency === trip.homeCurrency ? b.cost!.amount : undefined),
+                            exchangeRate: b.exchangeRate,
+                            category: bookingBudgetCategory(b.kind),
+                            date: b.date || new Date().toISOString().slice(0, 10),
+                            paidBy: trip.members.find((member) => member.id === 'me')?.id || trip.members[0]?.id || '',
+                            split: 'equal',
+                            excluded: [],
+                            status: 'paid',
+                            notes: b.notes,
+                            bookingId: b.id,
+                          })}
+                        >
+                          {t('book.toExpense')}
+                        </button>
+                      )}
+                      {trip.expenses.some((expense) => expense.bookingId === b.id) && <Tone tone="good">{t('book.expenseLinked')}</Tone>}
+                      <button className="btn btn-ghost px-2 py-1 text-xs" onClick={() => removeBooking(trip.id, b.id)}>
+                        {t('book.delete')}
+                      </button>
                     </div>
+                    {b.notes && <p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>{b.notes}</p>}
                   </div>
                 ))}
               </div>
@@ -86,10 +125,14 @@ export default function Bookings() {
         })}
       </div>
       <AddBooking
+        key={editing?.id || 'new'}
         open={open}
+        initial={editing}
+        homeCurrency={trip.homeCurrency}
         onClose={() => setOpen(false)}
         onAdd={(b) => {
-          addBooking(trip.id, b)
+          if (editing) updateBooking(trip.id, editing.id, b)
+          else addBooking(trip.id, b)
           setOpen(false)
         }}
       />
@@ -101,17 +144,49 @@ function AddBooking({
   open,
   onClose,
   onAdd,
+  initial,
+  homeCurrency,
 }: {
   open: boolean
   onClose: () => void
-  onAdd: (b: { kind: SavedKind; name: string; status: BookingStatus; date?: string; url?: string }) => void
+  onAdd: (b: Omit<Booking, 'id'>) => void
+  initial?: Booking
+  homeCurrency: string
 }) {
   const { t } = useT()
-  const [kind, setKind] = useState<SavedKind>('hotel')
-  const [name, setName] = useState('')
-  const [url, setUrl] = useState('')
+  const [kind, setKind] = useState<SavedKind>(initial?.kind || 'hotel')
+  const [name, setName] = useState(initial?.name || '')
+  const [url, setUrl] = useState(initial?.url || '')
+  const [status, setStatus] = useState<BookingStatus>(initial?.status || 'need')
+  const [date, setDate] = useState(initial?.date || '')
+  const [confirmation, setConfirmation] = useState(initial?.confirmation || '')
+  const [cost, setCost] = useState(initial?.cost ? String(initial.cost.amount) : '')
+  const [currency, setCurrency] = useState(initial?.cost?.currency || homeCurrency)
+  const [notes, setNotes] = useState(initial?.notes || '')
+  const [rate, setRate] = useState(initial?.exchangeRate ? String(initial.exchangeRate) : '')
+  const [error, setError] = useState('')
+  const needsRate = !!cost && currency !== homeCurrency
+
+  function save() {
+    if (!name.trim()) return
+    if (needsRate && Number(rate) <= 0) return setError(t('book.rateRequired'))
+    const exchangeRate = needsRate ? Number(rate) : cost ? 1 : undefined
+    onAdd({
+      kind,
+      name: name.trim(),
+      status,
+      date: date || undefined,
+      confirmation: confirmation || undefined,
+      cost: cost ? { amount: Number(cost), currency } : undefined,
+      homeAmount: cost && exchangeRate ? Number(cost) * exchangeRate : undefined,
+      exchangeRate,
+      url: url || undefined,
+      notes: notes || undefined,
+      sourceSavedId: initial?.sourceSavedId,
+    })
+  }
   return (
-    <Modal open={open} title={t('book.addTitle')} onClose={onClose}>
+    <Modal open={open} title={initial ? t('book.editTitle') : t('book.addTitle')} onClose={onClose}>
       <div className="space-y-3">
         <div>
           <Label>{t('book.kind')}</Label>
@@ -124,9 +199,41 @@ function AddBooking({
           </select>
         </div>
         <input className="field" placeholder={t('book.name')} value={name} onChange={(e) => setName(e.target.value)} />
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <Label>{t('book.date')}</Label>
+            <input className="field" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+          <div>
+            <Label>{t('book.status')}</Label>
+            <select className="field" value={status} onChange={(e) => setStatus(e.target.value as BookingStatus)}>
+              {(Object.keys(BOOKING_STATUS) as BookingStatus[]).map((value) => <option key={value} value={value}>{bookingStatusLabel(t, value)}</option>)}
+            </select>
+          </div>
+        </div>
+        <input className="field" placeholder={t('book.confirmation')} value={confirmation} onChange={(e) => setConfirmation(e.target.value)} />
+        <div className="grid grid-cols-2 gap-2">
+          <input className="field" type="number" min={0} placeholder={t('book.cost')} value={cost} onChange={(e) => setCost(e.target.value)} />
+          <select className="field" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+            {['AUD', 'CNY', 'USD', 'JPY', 'EUR', 'IDR'].map((value) => <option key={value}>{value}</option>)}
+          </select>
+        </div>
+        {needsRate && (
+          <div>
+            <Label>{t('aa.rate', { from: currency, to: homeCurrency })}</Label>
+            <input className="field" type="number" min={0} step="0.000001" value={rate} onChange={(e) => setRate(e.target.value)} placeholder={t('aa.ratePh')} />
+            {Number(rate) > 0 && <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>{currency} {Number(cost).toLocaleString()} ≈ {money(Number(cost) * Number(rate), homeCurrency)}</p>}
+          </div>
+        )}
         <input className="field" placeholder={t('book.url')} value={url} onChange={(e) => setUrl(e.target.value)} />
-        <button className="btn w-full" disabled={!name} onClick={() => onAdd({ kind, name, status: 'need', url })}>
-          {t('book.add')}
+        <textarea className="field min-h-[90px]" placeholder={t('book.notes')} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        {error && <p className="text-sm" style={{ color: 'var(--warn)' }}>{error}</p>}
+        <button
+          className="btn w-full"
+          disabled={!name.trim() || (!!cost && Number(cost) < 0)}
+          onClick={save}
+        >
+          {initial ? t('book.save') : t('book.add')}
         </button>
       </div>
     </Modal>

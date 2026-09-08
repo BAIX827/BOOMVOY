@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { DEFAULT_RECOMMENDATION_PREFERENCES, normalizePlaceName, recommendationTravelMinutes, samePlace, scheduleSuggestion } from '../src/recommendation'
-import { enrichSuggestedPlaces, suggestDays } from '../src/suggestions'
+import { enrichSuggestedPlaces, suggestionContextKey, suggestionRequest, suggestDays } from '../src/suggestions'
 import type { PlaceStop, WeatherSnap } from '../src/types'
 
 const preferences = { ...DEFAULT_RECOMMENDATION_PREFERENCES }
@@ -11,8 +11,10 @@ const api = { city: 'Tokyo', apiUrl: 'https://example.test/api/recommendations/d
 const originalFetch = globalThis.fetch
 const originalSetTimeout = globalThis.setTimeout
 let calls: { url: string; init?: RequestInit }[] = []
+let scenario = 0
 const mock = (handler: (url: string, init?: RequestInit) => Promise<Response> | Response) => {
   calls = []
+  api.apiUrl = `https://example.test/api/recommendations/day/scenario-${++scenario}`
   globalThis.fetch = (async (input, init) => {
     const url = String(input)
     calls.push({ url, init })
@@ -89,9 +91,18 @@ try {
   assert.equal((await suggestDays({ city: 'Tokyo', weather: { ...rain, source: 'placeholder' } })).items[0].rainFriendly, false)
   assert.equal((await suggestDays({ city: 'Tokyo', weather: { ...rain, source: 'seasonal' } })).items[0].rainFriendly, false)
   const noTime = await suggestDays({ city: 'Tokyo', preferences: { ...preferences, startTime: '08:00', endTime: '08:15' } })
-  assert.ok(noTime.items.length > 0, 'Keep candidates available when the UI needs to explain a short time window')
-  assert.ok(noTime.items.every((s) => scheduleSuggestion(s.places, { ...preferences, startTime: '08:00', endTime: '08:15' }).places.length === 0))
+  assert.deepEqual(noTime.items, [], 'Local fallback cannot present a route with no schedulable stop')
+  assert.equal(noTime.error, 'empty')
   assert.ok(local.items.flatMap((s) => s.places).some((p) => p.time === '15:00'), 'Returned candidates keep original recommended times')
+  const baliPlanned = [
+    { name: 'Neka Art Museum', city: 'Ubud', date: '2026-10-01' },
+    { name: 'Blanco Renaissance Museum', city: 'Ubud', date: '2026-10-02' },
+    { name: 'Echo Beach', city: 'Canggu', date: '2026-10-03' },
+  ]
+  const bali = await suggestDays({ city: 'Bali', planned: baliPlanned })
+  assert.ok(bali.items.flatMap((item) => item.places).every((place) => !baliPlanned.some((planned) => samePlace(place, planned))), 'Bali exclusions include its Ubud and Canggu districts')
+  assert.equal(suggestionRequest({ city: 'Bali', planned: baliPlanned }).planned.length, 3)
+  assert.notEqual(suggestionContextKey({ city: 'Bali' }), suggestionContextKey({ city: 'Bali', planned: baliPlanned }), 'Changing a relevant district invalidates the wider-area cache')
 
   mock(() => json(fixture([stop('Shibuya Crossing')])))
   await suggestDays({ ...api, existing: ['Meiji Shrine', '明治神宫'], planned: [
@@ -102,13 +113,28 @@ try {
   const compact = JSON.parse(String(calls[0].init?.body))
   assert.deepEqual(compact.existing, ['Meiji Shrine'])
   assert.deepEqual(compact.planned, [{ name: 'Senso-ji Temple', date: '2026-10-01', city: 'Tokyo' }], 'The model receives only unique places relevant to the current city')
+  const requestContext = { ...api, weather: rain, preferences, anchor, planned: [{ name: 'Museum', date: '2026-10-01', city: 'Tokyo', coords: { lat: 35, lng: 139 } }] }
+  const trimmedContext = suggestionRequest(requestContext)
+  assert.deepEqual(trimmedContext.anchor, { name: anchor.name, time: anchor.time, durationMin: anchor.durationMin })
+  assert.equal(trimmedContext.planned[0].coords, undefined, 'Coordinates never enter paid model context')
+  assert.deepEqual(trimmedContext.preferences, preferences, 'Every selected preference survives context compaction')
+  assert.equal(suggestionContextKey(requestContext), suggestionContextKey({ ...requestContext, planned: [...requestContext.planned, { name: 'Kyoto visit', city: 'Kyoto', date: '2026-10-02' }] }), 'Unrelated city changes do not invalidate a successful recommendation')
+  assert.notEqual(suggestionContextKey(requestContext), suggestionContextKey({ ...requestContext, locale: 'zh' }), 'Language changes invalidate prior results')
+  assert.notEqual(suggestionContextKey(requestContext), suggestionContextKey({ ...requestContext, preferences: { ...preferences, indoorOnly: true } }))
+  assert.notEqual(suggestionContextKey(requestContext), suggestionContextKey({ ...requestContext, anchor: { ...anchor, coords: { lat: 35, lng: 139 } } }), 'Travel feasibility depends on anchor coordinates')
 
   mock(() => json(fixture([stop('Meiji Shrine'), stop('明治神宫'), stop('Shibuya Crossing')])))
   const successful = await suggestDays(api)
   assert.equal(successful.source, 'api')
   assert.equal(calls.length, 1, 'Generating recommendations makes exactly one backend request')
   assert.equal(successful.items[0].places.length, 2)
-  assert.ok(successful.items[0].places.every((p) => !p.coords), 'Unused route options are not geocoded')
+  assert.ok(successful.items[0].places.every((p) => p.coords), 'Known catalog coordinates improve route feasibility without another network request')
+  assert.equal(successful.cached, false)
+  successful.items[0].title = 'User edit'
+  const reused = await suggestDays(api)
+  assert.equal(reused.cached, true)
+  assert.notEqual(reused.items[0].title, 'User edit', 'Returned objects cannot mutate shared cache entries')
+  assert.equal(calls.length, 1, 'Repeated identical requests reuse a successful recommendation')
   const request = JSON.parse(String(calls[0].init?.body))
   assert.equal(request.locale, 'en')
   assert.equal(request.city, 'Tokyo')
@@ -126,7 +152,7 @@ try {
   const sanitized = (await suggestDays(api)).items[0].places
   assert.equal(sanitized.length, 1)
   assert.equal(sanitized[0].category, '景点')
-  assert.equal(sanitized[0].setting, 'mixed')
+  assert.equal(sanitized[0].setting, 'outdoor', 'Catalog facts override contradictory model setting claims')
   assert.equal(sanitized[0].time, undefined)
   assert.equal(sanitized[0].durationMin, 60)
   assert.match(sanitized[0].ticketUrl || '', /^https:\/\/www\.klook\.com\//)
@@ -141,6 +167,27 @@ try {
   assert.equal(apiIndoor.items[0].places.length, 1)
   assert.equal(apiIndoor.items[0].places[0].name, 'Tokyo National Museum')
 
+  mock(() => json(fixture([stop('Meiji Shrine', { setting: 'indoor' })])))
+  const falseIndoor = await suggestDays({ ...api, preferences: { ...preferences, indoorOnly: true } })
+  assert.equal(falseIndoor.source, 'local')
+  assert.equal(falseIndoor.error, 'quality')
+  assert.ok(falseIndoor.items.every((item) => item.places.every((p) => p.setting === 'indoor')))
+  mock(() => json(fixture([stop('Kiyomizu-dera'), { ...stop('A remote museum'), city: 'Kyoto' }])))
+  const wrongCity = await suggestDays(api)
+  assert.equal(wrongCity.source, 'local')
+  assert.equal(wrongCity.error, 'quality', 'Known and explicitly stated cross-city results fail validation')
+  mock(() => json(fixture([stop('Meiji Shrine')])))
+  const allExcluded = await suggestDays({ ...api, existing: ['明治神宫'] })
+  assert.equal(allExcluded.error, 'quality', 'A successful HTTP response containing only planned places is unusable')
+  mock(() => json(fixture([stop('Late Museum', { time: '22:00' })])))
+  assert.equal((await suggestDays(api)).error, 'quality', 'A route with no schedulable stop cannot be an API success')
+  mock(() => new Response(JSON.stringify({ error: 'provider_quality_failed' }), { status: 502, headers: { 'Content-Type': 'application/json' } }))
+  assert.equal((await suggestDays(api)).error, 'quality', 'Backend quality failures retain their reason')
+  assert.equal(calls.length, 1, 'Quality failure never triggers another paid request')
+  mock(() => { throw new Error('Oversized exclusions must not be truncated or sent') })
+  assert.equal((await suggestDays({ ...api, existing: Array.from({ length: 101 }, (_, i) => `Existing ${i}`) })).error, 'quality')
+  assert.equal(calls.length, 0)
+
   mock(() => json({ choices: [{ message: { content: '{bad JSON' } }] }))
   assert.equal((await suggestDays(api)).error, 'failed')
   mock(() => json({ choices: [{ message: { content: '{"suggestions":42}' } }] }))
@@ -150,6 +197,8 @@ try {
   assert.equal(failed.source, 'local')
   assert.equal(failed.error, 'failed')
   assert.ok(failed.items.length)
+  await suggestDays(api)
+  assert.equal(calls.length, 2, 'Failures and local fallbacks are never cached; only another manual request retries')
   mock(() => { throw new TypeError('Failed to fetch') })
   assert.equal((await suggestDays(api)).error, 'offline')
 
@@ -170,10 +219,17 @@ try {
   globalThis.setTimeout = originalSetTimeout
 
   const controller = new AbortController()
-  mock(() => new Promise<Response>(() => {}))
+  let releaseShared!: (value: Response) => void
+  mock(() => new Promise<Response>((resolve) => { releaseShared = resolve }))
   const pending = suggestDays({ ...api, signal: controller.signal })
+  const sharedPending = suggestDays(api)
   controller.abort()
   await assert.rejects(pending, { name: 'AbortError' })
+  assert.equal(calls[0].init?.signal?.aborted, false, 'Cancelling one waiter must preserve a shared request')
+  const resumedPending = suggestDays(api)
+  releaseShared(json(fixture([stop('Tokyo National Museum')])))
+  assert.equal((await sharedPending).source, 'api')
+  assert.equal((await resumedPending).source, 'api')
   assert.equal(calls.length, 1, 'Cancellation cannot start a fallback or geocoder request')
   mock(() => { throw new Error('Pre-cancelled requests must not reach fetch') })
   await assert.rejects(suggestDays({ ...api, signal: controller.signal }), { name: 'AbortError' })

@@ -4,8 +4,8 @@ import { THEMES } from '../catalog'
 import { Label, LangSwitch } from '../ui'
 import type { ThemeId } from '../types'
 import { resolveBackend } from '../llm'
-import { themeLabel, useT } from '../i18n'
-import { ThemeBadge } from '../ThemeDecor'
+import { useT } from '../i18n'
+import { ThemePreview } from '../ThemeDecor'
 import { acceptDownloadedSnapshot, createSyncSnapshot, downloadSnapshot, restoreLocalPhotos, uploadSnapshot, type SyncConflict } from '../syncClient'
 import { isSyncSnapshot, mergeImportedProfile } from '../syncSchema'
 
@@ -159,28 +159,17 @@ export default function Profile() {
         </div>
         <div>
           <Label>{t('profile.theme')}</Label>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <button
-              className={profile.themePref === 'auto' ? 'btn' : 'btn btn-ghost'}
-              onClick={() => setProfile({ themePref: 'auto' })}
-            >
-              {t('profile.followTrip')}
-            </button>
+          <button
+            className="theme-auto mt-3"
+            aria-pressed={profile.themePref === 'auto'}
+            onClick={() => setProfile({ themePref: 'auto' })}
+          >
+            <span>{t('profile.followTrip')}</span>
+            <span className="theme-auto-indicator" aria-hidden="true">{profile.themePref === 'auto' ? '✓' : ''}</span>
+          </button>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
             {(Object.keys(THEMES) as ThemeId[]).map((id) => (
-              <button
-                key={id}
-                className={`paper theme-preview theme-${id} p-3 text-left`}
-                style={{ outline: profile.themePref === id ? '2px solid var(--ink)' : undefined }}
-                onClick={() => setProfile({ themePref: id })}
-              >
-                <div className="mb-2 flex gap-1">
-                  {THEMES[id].swatches.map((c) => (
-                    <span key={c} className="h-5 flex-1 rounded-full" style={{ background: c }} />
-                  ))}
-                </div>
-                <div className="font-medium">{themeLabel(t, id)}</div>
-                <ThemeBadge theme={id} />
-              </button>
+              <ThemePreview key={id} theme={id} selected={profile.themePref === id} onSelect={() => setProfile({ themePref: id })} />
             ))}
           </div>
         </div>

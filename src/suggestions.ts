@@ -2,6 +2,7 @@ import type { Coords, PlaceSetting, PlaceStop, TransportMode, WeatherSnap } from
 import { DEFAULT_RECOMMENDATION_PREFERENCES, normalizePlaceName, samePlace, scheduleSuggestion } from './recommendation'
 import type { PlannedPlace, RecommendationPreferences } from './recommendation'
 import { ticketSearchUrl } from './geo'
+import { RequestCache } from './requestCache'
 
 export type DaySuggestion = { title: string; vibe: string; rainFriendly: boolean; places: Omit<PlaceStop, 'id'>[] }
 type LocalPlace = Omit<PlaceStop, 'id'> & { englishName: string }
@@ -18,8 +19,9 @@ type SuggestInput = {
   signal?: AbortSignal
   anchor?: PlaceStop
 }
-export type SuggestionError = 'offline' | 'failed' | 'empty' | 'timeout' | 'unavailable'
-export type SuggestionResult = { items: DaySuggestion[]; source: 'local' | 'api'; error?: SuggestionError }
+export type SuggestionError = 'offline' | 'failed' | 'empty' | 'timeout' | 'unavailable' | 'quality'
+export type SuggestionResult = { items: DaySuggestion[]; source: 'local' | 'api'; error?: SuggestionError; cached?: boolean }
+const suggestionCache = new RequestCache<DaySuggestion[]>({ ttlMs: 10 * 60 * 1000, maxEntries: 40 })
 
 function place(name: [string, string], coords: [number, number], time: string, durationMin: number, setting: PlaceSetting = 'outdoor', category = '景点'): LocalPlace {
   return { name: name[0], englishName: name[1], coords: { lat: coords[0], lng: coords[1] }, time, durationMin, category, setting, priority: 'want', transportToNext: 'public' }
@@ -115,11 +117,25 @@ function keyOf(city: string): string {
   return ''
 }
 function cityKey(city: string): string { return keyOf(city) || normalizePlaceName(city) }
+export function sameRecommendationCity(a: string, b: string): boolean { return cityKey(a) === cityKey(b) }
 function localPack(city: string): LocalSuggestion[] { return keyOf(city) === 'bali' ? [...PACKS.canggu, ...PACKS.ubud] : PACKS[keyOf(city)] || [] }
+
+function catalogPlace(name: string) {
+  for (const [city, packs] of Object.entries(PACKS)) {
+    for (const route of packs) for (const place of route.places) {
+      if (samePlace({ name }, place) || samePlace({ name }, { name: place.englishName })) return { city, place }
+    }
+  }
+  return undefined
+}
+
+export function belongsToRecommendationCity(placeCity: string, city: string) {
+  return sameRecommendationCity(placeCity, city) || (cityKey(city) === 'bali' && ['canggu', 'ubud'].includes(cityKey(placeCity)))
+}
 
 function prepared(items: DaySuggestion[], input: SuggestInput): DaySuggestion[] {
   const preferences = input.preferences || DEFAULT_RECOMMENDATION_PREFERENCES
-  const existing = [...(input.existing || []).map((name) => ({ name })), ...(input.planned || []).filter((p) => !p.city || cityKey(p.city) === cityKey(input.city))]
+  const existing = [...(input.existing || []).map((name) => ({ name })), ...(input.planned || []).filter((p) => !p.city || belongsToRecommendationCity(p.city, input.city))]
   const rain = preferences.indoorOnly || (input.weather?.source === 'forecast' && (input.weather.rainProb || 0) >= 50)
   return items.map((suggestion) => {
     const places: Omit<PlaceStop, 'id'>[] = []
@@ -153,12 +169,15 @@ function localSuggestions(input: SuggestInput): DaySuggestion[] {
     vibe: input.locale === 'en' ? s.englishVibe : s.vibe,
     rainFriendly: s.rainFriendly,
     places: s.places.map(({ englishName, ...p }) => ({ ...p, name: input.locale === 'en' ? englishName : p.name, coords: p.coords ? { ...p.coords } : undefined })),
-  })), input)
+  })), input).filter((item) => scheduleSuggestion(item.places, input.preferences || DEFAULT_RECOMMENDATION_PREFERENCES, input.anchor).places.length > 0)
 }
 
 function abortError() { return new DOMException('Recommendation cancelled', 'AbortError') }
 function checkCancelled(signal?: AbortSignal) { if (signal?.aborted) throw abortError() }
 class RequestTimeout extends Error { constructor() { super('Recommendation timed out'); this.name = 'TimeoutError' } }
+class UnusableResponse extends Error {
+  constructor(readonly reason: 'quality' | 'empty') { super(`Recommendation ${reason}`) }
+}
 
 // The deadline also covers response-body reads; cancellation listeners are always detached.
 async function requestJson(url: string, init: RequestInit, timeoutMs: number, signal?: AbortSignal): Promise<unknown> {
@@ -175,7 +194,13 @@ async function requestJson(url: string, init: RequestInit, timeoutMs: number, si
     return await Promise.race([
       (async () => {
         const response = await fetch(url, { ...init, signal: controller.signal })
-        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        if (!response.ok) {
+          const failure: unknown = response.headers.get('content-type')?.includes('application/json') ? await response.json() : undefined
+          if (record(failure) && failure.error === 'provider_quality_failed') throw new UnusableResponse('quality')
+          if (record(failure) && failure.error === 'no_time_available') throw new UnusableResponse('empty')
+          throw new Error(`HTTP ${response.status}`)
+        }
+        if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('Expected JSON response')
         return response.json() as Promise<unknown>
       })(), interrupted,
     ])
@@ -197,6 +222,7 @@ function parseSuggestions(data: unknown, input: SuggestInput): DaySuggestion[] {
     const choices = Array.isArray(data.choices) ? data.choices : []
     const choice = choices[0]
     const message = record(choice) && record(choice.message) ? choice.message : undefined
+    if ((record(choice) && choice.finish_reason === 'length') || message?.refusal) throw new UnusableResponse('quality')
     const content = typeof message?.content === 'string' ? message.content : data.output_text
     if (typeof content !== 'string' || content.length > 100_000) return []
     decoded = JSON.parse(content.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim())
@@ -214,12 +240,15 @@ function parseSuggestions(data: unknown, input: SuggestInput): DaySuggestion[] {
       if (!record(pl)) continue
       const name = cleanText(pl.name, 120)
       if (!name || /主景点|主景點|博物馆或|博物館或|咖啡馆躲|咖啡館躲|当地餐厅|當地餐廳|local (?:cafe|restaurant)|main (?:sight|attraction)|restaurant of (?:your )?choice/i.test(name)) continue
+      const known = catalogPlace(name)
+      if ((typeof pl.city === 'string' && pl.city.trim() && !belongsToRecommendationCity(pl.city, input.city)) || (known && !belongsToRecommendationCity(known.city, input.city))) continue
       const ticketNeeded = pl.ticketNeeded === true
       const category = cleanText(pl.category, 40).toLowerCase()
       places.push({
         name,
         category: Object.hasOwn(categories, category) ? categories[category] : '景点',
-        setting: settings.includes(pl.setting as PlaceSetting) ? pl.setting as PlaceSetting : 'mixed',
+        setting: known?.place.setting || (settings.includes(pl.setting as PlaceSetting) ? pl.setting as PlaceSetting : 'mixed'),
+        coords: known?.place.coords ? { ...known.place.coords } : undefined,
         time: typeof pl.time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(pl.time) ? pl.time : undefined,
         durationMin: typeof pl.durationMin === 'number' && Number.isFinite(pl.durationMin) && pl.durationMin > 0 ? Math.max(15, Math.min(480, Math.round(pl.durationMin))) : 60,
         notes: groundedText(pl.notes, 400) || undefined,
@@ -231,7 +260,9 @@ function parseSuggestions(data: unknown, input: SuggestInput): DaySuggestion[] {
     }
     if (places.length) result.push({ title: groundedText(s.title, 100) || input.city, vibe: groundedText(s.vibe, 240), rainFriendly: false, places })
   }
-  return prepared(result, input)
+  const items = prepared(result, input).filter((item) => scheduleSuggestion(item.places, input.preferences || DEFAULT_RECOMMENDATION_PREFERENCES, input.anchor).places.length > 0)
+  if (!items.length && list.length > 0) throw new UnusableResponse('quality')
+  return items
 }
 
 const geoCache = new Map<string, { coords: Coords; address?: string }>()
@@ -262,7 +293,7 @@ async function enrichApi(items: DaySuggestion[], input: SuggestInput): Promise<D
           const properties = feature.properties
           if (typeof properties.name !== 'string' || !samePlace(places[0], { name: properties.name })) continue
           const region = [properties.city, properties.county, properties.state, properties.district].filter((v): v is string => typeof v === 'string')
-          if (!region.some((r) => cityKey(r) === cityKey(input.city))) continue
+          if (!region.some((r) => belongsToRecommendationCity(r, input.city))) continue
           const hit = { coords: { lat, lng }, address: [properties.name, properties.street, properties.city, properties.country].filter((v) => typeof v === 'string').join(', ') }
           if (geoCache.size >= 100) geoCache.delete(geoCache.keys().next().value!)
           geoCache.set(cacheKey, hit)
@@ -284,32 +315,59 @@ export async function enrichSuggestedPlaces(places: Omit<PlaceStop, 'id'>[], inp
   return items[0]?.places || copy
 }
 
-async function fromBackend(input: SuggestInput): Promise<DaySuggestion[]> {
+/** Only the target city's exclusion names belong in the model context; full constraints stay in the cache key and local validation. */
+export function suggestionRequest(input: SuggestInput) {
   const preferences = input.preferences || DEFAULT_RECOMMENDATION_PREFERENCES
   const existing: string[] = []
   for (const name of input.existing || []) {
-    if (!existing.some((saved) => samePlace({ name: saved }, { name }))) existing.push(name)
-    if (existing.length === 100) break
+    const clean = cleanText(name, 120)
+    if (clean && !existing.some((saved) => samePlace({ name: saved }, { name: clean }))) existing.push(clean)
   }
   const planned: PlannedPlace[] = []
   for (const place of input.planned || []) {
-    if (place.city && cityKey(place.city) !== cityKey(input.city)) continue
-    if (existing.some((name) => samePlace({ name }, place)) || planned.some((saved) => samePlace(saved, place))) continue
-    planned.push({ name: place.name, date: place.date, city: place.city })
-    if (planned.length === 150) break
+    if (place.city && !belongsToRecommendationCity(place.city, input.city)) continue
+    const name = cleanText(place.name, 120)
+    if (!name || existing.some((saved) => samePlace({ name: saved }, { name })) || planned.some((saved) => samePlace(saved, { name }))) continue
+    planned.push({ name, date: place.date, city: place.city?.trim() })
   }
+  existing.sort((a, b) => normalizePlaceName(a).localeCompare(normalizePlaceName(b)))
+  planned.sort((a, b) => normalizePlaceName(a.name).localeCompare(normalizePlaceName(b.name)))
+  const weather = input.weather?.source === 'placeholder' ? undefined : input.weather
+  return {
+    city: cleanText(input.city, 160), date: input.date,
+    weather: weather ? {
+      condition: weather.condition, tMin: weather.tMin, tMax: weather.tMax, rainProb: weather.rainProb,
+      source: weather.source, rainWindow: weather.rainWindow, precipMm: weather.precipMm,
+      summary: cleanText(weather.summary, 500) || weather.condition,
+    } : undefined,
+    existing, planned, locale: input.locale || 'zh',
+    preferences: {
+      pace: preferences.pace, startTime: preferences.startTime, endTime: preferences.endTime,
+      transportMode: preferences.transportMode, indoorOnly: preferences.indoorOnly,
+    },
+    anchor: input.anchor ? { name: cleanText(input.anchor.name, 120), time: input.anchor.time, durationMin: input.anchor.durationMin } : undefined,
+  }
+}
+
+export function suggestionContextKey(input: SuggestInput): string {
+  const exclusions = (input.planned || [])
+    .filter((place) => !place.city || belongsToRecommendationCity(place.city, input.city))
+    .map((place) => [normalizePlaceName(place.name), place.coords])
+    .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+  return JSON.stringify([input.apiUrl?.trim(), suggestionRequest(input), input.anchor?.coords, exclusions, (input.existing || []).map(normalizePlaceName).sort()])
+}
+
+async function fromBackend(input: SuggestInput): Promise<DaySuggestion[]> {
+  const body = suggestionRequest(input)
+  // Never silently truncate an exclusion list to fit the server limit.
+  if (body.existing.length > 100 || body.planned.length > 150) throw new UnusableResponse('quality')
   const data = await requestJson(input.apiUrl!, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store', redirect: 'error', credentials: 'same-origin',
-    body: JSON.stringify({
-      city: input.city.slice(0, 160), date: input.date,
-      weather: input.weather?.source === 'placeholder' ? undefined : input.weather,
-      existing,
-      planned,
-      locale: input.locale || 'zh', preferences,
-      anchor: input.anchor ? { name: input.anchor.name, time: input.anchor.time, durationMin: input.anchor.durationMin } : undefined,
-    }),
+    body: JSON.stringify(body),
   }, 35_000, input.signal)
-  return parseSuggestions(data, input)
+  const items = parseSuggestions(data, input)
+  if (!items.length) throw new UnusableResponse('empty')
+  return items
 }
 
 export async function suggestDays(input: SuggestInput): Promise<SuggestionResult> {
@@ -319,13 +377,20 @@ export async function suggestDays(input: SuggestInput): Promise<SuggestionResult
     return { items, source: 'local', error: items.length ? undefined : localPack(input.city).length ? 'empty' : 'unavailable' }
   }
   try {
-    const items = await fromBackend(input)
+    // A cancelled waiter must not kill another caller's request or cause a second paid call.
+    // Snapshot the input and copy results so edits cannot poison another caller's cache entry.
+    const { signal, ...context } = input
+    const snapshot = structuredClone(context)
+    let loaded = false
+    const items = await suggestionCache.getOrCreate(suggestionContextKey(snapshot), () => {
+      loaded = true
+      return fromBackend(snapshot)
+    }, signal)
     checkCancelled(input.signal)
-    if (items.length) return { items, source: 'api' }
-    return { items: localSuggestions(input), source: 'local', error: 'empty' }
+    return { items: structuredClone(items), source: 'api', cached: !loaded }
   } catch (error) {
     checkCancelled(input.signal)
     if (error instanceof Error && error.name === 'AbortError') throw error
-    return { items: localSuggestions(input), source: 'local', error: error instanceof RequestTimeout ? 'timeout' : error instanceof TypeError ? 'offline' : 'failed' }
+    return { items: localSuggestions(input), source: 'local', error: error instanceof UnusableResponse ? error.reason : error instanceof RequestTimeout ? 'timeout' : error instanceof TypeError ? 'offline' : 'failed' }
   }
 }

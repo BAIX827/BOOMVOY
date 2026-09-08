@@ -3,7 +3,8 @@ import { useApp, useTrip } from '../store'
 import { THEMES, TRANSPORT } from '../catalog'
 import type { ThemeId, TransportMode } from '../types'
 import { Label } from '../ui'
-import { themeLabel, transportLabel, useT } from '../i18n'
+import { transportLabel, useT } from '../i18n'
+import { ThemePreview } from '../ThemeDecor'
 
 const modes: TransportMode[] = ['self-drive', 'public', 'walking', 'taxi', 'cycling', 'mixed', 'flight']
 
@@ -58,19 +59,12 @@ export default function Notes() {
           <Label>{t('notes.theme')}</Label>
           <div className="mt-2 grid gap-2 sm:grid-cols-3">
             {(Object.keys(THEMES) as ThemeId[]).map((th) => (
-              <button
+              <ThemePreview
                 key={th}
-                className={`paper theme-preview theme-${th} p-3 text-left`}
-                style={{ outline: trip.theme === th ? '2px solid var(--ink)' : undefined }}
-                onClick={() => updateTrip(trip.id, { theme: th, cover: trip.cover === 'cream' || trip.cover === 'ocean' || trip.cover === 'forest' ? th : trip.cover })}
-              >
-                <div className="mb-2 flex gap-1">
-                  {THEMES[th].swatches.map((c) => (
-                    <span key={c} className="h-5 flex-1 rounded-full" style={{ background: c }} />
-                  ))}
-                </div>
-                {themeLabel(t, th)}
-              </button>
+                theme={th}
+                selected={trip.theme === th}
+                onSelect={() => updateTrip(trip.id, { theme: th, cover: trip.cover === 'cream' || trip.cover === 'ocean' || trip.cover === 'forest' ? th : trip.cover })}
+              />
             ))}
           </div>
         </div>

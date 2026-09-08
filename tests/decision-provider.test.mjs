@@ -321,7 +321,7 @@ test('AI routes use fixed server configuration, exact-body single-flight and nor
   assert.equal(result.suggestions.length, 1)
   assert.deepEqual(result.suggestions[0].places[0], {
     name: 'Tokyo National Museum', category: '景点', setting: 'indoor', time: '10:00', durationMin: 75,
-    ticketNeeded: true, priority: 'must', transportToNext: 'walking',
+    ticketNeeded: true, priority: 'must', transportToNext: recommendation.preferences.transportMode,
   })
   assert.match(observed.body.messages[0].content, /Never invent coordinates/)
   assert.doesNotMatch(observed.body.messages[0].content, /ticketUrl/)

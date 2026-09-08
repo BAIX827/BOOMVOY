@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { useApp } from './store'
-import { enrichSuggestedPlaces, suggestDays, type DaySuggestion } from './suggestions'
+import { belongsToRecommendationCity, enrichSuggestedPlaces, suggestionContextKey, suggestDays, type DaySuggestion } from './suggestions'
 import { backendEndpoint, resolveBackend } from './llm'
 import { mapsDayRoute, mapsPlaceUrl } from './geo'
 import type { PlaceStop, PlanVariant, TransportMode, WeatherSnap } from './types'
@@ -51,7 +51,12 @@ export default function DaySuggest({ city, date, weather, existing, planned = []
   const controller = useRef<AbortController | null>(null)
   const applying = useRef(false)
   const revision = useMemo(() => planFingerprint(existing), [existing])
-  const context = useMemo(() => JSON.stringify([city, date, planned, weather, preferences, mode, backend.baseUrl]), [city, date, planned, weather, preferences, mode, backend.baseUrl])
+  const context = useMemo(() => suggestionContextKey({
+    city, date, planned, weather, preferences, locale,
+    existing: mode === 'append' ? existing.map((place) => place.name) : [],
+    anchor: mode === 'append' ? existing[existing.length - 1] : undefined,
+    apiUrl: backend.ready ? backendEndpoint(backend.baseUrl, '/recommendations/day') : undefined,
+  }), [city, date, planned, weather, preferences, locale, mode, backend.baseUrl, backend.ready, existing])
 
   function clearResults() {
     generation.current += 1
@@ -78,7 +83,7 @@ export default function DaySuggest({ city, date, weather, existing, planned = []
   const orderConflict = !!anchor && !missingTime && existing.some((place) => endMinutes(place) > endMinutes(anchor))
   const current = items[picked]
   const candidates = (current?.places || []).filter((place) =>
-    !planned.some((other) => (!other.city || other.city.trim().toLowerCase() === city.trim().toLowerCase()) && samePlace(place, other)) &&
+    !planned.some((other) => (!other.city || belongsToRecommendationCity(other.city, city)) && samePlace(place, other)) &&
     (mode === 'replace' || !existing.some((other) => samePlace(place, other))),
   ).map((place) => {
     const previous = mode === 'replace' ? existing.find((other) => samePlace(place, other)) : undefined
@@ -128,6 +133,7 @@ export default function DaySuggest({ city, date, weather, existing, planned = []
       setPicked(0)
       setExcluded(new Set())
       setError(result.error ? t(`suggest.${result.error}`) : '')
+      if (result.cached) setStatus(t('suggest.cached'))
     } catch {
       if (id === generation.current && !abort.signal.aborted) setError(t('suggest.failed'))
     } finally {

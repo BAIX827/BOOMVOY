@@ -16,5 +16,6 @@ for (const entry of ['tests/core.test.ts', 'tests/packing.test.ts', 'tests/recom
 }
 
 await import('../tests/decision-provider.test.mjs')
+await import('../tests/ai-quality.test.mjs')
 await import('../tests/snapshot-store.test.mjs')
 await import('../tests/backend-sync.test.mjs')

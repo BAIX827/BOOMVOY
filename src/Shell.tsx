@@ -19,9 +19,10 @@ export default function Shell() {
   ]
 
   return (
-    <div className={`theme-${theme} relative isolate min-h-screen overflow-x-clip`}>
+    <div className={`theme-${theme} app-shell relative isolate min-h-screen overflow-x-clip`}>
       <ThemeAtmosphere theme={theme} />
-      <header className="sticky top-0 z-40 border-b backdrop-blur-md" style={{ borderColor: 'var(--line)', backgroundColor: 'color-mix(in srgb, var(--bg) 82%, transparent)' }}>
+      <a className="skip-link" href="#main-content">{t('home.skipToContent')}</a>
+      <header className="app-header sticky top-0 z-40 border-b backdrop-blur-md" style={{ borderColor: 'var(--line)', backgroundColor: 'color-mix(in srgb, var(--bg) 90%, transparent)' }}>
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <NavLink to="/" className="flex items-center gap-2 no-underline" style={{ color: 'var(--ink)' }} data-guide="brand">
             <Mark />
@@ -32,19 +33,19 @@ export default function Shell() {
               </div>
             </div>
           </NavLink>
-          <nav className="hidden items-center gap-1 sm:flex">
+          <nav className="desktop-navigation hidden items-center gap-1 sm:flex" aria-label={t('home.navigation')}>
             {links.map((l) => (
               <NavLink
                 key={l.to}
                 to={l.to}
                 end={l.end}
                 className={({ isActive }) =>
-                  cls('rounded-full px-3 py-1.5 text-sm no-underline', isActive ? 'btn-soft' : '')
+                  cls('desktop-nav-link text-sm no-underline', isActive ? 'is-active' : '')
                 }
                 style={{ color: 'var(--ink)' }}
                 data-guide={l.to === '/explore' ? 'nav-explore' : l.to === '/' ? 'nav-home' : undefined}
               >
-                {l.label}
+                <l.icon size={16} aria-hidden="true" />{l.label}
               </NavLink>
             ))}
           </nav>
@@ -58,19 +59,20 @@ export default function Shell() {
           </div>
         </div>
       </header>
-      <main className="relative z-10 mx-auto max-w-6xl px-4 pb-24 pt-8">
+      <main id="main-content" tabIndex={-1} className="relative z-10 mx-auto max-w-6xl px-4 pb-24 pt-8">
         <Outlet />
       </main>
       <nav
-        className="fixed bottom-0 left-0 right-0 z-40 grid grid-cols-3 border-t sm:hidden"
+        className="mobile-navigation fixed bottom-0 left-0 right-0 z-40 grid grid-cols-3 border-t sm:hidden"
         style={{ background: 'var(--paper)', borderColor: 'var(--line)' }}
+        aria-label={t('home.navigation')}
       >
         {links.map((l) => (
           <NavLink
             key={l.to}
             to={l.to}
             end={l.end}
-            className={({ isActive }) => cls('flex flex-col items-center gap-1 py-3 text-xs no-underline', isActive ? 'font-semibold' : '')}
+            className={({ isActive }) => cls('mobile-nav-link flex flex-col items-center gap-1 py-3 text-xs no-underline', isActive ? 'is-active font-semibold' : '')}
             style={{ color: 'var(--ink)' }}
             data-guide={l.to === '/explore' ? 'nav-explore' : l.to === '/' ? 'nav-home' : undefined}
           >

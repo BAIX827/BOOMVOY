@@ -37,6 +37,8 @@ Invoke-RestMethod http://127.0.0.1:8787/api/health
 | `OPENAI_API_URL` | `https://api.openai.com/v1/chat/completions` | 服务端 OpenAI 兼容接口；只允许 HTTPS，本机调试可用 localhost HTTP |
 | `OPENAI_API_KEY` | 空 | Boomi 未知问题和 AI 行程推荐；只放在服务端 |
 | `OPENAI_MODEL` | `gpt-4o-mini` | 服务端固定模型，客户端不能覆盖 |
+| `OPENAI_RESPONSE_FORMAT` | `auto` | 官方 OpenAI 的已支持 GPT-4o / GPT-4.1 模型使用严格 JSON Schema；其他模型和兼容网关使用 JSON mode。可显式设置 `json_schema` / `json_object`，不通过额外调用探测兼容性 |
+| `BOOMVOY_AI_CACHE_TTL_MS` | `600000` | 通过校验的 AI 结果在进程内复用 10 分钟，共最多 80 条；`0` 关闭，最大 `3600000`。不落盘、不缓存失败或 Google 数据 |
 | `BOOMVOY_SYNC_TOKEN` | 空 | 可选单用户快照 Bearer token；启用时必须为 32–512 UTF-8 字节且不能含空白 |
 | `BOOMVOY_DATA_FILE` | `server/data/snapshot.json` | 单用户快照文件；目录已被 Git 忽略 |
 | `BOOMVOY_PORT` | `8787` | 本地监听端口 |
@@ -55,7 +57,7 @@ Invoke-RestMethod http://127.0.0.1:8787/api/health
 | --- | ---: | --- |
 | `GET /api/health` | 0 | 健康检查，不透露供应商、模型或额度状态 |
 | `POST /api/ai/chat` | 最多 1 次 OpenAI | 只处理 Boomi 本地知识未命中的问题 |
-| `POST /api/recommendations/day` | 最多 1 次 OpenAI | 生成 2–3 条规范化日路线；不会接受客户端 key、模型或坐标 |
+| `POST /api/recommendations/day` | 最多 1 次 OpenAI | 默认请求 2 条不同路线，每条最多按节奏生成 3 / 5 / 7 个地点；条件不足可更少。不会接受客户端 key、模型或坐标 |
 | `POST /api/decisions/search` | 最多 1 次 Google Places | 主动查询酒店 / 餐厅；字段按需求动态请求 |
 | `GET /api/v1/me/snapshot` | 0 | 获取当前单用户版本化快照，支持 `ETag` / `If-None-Match` |
 | `PUT /api/v1/me/snapshot` | 0 | 一次上传完整快照，使用 `If-Match`、幂等键和 revision 冲突保护 |
@@ -65,7 +67,8 @@ Invoke-RestMethod http://127.0.0.1:8787/api/health
 - 同一时刻内容完全相同的请求共享一个上游 Promise，只计一次调用。
 - 没有自动重试付费请求；失败后由用户决定是否重试。
 - 达到并发或分钟预算时，在调用供应商前返回 `429` 和通用错误码。
-- Google / AI 的已完成响应不在服务端持久缓存。前端只对适合缓存的天气、坐标、路线和当前页面候选做有界复用。
+- AI 仅在完整解析及条件校验后进入有界进程内缓存（10 分钟 / 80 条，重启即清空）；Google 已完成响应不进入该缓存。失败、拒绝、截断或全部不合格的推荐不缓存。
+- 浏览器还会复用相同条件的成功推荐（10 分钟 / 40 条），并合并在途请求；取消一个等待者不会取消其他等待者。语言、日期、偏好、相关排除项、起点或后端地址改变会隔离旧结果。
 - Google 只请求当前筛选真正需要的字段；预算、日期、人数、最低评分等本地重排不会重新发现商家。
 - AI 推荐只生成文字方案；用户选中一条方案后，才为那条路线定位地点。
 - Boomi 常见问题完全在本地回答；相同的未知问题成功返回后，会在当前页面内短暂复用 10 分钟，最多保留 40 条。
@@ -74,6 +77,18 @@ Invoke-RestMethod http://127.0.0.1:8787/api/health
 - 天气手动刷新会绕过已完成的天气缓存，但继续复用城市坐标，并与同一时刻的相同刷新共享请求。
 
 请求体和响应体均有边界：普通 JSON 请求最多 16 KiB，推荐上下文最多 256 KiB，供应商响应最多读取 512 KiB，旅行快照最多 4 MiB。OpenAI 上游默认 25 秒超时，浏览器等待 35 秒，避免浏览器先于后端放弃；Google 上游默认 10 秒超时。
+
+### 推荐质量与 token 控制
+
+前后端保留城市、日期、语言、时间窗、节奏、交通、室内要求、最后一站及相关天气；仅同城或城市未知的已规划地点进入排除名单。排除项按中英文地点别名去重，发给模型时使用名字数组，不重复每个地点的日期和城市。天气只保留结构化字段，不重复发送自由文本 summary。
+
+默认请求两条不同路线；模型只生成必要地点信息，交通偏好和默认优先级由代码补齐。输出上限随可用时间和节奏调整，最高 1800 tokens。支持时使用严格 JSON Schema 约束输出；兼容接口继续使用 JSON mode，两种模式都必须通过运行时校验。不会为了凑齐路线而额外调用模型。
+
+服务端过滤已安排地点、路线内重复、非室内项、无效时间/时长以及超出时间窗的地点，加入估算交通和缓冲后排程，并去掉重复路线。浏览器进一步结合本地目录检查已知地点所属城市、室内属性、免费已有坐标及实际可排入的地点。完全不合格返回 `provider_quality_failed`；无法容纳最短访问时间的请求在访问上游前返回 `no_time_available`。
+
+外部服务失败或无合格结果时，界面会说明原因并尝试符合当前条件的本地路线；本地无合适内容时展示空状态。结构校验与本地目录无法证明所有模型地点真实存在，也不能验证实时营业时间、票务或未知地点的室内属性。应用路线时仍需定位与用户核对，不能把“格式正确”视为事实保证。
+
+实现参考：[OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)、[OpenAI latency optimization](https://developers.openai.com/api/docs/guides/latency-optimization)。实际 token 节省比例取决于原始上下文、模型和缓存命中率，当前回归测试验证的是调用次数与请求/响应内容，不是付费账单降幅。
 
 分钟调用上限只是应用保护，不等于供应商账单上限。仍应在 Google / OpenAI 控制台设置预算、配额和告警。
 

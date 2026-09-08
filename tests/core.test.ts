@@ -141,6 +141,25 @@ try {
   assert.equal(await boomiA, await boomiB)
   await askBoomi(boomiBackend, 'Where is my backend?', 'en', '/profile')
   assert.equal(boomiCalls, 1, 'An exact successful Boomi answer is briefly reused')
+  await assert.rejects(askBoomi(boomiBackend, '   ', 'en', '/profile'), /1 to 2000/)
+  await assert.rejects(askBoomi(boomiBackend, 'a'.repeat(2001), 'en', '/profile'), /1 to 2000/)
+  assert.equal(boomiCalls, 1, 'Empty or oversized chat prompts never reach a paid request')
+
+  let releaseCancelledChat!: () => void
+  const chatGate = new Promise<void>((resolve) => { releaseCancelledChat = resolve })
+  globalThis.fetch = (async () => {
+    boomiCalls += 1
+    await chatGate
+    return json({ text: 'Choose the indoor filter.' })
+  }) as typeof fetch
+  const chatController = new AbortController()
+  const abandonedChat = askBoomi(boomiBackend, 'Plan an indoor day', 'en', '/plan', chatController.signal)
+  const continuingChat = askBoomi(boomiBackend, 'Plan an indoor day', 'en', '/plan')
+  chatController.abort()
+  await assert.rejects(abandonedChat, { name: 'AbortError' })
+  releaseCancelledChat()
+  assert.equal(await continuingChat, 'Choose the indoor filter.')
+  assert.equal(boomiCalls, 2, 'Chat cancellation only ends that caller and preserves the shared paid request')
 
   let geoCalls = 0
   let releaseGeo!: () => void

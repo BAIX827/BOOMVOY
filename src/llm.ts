@@ -40,19 +40,27 @@ export function backendEndpoint(baseUrl: string, path: string): string {
 
 async function postBackend<T>(url: string, body: unknown, timeoutMs: number): Promise<T> {
   const controller = new AbortController()
-  const timer = globalThis.setTimeout(() => controller.abort(), timeoutMs)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = globalThis.setTimeout(() => {
+      reject(new DOMException('Backend request timed out', 'TimeoutError'))
+      controller.abort()
+    }, timeoutMs)
+  })
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-      cache: 'no-store',
-      redirect: 'error',
-      credentials: 'same-origin',
-    })
-    if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) throw new Error(`Backend ${response.status}`)
-    return await response.json() as T
+    return await Promise.race([(async () => {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+        cache: 'no-store',
+        redirect: 'error',
+        credentials: 'same-origin',
+      })
+      if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) throw new Error(`Backend ${response.status}`)
+      return await response.json() as T
+    })(), timeout])
   } finally {
     globalThis.clearTimeout(timer)
   }
@@ -63,9 +71,11 @@ export async function askBoomi(
   question: string,
   locale: 'zh' | 'en',
   page: string,
+  signal?: AbortSignal,
 ) {
   if (!backend.ready) throw new Error('backend unavailable')
-  const normalizedQuestion = question.trim()
+  const normalizedQuestion = question.replace(/\r\n/g, '\n').trim()
+  if (!normalizedQuestion || normalizedQuestion.length > 2_000) throw new Error('Question must contain 1 to 2000 characters')
   const key = JSON.stringify([backend.baseUrl, locale, page, normalizedQuestion])
   return boomiReplyCache.getOrCreate(key, async () => {
     const data = await postBackend<{ text?: unknown }>(backendEndpoint(backend.baseUrl, '/ai/chat'), {
@@ -76,5 +86,5 @@ export async function askBoomi(
     const text = typeof data.text === 'string' ? data.text.trim() : ''
     if (!text || text.length > 2_000) throw new Error('invalid backend response')
     return text
-  })
+  }, signal)
 }

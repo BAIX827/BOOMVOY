@@ -4,9 +4,9 @@ import { THEMES, TRANSPORT } from '../catalog'
 import { useApp } from '../store'
 import type { ThemeId, TransportMode } from '../types'
 import { Label } from '../ui'
-import { themeBlurb, themeLabel, transportLabel, useT } from '../i18n'
+import { transportLabel, useT } from '../i18n'
 import { eachDate, toISODate } from '../lib'
-import { ThemeBadge } from '../ThemeDecor'
+import { ThemePreview } from '../ThemeDecor'
 
 const modes: TransportMode[] = ['self-drive', 'public', 'walking', 'taxi', 'cycling', 'mixed']
 
@@ -201,25 +201,7 @@ export default function CreateTrip() {
               <Label>{t('create.theme')}</Label>
               <div className="mt-3 grid gap-3 sm:grid-cols-3">
                 {(Object.keys(THEMES) as ThemeId[]).map((id) => (
-                  <button
-                    key={id}
-                    onClick={() => setTheme(id)}
-                    className={`paper theme-preview theme-${id} p-3 text-left`}
-                    style={{ outline: theme === id ? '2px solid var(--ink)' : undefined }}
-                  >
-                    <div className="mb-2 flex gap-1">
-                      {THEMES[id].swatches.map((c) => (
-                        <span key={c} className="h-6 flex-1 rounded-full" style={{ background: c }} />
-                      ))}
-                    </div>
-                    <div className="font-medium">
-                      {themeLabel(t, id)} · {THEMES[id].name}
-                    </div>
-                    <ThemeBadge theme={id} />
-                    <div className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>
-                      {themeBlurb(t, id)}
-                    </div>
-                  </button>
+                  <ThemePreview key={id} theme={id} selected={theme === id} onSelect={() => setTheme(id)} />
                 ))}
               </div>
             </div>

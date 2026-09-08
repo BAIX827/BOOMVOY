@@ -104,7 +104,7 @@ export default function CreateTrip() {
         {t('create.progress', { n: step + 1 })}
       </p>
       <h1 className="display mt-1 mb-6 text-4xl">{t('create.title')}</h1>
-      <div className="paper p-6">
+      <div className="paper p-6" data-guide="create-form">
         {step === 0 && (
           <div className="space-y-4">
             <div>

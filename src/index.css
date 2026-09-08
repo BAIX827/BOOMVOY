@@ -431,8 +431,18 @@ header.sticky {
   width: min(340px, calc(100vw - 32px));
   padding: 16px 16px 14px;
   animation: guide-in 0.22s ease;
-  overflow: hidden;
+  max-height: calc(100dvh - 170px);
+  overflow-y: auto;
 }
+.guide-card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -5px -5px 4px 0; }
+.guide-card-header > span { display: inline-flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 600; letter-spacing: .15em; color: var(--muted); }
+.guide-close { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; color: var(--muted); }
+.guide-close:hover { color: var(--ink); background: var(--accent-soft); }
+.guide-welcome { display: flex; align-items: center; gap: 14px; }
+.guide-welcome img { width: 70px; height: 90px; object-fit: contain; flex-shrink: 0; }
+.guide-progress-track { height: 4px; margin-top: 15px; overflow: hidden; background: var(--line); border-radius: 4px; }
+.guide-progress-track span { display: block; height: 100%; background: var(--action); transition: width .2s ease; }
+.guide-answer-action { display: flex; align-items: center; gap: 5px; min-height: 36px; margin-top: 5px; color: var(--action); font-size: 12px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .guide-card::after {
   content: "";
   display: table;
@@ -473,16 +483,6 @@ header.sticky {
 @media (max-width: 767px) {
   .guide-cat { width: 64px; height: 80px; }
   .guide-card { max-height: calc(100dvh - 210px); overflow-y: auto; }
-}
-.guide-hero {
-  display: block;
-  float: none;
-  width: calc(100% + 32px);
-  max-width: none;
-  height: auto;
-  margin: -16px -16px 12px;
-  background: transparent;
-  object-fit: contain;
 }
 .guide-cat-pulse {
   animation: cat-bob 1.6s ease-in-out infinite;
@@ -526,6 +526,8 @@ header.sticky {
   padding: 8px 10px;
   border-radius: 12px;
   background: color-mix(in srgb, var(--ink) 6%, transparent);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .guide-msg-user {
   align-self: flex-end;

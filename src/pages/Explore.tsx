@@ -17,7 +17,7 @@ export default function Explore() {
         {t('explore.kicker')}
       </p>
       <h1 className="display mt-1 mb-8 text-4xl">{t('explore.title')}</h1>
-      <div className="grid gap-8 lg:grid-cols-2">
+      <div className="grid gap-8 lg:grid-cols-2" data-guide="template-list">
         {templates.map((tr) => (
           <article key={tr.id} className="scrap">
             <CoverArt kind={tr.cover} title={tr.name} polaroid />

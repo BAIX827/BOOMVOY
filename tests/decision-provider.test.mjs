@@ -307,7 +307,7 @@ test('AI routes use fixed server configuration, exact-body single-flight and nor
   release()
   for (const response of await Promise.all([first, second])) {
     assert.equal(response.status, 200)
-    assert.deepEqual(await response.json(), { text: 'Open the Plan page and tap Recommend a day.' })
+    assert.deepEqual(await response.json(), { text: 'Open the Plan page and tap Recommend a day. 喵' })
   }
   assert.equal(observed.url, 'https://ai.example.test/v1/chat/completions')
   assert.equal(observed.options.headers.Authorization, 'Bearer server-only-secret')

@@ -1,6 +1,6 @@
 import { build } from 'esbuild'
 
-for (const entry of ['tests/core.test.ts', 'tests/packing.test.ts', 'tests/recommendation.test.ts', 'tests/recommendation-application.test.ts', 'tests/decision.test.ts', 'tests/decision-selection.test.ts', 'tests/sync-client.test.ts']) {
+for (const entry of ['tests/core.test.ts', 'tests/boomi.test.ts', 'tests/packing.test.ts', 'tests/recommendation.test.ts', 'tests/recommendation-application.test.ts', 'tests/decision.test.ts', 'tests/decision-selection.test.ts', 'tests/sync-client.test.ts']) {
   const result = await build({
     entryPoints: [entry],
     bundle: true,

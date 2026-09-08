@@ -1,11 +1,12 @@
 import http from 'node:http'
-import { timingSafeEqual } from 'node:crypto'
+import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { ApiControlError, createApiControl, stableProviderKey } from './api-control.mjs'
 import { createAiResultCache, recommendationFormat } from './ai-policy.mjs'
 import { normalizePlaceName } from '../src/placeIdentity.mjs'
 import { boomiSay } from '../src/boomiVoice.mjs'
 import { createSnapshotStore, MAX_SNAPSHOT_BYTES, SnapshotStoreError, SnapshotValidationError } from './snapshot-store.mjs'
+import { createProviderSettingsStore, MAX_SETTINGS_BYTES, ProviderSettingsError, validateProviderSettingsPatch } from './provider-settings.mjs'
 
 const GOOGLE_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchText'
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions'
@@ -398,6 +399,7 @@ export function createBoomvoyServer({ apiKey = process.env.GOOGLE_PLACES_API_KEY
   aiCacheTtlMs = Number(process.env.BOOMVOY_AI_CACHE_TTL_MS ?? 600000),
   syncToken = process.env.BOOMVOY_SYNC_TOKEN || '',
   snapshotFilePath = process.env.BOOMVOY_DATA_FILE || fileURLToPath(new URL('./data/snapshot.json', import.meta.url)), snapshotStore,
+  settingsFilePath, settingsStore,
   allowedOrigins = [...LOCAL_ORIGINS, ...(process.env.BOOMVOY_ALLOWED_ORIGINS || process.env.DECISION_ALLOWED_ORIGINS || '').split(',').filter(Boolean)],
   allowedHosts = [...LOCAL_HOSTS, ...(process.env.BOOMVOY_ALLOWED_HOSTS || process.env.DECISION_ALLOWED_HOSTS || '').split(',').filter(Boolean)],
   timeoutMs = 10000, aiTimeoutMs = 25000, rateLimit = Number(process.env.BOOMVOY_CLIENT_RATE_LIMIT || 30), rateWindowMs = 60000,
@@ -412,13 +414,32 @@ export function createBoomvoyServer({ apiKey = process.env.GOOGLE_PLACES_API_KEY
     || !Number.isInteger(snapshotConcurrency) || snapshotConcurrency < 1 || snapshotConcurrency > 100) throw new TypeError('invalid server options')
   const aiUrl = configuredProviderUrl(openaiApiUrl)
   const aiResults = createAiResultCache({ ttlMs: aiCacheTtlMs, now })
-  const responseFormat = recommendationFormat(openaiResponseFormat, aiUrl, openaiModel)
   const origins = new Set(allowedOrigins.map(value => value.trim()))
   const hosts = new Set(allowedHosts.map(value => value.trim()))
   const requests = new Map()
   let activeSnapshotRequests = 0
   const control = apiControl || createApiControl({ maxConcurrent: upstreamConcurrency, callLimit: upstreamRateLimit, callWindowMs: upstreamRateWindowMs, now })
   const snapshots = snapshotStore || createSnapshotStore({ filePath: snapshotFilePath })
+  // Factory defaults are isolated for tests/embedded users; direct startup supplies the local file.
+  const providerSettings = settingsStore || createProviderSettingsStore({ filePath: settingsFilePath })
+  const settingsToken = randomBytes(32).toString('base64url')
+  const credentialNamespace = randomBytes(16).toString('hex')
+  let savedKeys = {}, settingsReady, openaiGeneration = 0, googleGeneration = 0
+  const loadSettings = () => settingsReady ||= providerSettings.get().then(keys => { savedKeys = keys }).catch(() => {
+    settingsReady = undefined
+    throw new ProviderSettingsError(503, 'settings_unavailable')
+  })
+  const providerStatus = () => ({ editable: true, csrfToken: settingsToken,
+    openai: { configured: Boolean(savedKeys.openaiApiKey || openaiApiKey.trim()), source: savedKeys.openaiApiKey ? 'saved' : openaiApiKey.trim() ? 'environment' : 'none' },
+    google: { configured: Boolean(savedKeys.googleApiKey || apiKey.trim()), source: savedKeys.googleApiKey ? 'saved' : apiKey.trim() ? 'environment' : 'none' },
+  })
+  async function credentials(provider) {
+    await loadSettings()
+    return provider === 'openai'
+      ? { key: savedKeys.openaiApiKey || openaiApiKey, generation: `${credentialNamespace}:openai:${openaiGeneration}`,
+        url: savedKeys.openaiApiKey ? OPENAI_URL : aiUrl }
+      : { key: savedKeys.googleApiKey || apiKey, generation: `${credentialNamespace}:google:${googleGeneration}` }
+  }
   const send = (res, status, body) => {
     if (res.destroyed || res.writableEnded) return
     res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' })
@@ -452,12 +473,12 @@ export function createBoomvoyServer({ apiKey = process.env.GOOGLE_PLACES_API_KEY
     }
   }
 
-  async function aiResult(scope, body, normalize) {
-    const request = { url: aiUrl, method: 'POST', body }, key = stableProviderKey(scope, request)
+  async function aiResult(scope, body, credential, normalize) {
+    const request = { url: credential.url, method: 'POST', body, credentialGeneration: credential.generation }, key = stableProviderKey(scope, request)
     const cached = aiResults.get(key)
     if (cached !== undefined) return cached
     return controlled(scope, request, async () => {
-      const data = await providerJson({ url: aiUrl, timeout: aiTimeoutMs, headers: { Authorization: `Bearer ${openaiApiKey}` }, body })
+      const data = await providerJson({ url: credential.url, timeout: aiTimeoutMs, headers: { Authorization: `Bearer ${credential.key}` }, body })
       const result = normalize(data)
       aiResults.set(key, result)
       return result
@@ -478,14 +499,15 @@ export function createBoomvoyServer({ apiKey = process.env.GOOGLE_PLACES_API_KEY
 
   async function decisions(raw) {
     const { preferences: p, locale } = validateDecisionRequest(raw)
-    if (!apiKey.trim()) throw new RequestError(503, 'provider_not_configured')
+    const credential = await credentials('google')
+    if (!credential.key.trim()) throw new RequestError(503, 'provider_not_configured')
     const category = p.kind === 'hotel' ? `${p.seaView ? 'sea view ' : ''}hotels` : `${!['any', 'local'].includes(p.cuisine) ? `${p.cuisine} ` : ''}restaurants`
     const body = { textQuery: `${category} in ${p.city}${p.parking || p.freeParking ? ' with parking' : ''}`, pageSize: 12,
       languageCode: locale === 'zh' ? 'zh-CN' : 'en', ...(p.kind === 'restaurant' ? { includedType: 'restaurant', strictTypeFiltering: true } : {}) }
     const fieldMask = googleFieldMask(p)
-    const data = await controlled('google.places.searchText', { url: GOOGLE_SEARCH_URL, method: 'POST', fieldMask, body },
+    const data = await controlled('google.places.searchText', { url: GOOGLE_SEARCH_URL, method: 'POST', fieldMask, body, credentialGeneration: credential.generation },
       () => providerJson({ url: GOOGLE_SEARCH_URL, timeout: timeoutMs,
-        headers: { 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': fieldMask }, body }))
+        headers: { 'X-Goog-Api-Key': credential.key, 'X-Goog-FieldMask': fieldMask }, body }))
     if (!object(data) || data.places !== undefined && !Array.isArray(data.places)) throw new RequestError(502, 'provider_invalid_response')
     const fetchedAt = new Date(now()).toISOString(), seen = new Set()
     const candidates = (data.places || []).slice(0, 12).map(place => mapGooglePlace(place, p, fetchedAt)).filter(candidate => {
@@ -497,9 +519,10 @@ export function createBoomvoyServer({ apiKey = process.env.GOOGLE_PLACES_API_KEY
 
   async function chat(raw) {
     const input = validateChatRequest(raw)
-    if (!openaiApiKey.trim()) throw new RequestError(503, 'provider_not_configured')
+    const credential = await credentials('openai')
+    if (!credential.key.trim()) throw new RequestError(503, 'provider_not_configured')
     const body = chatProviderBody(input, openaiModel)
-    return aiResult('openai.chat', body, data => {
+    return aiResult('openai.chat', body, credential, data => {
       const text = openAiText(data)
       if (!text || text.length > 4000) throw new RequestError(502, 'provider_invalid_response')
       return { text: boomiSay(text) }
@@ -508,17 +531,71 @@ export function createBoomvoyServer({ apiKey = process.env.GOOGLE_PLACES_API_KEY
 
   async function recommendations(raw) {
     const input = validateRecommendationRequest(raw)
-    if (!openaiApiKey.trim()) throw new RequestError(503, 'provider_not_configured')
+    const credential = await credentials('openai')
+    if (!credential.key.trim()) throw new RequestError(503, 'provider_not_configured')
     const p = input.preferences
     const earliest = input.anchor ? Math.max(toMinutes(p.startTime), toMinutes(input.anchor.time || p.startTime) + (input.anchor.durationMin || 60))
       + (p.transportMode === 'walking' ? 35 : 30) + paceSettings(p.pace).buffer : toMinutes(p.startTime)
     if (earliest + 15 > toMinutes(p.endTime)) throw new RequestError(422, 'no_time_available')
-    const body = recommendationProviderBody(input, openaiModel, responseFormat)
-    return aiResult('openai.recommendations', body, data => {
+    const body = recommendationProviderBody(input, openaiModel, recommendationFormat(openaiResponseFormat, credential.url, openaiModel))
+    return aiResult('openai.recommendations', body, credential, data => {
       const suggestions = normalizeRecommendations(data, input)
       if (!suggestions.length) throw new RequestError(502, 'provider_quality_failed')
       return { suggestions }
     })
+  }
+
+  async function settings(req, res) {
+    const host = String(req.headers.host || '')
+    const remote = req.socket.remoteAddress
+    if (!/^(?:localhost|127\.0\.0\.1|\[::1\])(?::[1-9]\d{0,4})?$/i.test(host)
+      || !['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(remote)) throw new RequestError(403, 'settings_local_only')
+    const origin = req.headers.origin
+    if (origin) {
+      let safe = false
+      try {
+        const url = new URL(origin)
+        safe = url.origin === origin && url.protocol === 'http:' && LOCAL_HOSTS.includes(url.hostname)
+          && (LOCAL_ORIGINS.includes(origin) || url.host.toLowerCase() === host.toLowerCase())
+      } catch { /* Invalid origins are rejected without echoing them. */ }
+      if (!safe) throw new RequestError(403, 'settings_local_only')
+      res.setHeader('Access-Control-Allow-Origin', origin)
+    } else if (req.headers['sec-fetch-site'] && !['same-origin', 'none'].includes(req.headers['sec-fetch-site'])) {
+      throw new RequestError(403, 'settings_local_only')
+    }
+    if (req.method === 'OPTIONS') {
+      const requested = String(req.headers['access-control-request-headers'] || '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean)
+      if (!origin || !['GET', 'PUT'].includes(req.headers['access-control-request-method'])
+        || requested.some(header => !['content-type', 'x-boomvoy-settings-token'].includes(header))) throw new RequestError(403, 'origin_not_allowed')
+      res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS')
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Boomvoy-Settings-Token')
+      send(res, 204, undefined); return
+    }
+    if (!['GET', 'PUT'].includes(req.method)) {
+      res.setHeader('Allow', 'GET, PUT, OPTIONS')
+      throw new RequestError(405, 'method_not_allowed')
+    }
+    enforceClientRate(req, res)
+    if (req.method === 'PUT') {
+      const token = req.headers['x-boomvoy-settings-token']
+      if (typeof token !== 'string' || !bearerMatches(`Bearer ${token}`, settingsToken)) throw new RequestError(403, 'settings_token_invalid')
+      if (!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(req.headers['content-type'] || '')
+        || req.headers['content-encoding'] && req.headers['content-encoding'] !== 'identity') throw new RequestError(415, 'json_required')
+      const patch = validateProviderSettingsPatch(await readBody(req, MAX_SETTINGS_BYTES))
+      if (patch.openaiApiKey && aiUrl !== OPENAI_URL) throw new RequestError(409, 'settings_openai_endpoint')
+      await loadSettings()
+      let next
+      try { next = await providerSettings.put(patch) }
+      catch { throw new ProviderSettingsError(503, 'settings_unavailable') }
+      // Publish only after the complete file has been persisted successfully.
+      // Read the preceding published state here: another PUT may have finished while this write waited.
+      const oldOpenai = savedKeys.openaiApiKey || openaiApiKey, oldGoogle = savedKeys.googleApiKey || apiKey
+      const oldAiUrl = savedKeys.openaiApiKey ? OPENAI_URL : aiUrl
+      savedKeys = next
+      if ((savedKeys.openaiApiKey || openaiApiKey) !== oldOpenai || (savedKeys.openaiApiKey ? OPENAI_URL : aiUrl) !== oldAiUrl) openaiGeneration += 1
+      if ((savedKeys.googleApiKey || apiKey) !== oldGoogle) googleGeneration += 1
+    } else await loadSettings()
+    send(res, 200, providerStatus())
   }
 
   async function snapshot(req, res) {
@@ -582,6 +659,8 @@ export function createBoomvoyServer({ apiKey = process.env.GOOGLE_PLACES_API_KEY
   const server = http.createServer(async (req, res) => {
     res.setHeader('Vary', 'Origin')
     try {
+      // Provider secrets stay local even when general API origins/hosts are configured for a deployment.
+      if (req.url === '/api/settings/providers') { await settings(req, res); return }
       let host
       try { host = new URL(`http://${req.headers.host}`).hostname } catch { /* rejected below */ }
       if (!hosts.has(host)) throw new RequestError(403, 'host_not_allowed')
@@ -619,7 +698,7 @@ export function createBoomvoyServer({ apiKey = process.env.GOOGLE_PLACES_API_KEY
       send(res, 200, await handler(await readBody(req, bodyLimit)))
     } catch (error) {
       if (error instanceof RequestError && error.retryAfter) res.setHeader('Retry-After', String(error.retryAfter))
-      const known = error instanceof RequestError || error instanceof SnapshotValidationError || error instanceof SnapshotStoreError
+      const known = error instanceof RequestError || error instanceof SnapshotValidationError || error instanceof SnapshotStoreError || error instanceof ProviderSettingsError
       send(res, known ? error.status : 500, { error: known ? error.code : 'internal_error' })
     }
   })
@@ -636,9 +715,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const port = Number(process.env.BOOMVOY_PORT || process.env.DECISION_PORT || 8787)
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('BOOMVOY_PORT must be between 1 and 65535')
   // Keep the private-key service on loopback. Publish through an authenticated reverse proxy.
-  const server = createDecisionServer()
+  const server = createDecisionServer({ settingsFilePath: fileURLToPath(new URL('./data/provider-keys.json', import.meta.url)) })
   server.listen(port, '127.0.0.1', () => {
     console.info(`BOOMVOY backend listening on http://127.0.0.1:${port}`)
-    if (!process.env.GOOGLE_PLACES_API_KEY) console.info('Live search is disabled until GOOGLE_PLACES_API_KEY is configured.')
   })
 }

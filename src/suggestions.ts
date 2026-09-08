@@ -3,6 +3,7 @@ import { DEFAULT_RECOMMENDATION_PREFERENCES, normalizePlaceName, samePlace, sche
 import type { PlannedPlace, RecommendationPreferences } from './recommendation'
 import { ticketSearchUrl } from './geo'
 import { RequestCache } from './requestCache'
+import { providerConfigurationRevision } from './providerGeneration'
 
 export type DaySuggestion = { title: string; vibe: string; rainFriendly: boolean; places: Omit<PlaceStop, 'id'>[] }
 type LocalPlace = Omit<PlaceStop, 'id'> & { englishName: string }
@@ -354,7 +355,7 @@ export function suggestionContextKey(input: SuggestInput): string {
     .filter((place) => !place.city || belongsToRecommendationCity(place.city, input.city))
     .map((place) => [normalizePlaceName(place.name), place.coords])
     .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
-  return JSON.stringify([input.apiUrl?.trim(), suggestionRequest(input), input.anchor?.coords, exclusions, (input.existing || []).map(normalizePlaceName).sort()])
+  return JSON.stringify([providerConfigurationRevision(), input.apiUrl?.trim(), suggestionRequest(input), input.anchor?.coords, exclusions, (input.existing || []).map(normalizePlaceName).sort()])
 }
 
 async function fromBackend(input: SuggestInput): Promise<DaySuggestion[]> {

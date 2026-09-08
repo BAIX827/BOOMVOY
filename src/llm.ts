@@ -1,4 +1,5 @@
 import { RequestCache } from './requestCache'
+import { providerConfigurationRevision } from './providerGeneration'
 
 type BackendProfile = { backendUrl?: string }
 
@@ -76,7 +77,7 @@ export async function askBoomi(
   if (!backend.ready) throw new Error('backend unavailable')
   const normalizedQuestion = question.replace(/\r\n/g, '\n').trim()
   if (!normalizedQuestion || normalizedQuestion.length > 2_000) throw new Error('Question must contain 1 to 2000 characters')
-  const key = JSON.stringify([backend.baseUrl, locale, page, normalizedQuestion])
+  const key = JSON.stringify([providerConfigurationRevision(), backend.baseUrl, locale, page, normalizedQuestion])
   return boomiReplyCache.getOrCreate(key, async () => {
     const data = await postBackend<{ text?: unknown }>(backendEndpoint(backend.baseUrl, '/ai/chat'), {
       question: normalizedQuestion,

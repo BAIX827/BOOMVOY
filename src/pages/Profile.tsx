@@ -8,6 +8,7 @@ import { useT } from '../i18n'
 import { ThemePreview } from '../ThemeDecor'
 import { acceptDownloadedSnapshot, createSyncSnapshot, downloadSnapshot, restoreLocalPhotos, uploadSnapshot, type SyncConflict } from '../syncClient'
 import { isSyncSnapshot, mergeImportedProfile } from '../syncSchema'
+import { ProviderSettingsPanel } from '../ProviderSettingsPanel'
 
 const MAX_IMPORT_BYTES = 64 * 1024 * 1024
 const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -175,11 +176,12 @@ export default function Profile() {
         </div>
       </div>
       <div className="paper mt-6 space-y-4 p-6">
-        <h2 className="display text-2xl">{t('profile.api')}</h2>
-        <p className="text-sm leading-6" style={{ color: 'var(--muted)' }}>
-          {backend.fromEnv ? t('profile.apiEnv') : t('profile.apiHint')}
-        </p>
-        <div>
+        <ProviderSettingsPanel key={backend.baseUrl} backend={backend} />
+        <details className="border-t pt-4" style={{ borderColor: 'var(--line)' }}>
+          <summary className="cursor-pointer text-sm font-medium">{t('providers.advanced')}</summary>
+          <p className="mb-3 mt-3 text-sm leading-6" style={{ color: 'var(--muted)' }}>
+            {backend.fromEnv ? t('profile.apiEnv') : t('profile.apiHint')}
+          </p>
           <Label>{t('profile.apiUrl')}</Label>
           <input
             className="field"
@@ -187,7 +189,7 @@ export default function Profile() {
             value={profile.backendUrl || ''}
             onChange={(e) => { changeSyncScope(); setProfile({ backendUrl: e.target.value }) }}
           />
-        </div>
+        </details>
       </div>
       <div className="paper mt-6 space-y-3 p-6">
         <h2 className="display text-2xl">{t('profile.data')}</h2>

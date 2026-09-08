@@ -7,6 +7,7 @@ import { ensurePlacesGeo, geocodePlace, routeHop, searchPlaces } from '../src/ge
 import { weatherForCity } from '../src/weather'
 import { matchBoomi } from '../src/boomiChat'
 import { askBoomi } from '../src/llm'
+import { advanceProviderConfiguration } from '../src/providerGeneration'
 import { replaceTravelData, useApp } from '../src/store'
 
 function tripFixture(): Trip {
@@ -160,6 +161,22 @@ try {
   releaseCancelledChat()
   assert.equal(await continuingChat, 'Choose the indoor filter.')
   assert.equal(boomiCalls, 2, 'Chat cancellation only ends that caller and preserves the shared paid request')
+
+  let releaseOldConfiguration!: () => void
+  const oldConfigurationGate = new Promise<void>((resolve) => { releaseOldConfiguration = resolve })
+  let configurationCalls = 0
+  globalThis.fetch = (async () => {
+    configurationCalls += 1
+    if (configurationCalls === 1) { await oldConfigurationGate; return json({ text: 'Old configuration' }) }
+    return json({ text: 'New configuration' })
+  }) as typeof fetch
+  const oldConfigurationReply = askBoomi(boomiBackend, 'Configuration rotation', 'en', '/profile')
+  advanceProviderConfiguration()
+  assert.equal(await askBoomi(boomiBackend, 'Configuration rotation', 'en', '/profile'), 'New configuration')
+  releaseOldConfiguration()
+  assert.equal(await oldConfigurationReply, 'Old configuration')
+  assert.equal(await askBoomi(boomiBackend, 'Configuration rotation', 'en', '/profile'), 'New configuration', 'An old pending reply cannot populate the new credential cache')
+  assert.equal(configurationCalls, 2, 'New settings never join an older pending request; new results still cache')
 
   let geoCalls = 0
   let releaseGeo!: () => void

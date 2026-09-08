@@ -1,6 +1,6 @@
 # BOOMVOY 后端配置与部署
 
-BOOMVOY 现在使用一个原生 Node.js 网关统一处理 AI、Google Places 和单用户旅行备份。浏览器只知道后端地址，不再保存或发送 OpenAI / Google API key。后端没有新增运行依赖。
+BOOMVOY 使用一个原生 Node.js 网关统一处理 AI、Google Places 和单用户旅行备份。「我」页面提供 OpenAI 与 Google Places API Key 输入框：密钥仅在点击保存时发给本机后端，随后由后端保存和使用。普通业务请求不携带供应商密钥，浏览器不把密钥写入 Profile、localStorage、旅行导出或云端快照。后端没有新增运行依赖。
 
 > **当前付费路由没有终端用户登录鉴权。** 服务只适合绑定本机 loopback，或放在已有登录鉴权与消费配额的同源反向代理后面；不要把这个 Node 端口直接暴露到公网。CORS、Host 白名单和 IP 限流都不能替代身份认证。
 
@@ -9,8 +9,6 @@ BOOMVOY 现在使用一个原生 Node.js 网关统一处理 AI、Google Places �
 需要 Node.js 22.9 或更高版本。
 
 ```powershell
-Copy-Item .env.example .env.server
-# 编辑 .env.server，只填写实际需要的服务端变量
 npm run server
 ```
 
@@ -27,6 +25,21 @@ Invoke-RestMethod http://127.0.0.1:8787/api/health
 ```
 
 返回 `{ "ok": true }` 只表示后端进程可访问，不代表所有可选供应商都已配置。
+
+### 在个人资料页粘贴密钥
+
+1. 打开本机前端的「我」→「连接你的 API」。
+2. 分别粘贴 OpenAI API Key 与 Google Places API Key，点击对应的保存按钮。可以只配置其中一个。
+3. 保存成功后输入框清空，页面只显示配置状态，不回显密钥。配置立即用于下一次请求，重启后端后仍然保留。
+4. OpenAI 用于 Boomi 未知问题与行程推荐；Google 用于酒店 / 餐厅实时地点查询。保存和读取状态都不请求供应商；「已配置」不代表已验证账户额度、API 权限或联网状态。
+
+Google key 所属项目需启用 **Places API (New)** 与结算，并允许服务器调用该 API；这里的 Google 接口不是 Gemini。参考 [Google Places 设置](https://developers.google.com/maps/documentation/places/web-service/get-api-key)。OpenAI key 按 [官方密钥认证规范](https://developers.openai.com/api/reference/overview) 交由后端使用。
+
+密钥保存在已被 Git 忽略的 `server/data/provider-keys.json`，采用临时文件与原子替换；该文件没有应用层加密，按本机私密配置管理，勿复制进前端资源或旅行备份。读取接口只返回配置来源和布尔状态。页面保存值优先于环境变量；移除已保存的密钥后，如果环境变量仍有值，会继续使用环境配置。
+
+配置接口为 `GET /api/settings/providers` 与 `PUT /api/settings/providers`。它只服务本机页面与 loopback 连接，写入还需状态接口给出的临时令牌，不会因为扩展普通业务的 CORS / Host 白名单而开放给公网。浏览器也会拒绝把密钥发送到远程后端地址；公开部署仍应使用服务端 secret 配置。环境变量设置了非官方 `OPENAI_API_URL` 时，页面拒绝保存 OpenAI key，避免将官方 key 发往兼容服务。
+
+仍可用环境变量配置密钥、模型和同步令牌：自行创建 `.env.server`，或在文件不存在时从 `.env.example` 复制。页面不会修改这个文件。
 
 ## 2. 环境变量
 
@@ -118,7 +131,7 @@ Invoke-RestMethod http://127.0.0.1:8787/api/health
 4. 若多实例部署，把进程内 single-flight、限流和文件快照迁移到共享基础设施。
 5. 遵守 Google Maps Platform 的展示、归因、缓存和使用政策。
 
-Profile 中填写的是后端基地址，不是某个具体接口。开发环境使用 `/api`；独立后端示例为 `https://api.example.com/api`。
+Profile 的高级设置中填写后端基地址，不是某个具体接口。开发环境使用 `/api`；独立后端示例为 `https://api.example.com/api`。远程后端的供应商密钥由部署环境管理，不使用本机页面的密钥保存接口。
 
 ## 6. 验证
 

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { advanceProviderConfiguration } from '../src/providerGeneration'
 import { DEFAULT_RECOMMENDATION_PREFERENCES, normalizePlaceName, recommendationTravelMinutes, samePlace, scheduleSuggestion } from '../src/recommendation'
 import { enrichSuggestedPlaces, suggestionContextKey, suggestionRequest, suggestDays } from '../src/suggestions'
 import type { PlaceStop, WeatherSnap } from '../src/types'
@@ -143,6 +144,13 @@ try {
   const known = await enrichSuggestedPlaces(successful.items[0].places, { city: 'Tokyo' })
   assert.ok(known.every((place) => place.coords))
   assert.equal(calls.length, 1, 'Known catalog coordinates require no extra request when the route is selected')
+
+  const beforeConfigurationChange = suggestionContextKey(api)
+  advanceProviderConfiguration()
+  assert.notEqual(suggestionContextKey(api), beforeConfigurationChange)
+  const afterConfigurationChange = await suggestDays(api)
+  assert.equal(afterConfigurationChange.cached, false)
+  assert.equal(calls.length, 2, 'A successful provider configuration change invalidates the prior recommendation cache')
 
   mock(() => json(fixture([
     { name: { unsafe: true }, setting: 'indoor' },

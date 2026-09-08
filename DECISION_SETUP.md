@@ -2,13 +2,13 @@
 
 本文件只说明 Google Places 决策数据。统一后端的完整启动、AI、同步、限流和部署说明见 [BACKEND_SETUP.md](BACKEND_SETUP.md)。
 
-决策页面支持本地精选来源；实时评分、评论数量、停车信息通过可选 Google Places API (New) 服务查询。Google key 仅由 Node 服务端环境变量读取。前端只接收规范化的候选数据，默认接口为 `/api/decisions/search`。
+决策页面支持本地精选来源；实时评分、评论数量、停车信息通过可选 Google Places API (New) 服务查询。Google key 由 Node 服务端读取；本机用户可以在「我」页粘贴后保存到后端，也可以通过环境变量配置。业务请求只接收规范化的候选数据，默认接口为 `/api/decisions/search`。
 
 ## 本地启用
 
 1. 在 Google Cloud 项目启用 **Places API (New)** 和相应账单账户，创建服务器 API key，并限制其 API 范围及适用的服务器来源。当前字段包含评分、价格区间及停车设施，会触发付费 SKU；先设置预算提醒、配额限制并核对 [Text Search 字段与计费档位](https://developers.google.com/maps/documentation/places/web-service/text-search#fieldmask)。
-2. 在项目根目录自行创建 `.env.server`，填写 `GOOGLE_PLACES_API_KEY=你的服务器密钥`；也可以通过终端会话或部署 secret 注入同名环境变量。项目 `.env.example` 包含变量名说明，`.env.server` 已被 Git 忽略。请勿添加 `VITE_` 前缀、写入前端设置、提交到 Git 或粘贴到聊天。
-3. 使用支持 [`--env-file-if-exists`](https://nodejs.org/api/cli.html#--env-file-if-existsfile) 的 Node.js（22.9+），在项目目录运行 `npm run server`。该命令显式加载可选 `.env.server`，默认监听 `http://127.0.0.1:8787`；另一个终端运行 `npm run dev`。Vite 开发代理会把全部 `/api` 请求转发到该服务。`npm run decision:server` 仍保留为兼容别名。
+2. 使用支持 [`--env-file-if-exists`](https://nodejs.org/api/cli.html#--env-file-if-existsfile) 的 Node.js（22.9+），在项目目录运行 `npm run server`，另一个终端运行 `npm run dev`。默认后端监听 `http://127.0.0.1:8787`，Vite 会代理 `/api`。`npm run decision:server` 保留为兼容别名。
+3. 在本机前端「我」→「连接你的 API」的 Google Places API Key 输入框粘贴并保存，立即用于后续查询。密钥保存在 Git 忽略的 `server/data/provider-keys.json`，不回显，不写入浏览器持久状态。也可在 `.env.server` 配置 `GOOGLE_PLACES_API_KEY`，或通过部署 secret 注入；页面保存值优先，移除后回退环境变量。请勿添加 `VITE_` 前缀或提交密钥到 Git。
 4. 打开决策页面，输入城市、预算、住宿/餐饮要求后主动查询。成功时卡片显示 Google Maps、评分、评论数量、来源和本次查询时间。服务未启动、未配置 key、达到配额或超时时，界面会提示并保留本地来源入口。
 
 可选环境变量：

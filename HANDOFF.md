@@ -2,7 +2,7 @@
 
 > 更新日期：2026-09-08
 >
-> 当前基线：`main` / `d61a2e3`，本轮“Boomi 情境引导 + 喵语气”改动尚未提交。
+> 当前基线：`main` / `d4279a2`，本轮“个人资料页 API Key 配置”改动尚未提交。
 > 产品口号：`Plan less. Decide better.`
 
 ## 1. 项目目标
@@ -20,7 +20,7 @@ BOOMVOY 是一个本地优先的旅行手账 Web App。目标是让用户在一�
 | 工作区 | `C:\Users\64969\Desktop\BOOMVOY` |
 | Git 远程 | `https://github.com/BAIX827/BOOMVOY.git` |
 | 分支 | `main` |
-| 本地 / 远端基线 | `d61a2e3`，本轮开始时与本地 `origin/main` 跟踪引用一致，未额外 fetch |
+| 本地 / 远端基线 | `d4279a2`，本轮开始时工作区干净；未额外 fetch |
 | 版本 | `0.1.0` |
 | 静态部署 | GitHub Actions → GitHub Pages，生产 base 由 `GITHUB_PAGES_BASE` 注入 |
 | 后端部署 | 代码已实现；当前只验证本地 Node 服务，尚未部署到公开主机 |
@@ -28,6 +28,7 @@ BOOMVOY 是一个本地优先的旅行手账 Web App。目标是让用户在一�
 
 关键历史提交：
 
+- `d4279a2`：Boomi 情境引导、简短问答与统一“喵”句尾。
 - `d61a2e3`：API 请求与输出质量校验、token 精简、三套主题及首页 UI 优化。
 - `9232e16`：统一后端与 API 最小调用。
 - `89d3c70`：精简示例、加强三套主题、按天数与天气生成行李数量。
@@ -43,8 +44,6 @@ BOOMVOY 是一个本地优先的旅行手账 Web App。目标是让用户在一�
 
 ```powershell
 npm ci
-Copy-Item .env.example .env.server
-# 编辑 .env.server，只填写实际需要的服务端 key / token
 npm run server
 ```
 
@@ -55,6 +54,7 @@ npm run dev
 ```
 
 - 前端：`http://localhost:5173`
+- 在「我」→「连接你的 API」粘贴并保存 OpenAI / Google key 即可。模型或同步令牌等高级配置仍可通过可选 `.env.server` 提供。
 - 后端：`http://127.0.0.1:8787`
 - 健康检查：`http://127.0.0.1:8787/api/health`
 - 完整配置与生产边界：[BACKEND_SETUP.md](BACKEND_SETUP.md)
@@ -96,6 +96,7 @@ git diff --check
 | 接口 | 作用 | 单次用户动作的外部调用上限 |
 | --- | --- | ---: |
 | `GET /api/health` | 后端存活检查 | 0 |
+| `GET /api/settings/providers`、`PUT /api/settings/providers` | 读取状态、保存本机 OpenAI / Google key | 0 |
 | `POST /api/ai/chat` | Boomi 未知问题短答 | 最多 1 次 OpenAI |
 | `POST /api/recommendations/day` | 生成 2–3 条日路线 | 最多 1 次 OpenAI |
 | `POST /api/decisions/search` | 酒店 / 餐厅实时候选 | 最多 1 次 Google Places |
@@ -104,8 +105,8 @@ git diff --check
 
 ### 5.1 服务端保护
 
-- OpenAI URL、key、模型和系统提示固定在服务端；客户端不能传入或覆盖。
-- OpenAI / Google key 不再进入浏览器、Profile、localStorage、导出文件或同步快照。
+- OpenAI URL、模型和系统提示固定在服务端；常规业务请求不能传入 key 或覆盖模型。密钥由环境配置或本机个人页的专用配置接口提供。
+- OpenAI / Google key 仅在个人页草稿与明确保存请求中短暂存在，不进入 Profile、localStorage、导出文件或同步快照。
 - 内容完全相同的并发供应商请求通过 SHA-256 请求指纹共享一次上游调用。
 - 默认整个进程最多 4 个并发、每分钟 60 次供应商调用；每个直连 IP 每分钟最多 30 个请求。
 - 客户端 IP 限流同样覆盖同步与失败鉴权；同步读取 / 写入默认最多 4 个并发，快照写入等待队列也有界。
@@ -222,6 +223,9 @@ src/requestCache.ts             前端 single-flight / TTL 基础设施
 src/geo.ts                      地理编码、地点搜索、路线与地图链接
 src/weather.ts                  预报 / 历史天气请求与缓存
 src/llm.ts                      统一后端地址与 Boomi 客户端
+src/ProviderSettingsPanel.tsx   个人资料页两个密钥输入框与配置状态
+src/providerSettings.ts         仅本机可用的配置客户端；密钥只通过保存请求传输
+src/providerGeneration.ts       配置成功后的前端 AI 缓存版本隔离
 src/syncClient.ts               单用户快照客户端
 src/syncSchema.ts               下载快照的浏览器端运行时契约
 src/GuideCat.tsx                Boomi 引导与聊天
@@ -229,6 +233,7 @@ src/boomiChat.ts                Boomi 零 API 本地问答路由
 src/boomiGuide.ts               当前旅行选择、4 / 6 步引导与页面快捷问题
 src/boomiVoice.mjs              前后端共用的单个“喵”句尾归一
 server/decision-server.mjs      统一 Node HTTP 网关与路由
+server/provider-settings.mjs    本机密钥文件、原子写入、严格校验与状态隔离
 server/api-control.mjs          上游请求指纹、single-flight、并发和分钟预算
 server/snapshot-store.mjs       快照校验、CAS、幂等和原子持久化
 tests/*                         前端逻辑、网关、同步和快照回归测试
@@ -246,17 +251,28 @@ boomi.md                        全功能演示 / 测试视频脚本
 - 可见文案必须同步维护中文和英文。
 - Boomi 使用透明底 `src/assets/boomi.png` / `boomi_icon.png`。
 
+### 12.1 个人资料页 API 配置（2026-09-08）
+
+- 用户可在「我」页分别粘贴 OpenAI 和 Google Places API Key，点击对应按钮保存到本机后端，立即用于后续请求。OpenAI 服务 Boomi / 日路线，Google 服务酒店 / 餐厅 Places API (New)。两个配置可独立使用。
+- 输入采用密码框，显示 / 隐藏只针对当前尚未保存的草稿；保存成功、离开页面或更换后端后清理草稿。密钥不进入 Zustand、localStorage、旅行 JSON 或同步快照，状态接口不返回密钥或片段。
+- 直接启动后端时，从被 Git 忽略的 `server/data/provider-keys.json` 读取保存值，优先于环境变量。移除保存值会回退环境变量；保存是原子写入，失败不发布内存新值。文件没有应用层加密。
+- 保存和状态读取不调用任何供应商，不检测额度；界面区分“已配置”和“未配置”，不声称真实连接已验证。Google key 需启用 Places API (New) 和结算；它不是 Gemini key。
+- 配置接口只接受 loopback Host / 连接与本机页面，PUT 必须带随机配置令牌及 JSON；不继承公开业务白名单权限。浏览器拒绝把密钥送到远程后端地址；非官方 OpenAI endpoint 下不允许从页面保存 OpenAI key。
+- `vite.config.ts` 保留默认敏感文件 deny，并禁止访问整个 `server/data/**`，避免开发服务器把密钥文件、临时写入文件或快照作为静态资源返回。
+- 更换密钥后，前后端 AI 缓存与合并请求使用新的非敏感版本空间，旧请求晚返回也不能污染新配置结果。已呈现给用户的旅行内容不因配置变化而修改。
+
 ## 13. 本轮验证记录
 
 在 2026-09-08 的本地伪供应商环境中：
 
-- `npm test`：68 个 Node 子测试全部通过，另含核心、Boomi、行李、推荐、推荐应用、决策、决策选择和同步客户端 8 组 TypeScript 测试脚本。
+- `npm test`：81 个 Node 子测试全部通过，另含核心、Boomi、行李、推荐、推荐应用、决策、决策选择、同步客户端和密钥配置客户端 9 组 TypeScript 测试脚本。
 - 单用户快照专项：清洗、4 MiB 限制、前后端共享样例契约、完整语义校验、CAS、冲突、幂等、有界并发 / 队列、重启恢复、HTTP 鉴权与客户端回滚均覆盖。
 - API 专项：动态 Google 字段、并发请求合并、进程调用预算、AI 固定服务端配置、严格输入和响应规范化均覆盖。
-- `npm run build`：TypeScript 检查与 Vite 生产构建通过（1766 modules transformed）。
+- `npm run build`：TypeScript 检查与 Vite 生产构建通过（1769 modules transformed）。
 - `git diff --check`：通过。
 - Boomi 同步检查：`GuideCat.tsx`、`boomiChat.ts`、中英 `i18n.ts` 与 `boomi.md` 已按“本地问题 0 调用、未知问题最多 1 调用、天气手动刷新、同步令牌要求”等新行为同步。
 - Boomi 新增测试覆盖中英文意图、单词误匹配、无旅行路由、当前旅行选择、4 / 6 步分支、情境问题、句尾归一与幂等；供应商伪响应验证 AI 回复也有单个“喵”。浏览器已验证 Japan 2026 本地问答、不自动跳页、从日程开始引导、步骤跳转、高亮、Esc 退出与焦点返回。
+- 密钥配置专项：保存 / 移除 / 重启持久化、格式和大小、CSRF、本机边界、原子写入失败保留旧值、三条业务路由使用新密钥、旧响应与并发保存后的缓存隔离均通过伪供应商测试。浏览器已用测试值分别保存再移除两个密钥，确认密码框清空、状态切换与独立配置；结束时两个供应商均未配置。实际 Vite 的普通文件 URL 与 `/@fs/` 无密钥 canary 请求都返回 403，canary 已删除。
 - 未发起真实 OpenAI / Google 付费请求，不能把测试通过描述成真实供应商已联调。
 
 ## 14. 下一步优先级
@@ -281,7 +297,7 @@ boomi.md                        全功能演示 / 测试视频脚本
 先读 HANDOFF.md、BACKEND_SETUP.md、src/store.ts、src/types.ts、server/decision-server.mjs。
 先检查 git status，保留用户未提交改动。
 推荐行程必须手动触发；常见 Boomi 问题必须优先本地回答。
-前端不得读取或保存 OpenAI / Google key；统一使用 backendUrl + /api 子路由。
+常规业务请求不得携带 OpenAI / Google key；本机个人页仅在明确保存时把密钥交给配置接口，不在浏览器持久化。调用供应商仍由后端负责。
 Google 会话型评分、价格、地址和官网不得进入持久存储。
 所有新增网络调用都要说明触发条件、去重、缓存、失败重试与预算边界。
 改文案中英同步；改功能同步 HANDOFF 和 Boomi；完成后运行 npm test、npm run build、git diff --check。

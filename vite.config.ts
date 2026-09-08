@@ -17,6 +17,11 @@ export default defineConfig({
     // Keep the same-origin proxy private too; otherwise LAN clients could use it
     // to reach the unauthenticated paid routes bound to the backend loopback.
     host: '127.0.0.1',
+    fs: {
+      // Preserve Vite's default secret-file exclusions and hide backend storage,
+      // including temporary atomic-write files and direct /@fs/ requests.
+      deny: ['.env', '.env.*', '*.{crt,pem}', '**/.git/**', '**/server/data/**'],
+    },
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8787',

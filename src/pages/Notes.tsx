@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useApp, useTrip } from '../store'
 import { THEMES, TRANSPORT } from '../catalog'
 import type { ThemeId, TransportMode } from '../types'
@@ -27,7 +27,7 @@ export default function Notes() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
-      <h1 className="display text-4xl">{t('notes.title')}</h1>
+      <h1 className="display text-4xl">{t('journey.settings')}</h1>
       <div className="paper space-y-4 p-5">
         <div>
           <Label>{t('notes.name')}</Label>
@@ -41,20 +41,11 @@ export default function Notes() {
             onChange={(e) => updateTrip(trip.id, { notes: e.target.value })}
           />
         </div>
-        <div>
-          <Label>{t('notes.share')}</Label>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {(['private', 'friends', 'public'] as const).map((v) => (
-              <button
-                key={v}
-                className={trip.share.visibility === v ? 'btn' : 'btn btn-ghost'}
-                onClick={() => updateTrip(trip.id, { share: { visibility: v } })}
-              >
-                {t(`share.${v}`)}
-              </button>
-            ))}
-          </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div><Label>{t('create.people')}</Label><input className="field" type="number" min={1} max={100} step={1} value={trip.travellers} onChange={(event) => { const count = Number(event.target.value); if (Number.isInteger(count) && count >= 1 && count <= 100 && count * trip.budgetPerPerson <= 1_000_000_000_000) updateTrip(trip.id, { travellers: count, totalBudget: count * trip.budgetPerPerson }) }} /><Link className="mt-2 inline-block text-xs" to={`/trip/${trip.id}/group`}>{t('trip.group')} →</Link></div>
+          <div><Label>{t('create.budget', { currency: trip.homeCurrency })}</Label><input className="field" type="number" min={0} max={1_000_000_000_000 / trip.travellers} step="0.01" value={trip.budgetPerPerson} onChange={(event) => { const amount = Number(event.target.value); if (Number.isFinite(amount) && amount >= 0 && amount * trip.travellers <= 1_000_000_000_000) updateTrip(trip.id, { budgetPerPerson: amount, totalBudget: amount * trip.travellers }) }} /></div>
         </div>
+        <div><Label>{t('trip.share')}</Label><Link className="btn btn-ghost mt-2 no-underline" to={`/share/${trip.id}`}>{t('journey.exportTrip')}</Link></div>
         <div>
           <Label>{t('notes.theme')}</Label>
           <div className="mt-2 grid gap-2 sm:grid-cols-3">

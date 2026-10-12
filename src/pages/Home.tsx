@@ -5,6 +5,7 @@ import { useApp } from '../store'
 import { formatRange, money, toISODate } from '../lib'
 import { TRANSPORT } from '../catalog'
 import { cityRoute } from '../domain'
+import { tripHref, resolveTripDay } from '../journey'
 import { transportLabel, useT } from '../i18n'
 import { ThemeScene } from '../ThemeDecor'
 
@@ -27,8 +28,16 @@ export default function Home() {
     return matchesStatus && (!search || [trip.name, trip.origin, ...trip.destinations].some((value) => value.toLocaleLowerCase().includes(search)))
   })
 
+  const currentTrip = trips.find((trip) => trip.startDate <= today && trip.endDate >= today)
+  const upcomingTrip = trips.filter((trip) => trip.startDate > today).sort((a, b) => a.startDate.localeCompare(b.startDate))[0]
+  const resumeTrip = currentTrip || upcomingTrip
+  let remembered: string | null = null
+  try { if (resumeTrip) remembered = localStorage.getItem(`boomvoy-day:${resumeTrip.id}`) } catch { /* Date fallback remains available. */ }
+  const resumeDay = resumeTrip ? resolveTripDay(resumeTrip, null, remembered) : undefined
+
   return (
     <div className="home-page">
+      {resumeTrip && <section className="paper journey-next mb-6 flex flex-wrap items-center justify-between gap-4 p-5"><div><p className="text-xs" style={{ color: 'var(--muted)' }}>{t(currentTrip ? 'journey.today' : 'journey.continue')}</p><h2 className="display mt-1 text-2xl">{resumeTrip.name}</h2><p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>{resumeDay?.city} · {resumeDay?.date}</p></div><Link className="btn no-underline" to={tripHref(resumeTrip.id, 'plan', currentTrip ? currentTrip.days.find((day) => day.date === today)?.id : resumeDay?.id)}>{t('journey.open')}<ArrowRight size={16} /></Link></section>}
       <section className="journal-hero" aria-labelledby="home-heading">
         <div className="journal-hero-copy">
           <p className="journal-eyebrow"><span /> YOUR TRAVEL JOURNAL</p>

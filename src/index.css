@@ -605,7 +605,7 @@ body { line-height: 1.5; }
 .atmosphere-ocean .theme-motif { color: var(--action); }
 .app-header { min-height: 76px; }
 .desktop-navigation { padding: 4px; background: color-mix(in srgb, var(--paper) 65%, transparent); border: 1px solid var(--line); border-radius: var(--control-radius); }
-.desktop-nav-link { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 16px; border-radius: var(--control-radius); transition: background .18s ease; }
+.desktop-nav-link { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 16px; border-radius: var(--control-radius); transition: background .18s ease; }
 .desktop-nav-link:hover { background: var(--accent-soft); }
 .desktop-nav-link.is-active { background: var(--ink); color: var(--paper) !important; }
 .mobile-navigation { padding-bottom: env(safe-area-inset-bottom); box-shadow: 0 -8px 32px -24px var(--ink); }
@@ -664,7 +664,7 @@ body { line-height: 1.5; }
 .journal-search:focus-within { outline: 3px solid var(--focus-ring); outline-offset: 3px; }
 .library-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-sm); margin: 20px 0 var(--space-md); }
 .journal-filters { display: flex; flex-wrap: wrap; gap: 6px; }
-.journal-filters button { min-height: 40px; padding: 8px 16px; border: 1px solid transparent; border-radius: var(--control-radius); color: var(--muted); font-size: 12px; transition: background .18s ease; }
+.journal-filters button { min-height: 44px; padding: 8px 16px; border: 1px solid transparent; border-radius: var(--control-radius); color: var(--muted); font-size: 12px; transition: background .18s ease; }
 .journal-filters button:hover { background: var(--accent-soft); }
 .journal-filters button[aria-pressed="true"] { border-color: var(--line); background: var(--paper); color: var(--ink); box-shadow: 0 2px 8px -6px var(--ink); font-weight: 600; }
 .trip-collection { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-md); align-items: stretch; }
@@ -773,3 +773,29 @@ body { line-height: 1.5; }
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
   .btn:hover, .scrap:hover, .trip-journal-card:hover, .theme-option:hover, .trip-journal-card:hover .trip-open { transform: none; }
 }
+
+/* Journey workspace: one date context, readable numbered routes and explicit next steps. */
+.journey-next { border-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 40%, var(--paper)); }
+.route-stop-number { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; min-width: 28px; min-height: 28px; border-radius: 50%; background: var(--ink); color: var(--paper); font-size: 12px; font-weight: 600; }
+.map-stop-icon, .map-arrow-icon { background: transparent; border: 0; }
+.map-stop-label { display: grid; width: 36px; height: 36px; place-items: center; border: 2px solid white; border-radius: 50%; color: white; font: 600 12px system-ui; box-shadow: 0 2px 8px #0005; }
+.map-stop-label.is-selected { outline: 3px solid var(--ink); outline-offset: 3px; }
+.map-stop-label.is-checked { border-style: double; border-width: 5px; }
+.map-route-arrow { display: block; width: 24px; height: 24px; text-align: center; font: 700 24px/24px system-ui; text-shadow: 0 1px 2px white; }
+@media (pointer: coarse) { button.route-stop-number { min-width: 44px; min-height: 44px; } }
+@media (max-width: 639px) {
+  .plan-stop-layout { display: grid; grid-template-columns: 20px 28px minmax(0, 1fr); gap: 10px; }
+  .plan-stop-layout > .stop-time { grid-column: 3; width: 110px; }
+  .plan-stop-layout > .stop-details { grid-column: 1 / -1; }
+  .plan-stop-layout > .stop-actions { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
+  .plan-stop-layout > .stop-actions > button { min-height: 44px; }
+  .plan-stop-layout > .stop-actions > a { display: inline-flex; min-height: 44px; align-items: center; }
+}
+@media print {
+  .share-controls, .guide-dock, .guide-cat, [data-guide="boomi"] { display: none !important; }
+  body:has(.share-page) { background: white; }
+  .share-page { padding: 0 !important; background: white !important; color: black !important; }
+  .share-page .paper { box-shadow: none !important; break-inside: avoid; }
+}
+.map-stop-label { position: relative; z-index: 1; }
+.map-stop-leader { position: absolute; left: 18px; top: 18px; height: 2px; transform-origin: left center; pointer-events: none; }

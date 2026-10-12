@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import {
   DndContext,
   PointerSensor,
@@ -12,13 +12,17 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities'
 import { Camera, GripVertical, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { useApp, useTrip } from '../store'
-import type { PlaceSetting, PlaceStop, PlanVariant, Priority, TransportMode } from '../types'
+import type { PlaceSetting, PlaceStop, PlanVariant, Priority, TransportMode, SavedItem } from '../types'
 import { TRANSPORT, WEATHER } from '../catalog'
-import { formatDayLong, money, nearestNeighbor, addMinutesToTime, compressPhoto, safeWebUrl } from '../lib'
+import { formatDayLong, money, toISODate, addMinutesToTime, compressPhoto, safeWebUrl } from '../lib'
 import { Label, Modal, Tone } from '../ui'
 import { activePlaces, dayDistance, outdoorRatio, suggestedSwap, weatherAdvice } from '../domain'
 import DaySuggest from '../DaySuggest'
-import { ensurePlaceGeo, hopMeta, mapsDayRoute, mapsDirUrl, mapsPlaceUrl, routeHop, searchPlaces, type HopRoute, type PlaceSearchHit } from '../geo'
+import ScheduleSaved from '../ScheduleSaved'
+import { useTripContext } from '../useTripContext'
+import { planFingerprint, type RecommendationUndo } from '../recommendationApplication'
+import { nearbyOrder, scheduleConflicts } from '../planOrdering'
+import { ensurePlaceGeo, hopMeta, mapsNavigateUrl, mapsDayRoute, mapsDirUrl, mapsPlaceUrl, routeHop, searchPlaces, type HopRoute, type PlaceSearchHit } from '../geo'
 import { PLACE_CATS, placeCatLabel, priorityLabel, settingLabel, transportLabel, useT } from '../i18n'
 
 export default function Plan() {
@@ -26,11 +30,16 @@ export default function Plan() {
   const trip = useTrip(id)
   const { addDayPlace, removePlace, reorderPlaces, setActivePlan, updatePlace, updateTrip, replacePlaces, applyRecommendation, undoRecommendation } = useApp()
   const { t, locale } = useT()
-  const [dayId, setDayId] = useState(trip?.days[0]?.id)
+  const { day, placeId, selectDay, href } = useTripContext(trip)
+  const [recommendOpen, setRecommendOpen] = useState(false)
+  const [savedOpen, setSavedOpen] = useState(false)
+  const [savedItem, setSavedItem] = useState<SavedItem | null>(null)
+  const [ordering, setOrdering] = useState<{ before: string; places: PlaceStop[] } | null>(null)
+  const [undo, setUndo] = useState<{ dayId: string; plan: PlanVariant; snapshot: RecommendationUndo } | null>(null)
+  const [notice, setNotice] = useState('')
   const [open, setOpen] = useState(false)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
-  const day = trip?.days.find((d) => d.id === dayId) || trip?.days[0]
   const places = day ? activePlaces(day) : []
   const advice = day ? weatherAdvice(day, t) : null
   const dist = dayDistance(places)
@@ -60,6 +69,10 @@ export default function Plan() {
     }
   }, [trip?.id, day?.id, places.map((p) => p.id).join(',')])
 
+  useEffect(() => {
+    if (placeId) document.getElementById(`stop-${placeId}`)?.scrollIntoView({ block: 'center', behavior: 'instant' })
+  }, [day?.id, placeId])
+
   if (!trip || !day) return null
   const currentTrip = trip
   const currentDay = day
@@ -82,7 +95,8 @@ export default function Plan() {
           {trip.days.map((d, i) => (
             <button
               key={d.id}
-              onClick={() => setDayId(d.id)}
+              onClick={() => { selectDay(d.id); setRecommendOpen(false) }}
+              aria-pressed={d.id === day.id}
               className="paper min-w-[140px] p-3 text-left"
               style={{ outline: d.id === day.id ? '2px solid var(--ink)' : undefined }}
             >
@@ -117,6 +131,11 @@ export default function Plan() {
           </div>
         </div>
 
+        {day.date === toISODate(new Date()) && places.length > 0 && <section className="paper journey-next p-4">
+          <p className="text-xs" style={{ color: 'var(--muted)' }}>{t('journey.nextStop')}</p>
+          {(() => { const next = places.find((place) => !place.checkedIn); return next ? <div className="mt-2 flex flex-wrap items-center justify-between gap-3"><div><h3 className="display text-2xl">{next.time} · {next.name}</h3></div><a className="btn no-underline" href={mapsNavigateUrl(`${next.name} ${day.city}`, next.coords, day.transportMode)} target="_blank" rel="noreferrer">{t('journey.navigate')}</a></div> : <div className="mt-2"><h3 className="display text-2xl">{t('journey.dayDone')}</h3><Link className="btn btn-ghost mt-3 no-underline" to={href('journal')}>{t('trip.journal')} →</Link></div> })()}
+        </section>}
+
         <div className="flex flex-wrap gap-2 text-sm">
           <span className="chip">
             {WEATHER[day.weather.condition].icon} {day.weather.tMin}–{day.weather.tMax}°C · {t('plan.rainChip', { n: day.weather.rainProb })}
@@ -143,7 +162,59 @@ export default function Plan() {
           </div>
         )}
 
-        <DaySuggest
+
+
+
+
+        <div className="flex flex-wrap gap-2">
+          <button className="btn" onClick={() => setOpen(true)}><Plus size={16} />{t('plan.addPlace')}</button>
+          <button className="btn btn-ghost" onClick={() => setSavedOpen(true)}>{t('journey.addSaved')}</button>
+          <Link className="btn btn-ghost no-underline" to={href('map')}>{t('journey.map')}</Link>
+          {mapsDayRoute(places) && <a className="btn btn-ghost no-underline" href={mapsDayRoute(places)} target="_blank" rel="noreferrer">{t('plan.openRoute')}</a>}
+          <button className="btn btn-ghost" data-guide="recommend" aria-expanded={recommendOpen} onClick={() => setRecommendOpen(!recommendOpen)}><Sparkles size={16} />{t('journey.recommend')}</button>
+        </div>
+        {(notice || undo) && <div role="status" className="flex flex-wrap items-center gap-3 text-sm"><span>{notice}</span>{undo && <button className="btn btn-ghost text-sm" onClick={() => { const restored = undoRecommendation(trip.id, undo.dayId, undo.plan, undo.snapshot); setNotice(restored ? t('journey.restored') : t('journey.undoChanged')); setUndo(null) }}>{t('journey.undo')}</button>}</div>}
+
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <SortableContext items={places.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2">
+              {places.length === 0 && (
+                <div className="paper p-8 text-center text-sm" style={{ color: 'var(--muted)' }}>
+                  {plan === 'B' ? t('plan.emptyB') : t('plan.emptyA')}
+                </div>
+              )}
+              {places.map((place, i) => (
+                <SortablePlace
+                  key={place.id}
+                  number={i + 1}
+                  selected={placeId === place.id}
+                  bookingHref={href('bookings')}
+                  place={place}
+                  city={day.city}
+                  next={places[i + 1]}
+                  onRemove={() => { const before = [...places]; removePlace(trip.id, day.id, plan, place.id); setUndo({ dayId: day.id, plan, snapshot: { before, after: planFingerprint(before.filter((item) => item.id !== place.id)) } }); setNotice(t('journey.deleted', { name: place.name })) }}
+                  onPatch={(patch) => updatePlace(trip.id, day.id, plan, place.id, patch)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+
+
+
+        <div>
+          <Label>{t('plan.dayNotes')}</Label>
+          <textarea
+            className="field min-h-[80px]"
+            value={day.notes || ''}
+            onChange={(e) =>
+              updateTrip(trip.id, {
+                days: trip.days.map((d) => (d.id === day.id ? { ...d, notes: e.target.value } : d)),
+              })
+            }
+          />
+        </div>
+        {recommendOpen && <div data-guide="recommend-panel"><DaySuggest
           key={`${trip.id}-${day.id}-${plan}-${locale}`}
           city={day.city}
           date={day.date}
@@ -154,9 +225,10 @@ export default function Plan() {
           planned={planned}
           onApply={(next, mode, expected) => applyRecommendation(trip.id, day.id, plan, mode, next, expected)}
           onUndo={(undo) => undoRecommendation(trip.id, day.id, plan, undo)}
-        />
-
-        {day.transportMode === 'self-drive' && (
+        /></div>}
+        <details className="paper p-4"><summary className="cursor-pointer text-sm font-medium">{t('journey.tools')}</summary><div className="mt-4 space-y-4">
+          <button className="btn btn-ghost" disabled={places.length < 3} onClick={() => setOrdering({ before: planFingerprint(places), places: nearbyOrder(places) })}>{t('plan.optimize')}</button>
+          {day.transportMode === 'self-drive' && (
           <SmartStops
             city={day.city}
             existing={places.map((p) => p.name)}
@@ -184,68 +256,31 @@ export default function Plan() {
             </button>
           </div>
         )}
-
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-          <SortableContext items={places.map((p) => p.id)} strategy={verticalListSortingStrategy}>
-            <div className="space-y-2">
-              {places.length === 0 && (
-                <div className="paper p-8 text-center text-sm" style={{ color: 'var(--muted)' }}>
-                  {plan === 'B' ? t('plan.emptyB') : t('plan.emptyA')}
-                </div>
-              )}
-              {places.map((place, i) => (
-                <SortablePlace
-                  key={place.id}
-                  place={place}
-                  city={day.city}
-                  next={places[i + 1]}
-                  onRemove={() => removePlace(trip.id, day.id, plan, place.id)}
-                  onPatch={(patch) => updatePlace(trip.id, day.id, plan, place.id, patch)}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
-
-        <div className="flex flex-wrap gap-2">
-          <button className="btn" onClick={() => setOpen(true)}>
-            <Plus size={16} /> {t('plan.addPlace')}
-          </button>
-          <button
-            className="btn btn-ghost"
-            onClick={() => replacePlaces(trip.id, day.id, plan, nearestNeighbor(places))}
-            disabled={places.length < 3}
-          >
-            {t('plan.optimize')}
-          </button>
-          {mapsDayRoute(places) && (
-            <a className="btn btn-ghost no-underline" href={mapsDayRoute(places)} target="_blank" rel="noreferrer">
-              {t('plan.openRoute')}
-            </a>
-          )}
-        </div>
-
-        <div>
-          <Label>{t('plan.dayNotes')}</Label>
-          <textarea
-            className="field min-h-[80px]"
-            value={day.notes || ''}
-            onChange={(e) =>
-              updateTrip(trip.id, {
-                days: trip.days.map((d) => (d.id === day.id ? { ...d, notes: e.target.value } : d)),
-              })
-            }
-          />
-        </div>
+        </div></details>
+        <Modal open={!!ordering} title={t('journey.optimizeTitle')} onClose={() => setOrdering(null)}>
+          <p className="text-sm" style={{ color: 'var(--muted)' }}>{t('journey.optimizeHint')}</p>
+          <ol className="mt-4 space-y-2 text-sm">{ordering?.places.map((place, index) => <li key={place.id}>{index + 1}. {place.time || '—'} · {place.name}{place.booked ? ' 🔒' : ''}</li>)}</ol>
+          {ordering && scheduleConflicts(ordering.places).length > 0 && <p className="mt-3 text-sm" style={{ color: 'var(--warn)' }}>{t('journey.conflicts', { names: scheduleConflicts(ordering.places).map((place) => place.name).join(' · ') })}</p>}
+          <button className="btn mt-4" onClick={() => { if (!ordering) return; if (ordering.before !== planFingerprint(places)) { setNotice(t('journey.orderChanged')); setOrdering(null); return }; replacePlaces(trip.id, day.id, plan, ordering.places); setUndo({ dayId: day.id, plan, snapshot: { before: [...places], after: planFingerprint(ordering.places) } }); setNotice(t('journey.ordered')); setOrdering(null) }}>{t('journey.applyOrder')}</button>
+        </Modal>
+        <Modal open={savedOpen} title={t('journey.addSaved')} onClose={() => setSavedOpen(false)}>
+          <div className="space-y-2">{trip.saved.filter((item) => ['restaurant', 'place', 'activity', 'souvenir'].includes(item.kind) && item.status !== 'rejected').map((item) => <button key={item.id} className="paper flex min-h-12 w-full items-center justify-between gap-3 p-3 text-left" onClick={() => { setSavedOpen(false); setSavedItem(item) }}>{item.name}<Plus size={16} /></button>)}</div>
+          {!trip.saved.some((item) => ['restaurant', 'place', 'activity', 'souvenir'].includes(item.kind) && item.status !== 'rejected') && <p className="text-sm">{t('journey.noSaved')}</p>}
+          <Link className="btn btn-ghost mt-4 no-underline" to={href('saved')}>{t('trip.saved')} →</Link>
+        </Modal>
+        {savedItem && <ScheduleSaved key={savedItem.id} trip={trip} item={savedItem} onClose={() => setSavedItem(null)} />}
         <AddPlaceModal
           open={open}
           city={day.city}
           onClose={() => setOpen(false)}
           onAdd={(place) => {
-            void ensurePlaceGeo(day.city, place).then((g) => {
-              addDayPlace(trip.id, day.id, plan, g)
-              setOpen(false)
-            })
+            const newId = addDayPlace(trip.id, day.id, plan, { ...place, locationPending: !place.coords })
+            setOpen(false)
+            void ensurePlaceGeo(day.city, place).then((located) => {
+              const latest = useApp.getState().trips.find((item) => item.id === trip.id)?.days.find((item) => item.id === day.id)
+              const stop = (plan === 'A' ? latest?.planA : latest?.planB)?.find((item) => item.id === newId)
+              if (located.coords && stop?.name === place.name && !stop.coords) updatePlace(trip.id, day.id, plan, newId, { coords: located.coords, address: located.address, locationPending: false })
+            }).catch(() => {})
           }}
         />
       </div>
@@ -254,12 +289,16 @@ export default function Plan() {
 }
 
 function SortablePlace({
+  number, selected, bookingHref,
   place,
   city,
   next,
   onRemove,
   onPatch,
 }: {
+  number: number
+  selected: boolean
+  bookingHref: string
   place: PlaceStop
   city: string
   next?: PlaceStop
@@ -271,22 +310,23 @@ function SortablePlace({
   const style = { transform: CSS.Transform.toString(transform), transition }
   const ticketUrl = safeWebUrl(place.ticketUrl)
   return (
-    <div ref={setNodeRef} style={style} className="paper relative p-4">
+    <div ref={setNodeRef} id={`stop-${place.id}`} style={{ ...style, outline: selected ? '2px solid var(--accent)' : undefined, scrollMarginTop: 100 }} className="paper relative p-4">
       {place.booked && (
         <span className="stamp absolute right-10 top-3 z-10">booked</span>
       )}
-      <div className="flex items-start gap-3">
+      <div className="plan-stop-layout flex items-start gap-3">
         <button className="mt-1 opacity-50" {...attributes} {...listeners} aria-label={t('plan.drag')}>
           <GripVertical size={16} />
         </button>
+        <span className="route-stop-number">{number}</span>
         <input
-          className="w-[72px] rounded-lg border px-2 py-1 text-sm"
+          type="time" aria-label={t('plan.time')} className="stop-time w-[72px] rounded-lg border px-2 py-1 text-sm"
           style={{ borderColor: 'var(--line)', background: 'transparent' }}
           value={place.time || ''}
           onChange={(e) => onPatch({ time: e.target.value })}
           placeholder="09:00"
         />
-        <div className="min-w-0 flex-1">
+        <div className="stop-details min-w-0 flex-1">
           <div className="font-medium">{place.name}</div>
           <div className="mt-1 flex flex-wrap gap-1.5 text-xs">
             <span className="chip">{placeCatLabel(t, place.category)}</span>
@@ -345,12 +385,12 @@ function SortablePlace({
             <PlaceHop from={place} to={next} onMode={(mode) => onPatch({ transportToNext: mode })} />
           )}
         </div>
-        <div className="flex flex-col items-end gap-2">
+        <div className="stop-actions flex flex-col items-end gap-2">
           <EditPlaceBtn place={place} onPatch={onPatch} />
           <CheckInBtn place={place} onPatch={onPatch} />
-          <label className="text-xs" style={{ color: 'var(--muted)' }}>
+          {place.bookingId ? <Link className="text-xs underline" to={bookingHref} title={t('journey.orderLinked')}>{t('journey.order')}</Link> : <label className="text-xs" style={{ color: 'var(--muted)' }}>
             <input type="checkbox" checked={!!place.booked} onChange={(e) => onPatch({ booked: e.target.checked })} /> {t('plan.bookingCheck')}
-          </label>
+          </label>}
           <button className="opacity-50 hover:opacity-100" onClick={onRemove} aria-label={t('plan.delete')}>
             <Trash2 size={16} />
           </button>

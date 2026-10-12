@@ -16,10 +16,10 @@ const COORDS_FIELDS = ['lat', 'lng']
 const PLACE_FIELDS = [
   'id', 'locationPending', 'name', 'category', 'setting', 'time', 'durationMin', 'notes', 'cost',
   'ticketNeeded', 'ticketUrl', 'booked', 'priority', 'transportToNext', 'coords', 'address',
-  'socialBuzz', 'checkedIn', 'checkedInAt', 'feeling',
+  'socialBuzz', 'checkedIn', 'checkedInAt', 'feeling', 'sourceSavedId', 'bookingId',
 ]
 const PLACE_COST_FIELDS = [...MONEY_FIELDS, 'status']
-const DAY_FIELDS = ['id', 'date', 'city', 'weather', ...PLAN_FIELDS, 'activePlan', 'notes', 'transportMode', 'stay']
+const DAY_FIELDS = ['id', 'date', 'city', 'weather', ...PLAN_FIELDS, 'activePlan', 'notes', 'transportMode', 'stay', 'stayBookingId']
 const DECISION_PRICE_FIELDS = ['min', 'max', 'currency', 'basis']
 const DECISION_RATING_FIELDS = ['value', 'count', 'sourceUrl']
 const ATTRIBUTION_FIELDS = ['name', 'url']
@@ -387,6 +387,8 @@ function validatePlace(value, path, placeIds, collectionPath) {
   stringValue(place.name, `${path}.name`)
   stringValue(place.category, `${path}.category`)
   enumValue(place.setting, PLACE_SETTINGS, `${path}.setting`)
+  optional(place, 'sourceSavedId', path, stringValue)
+  optional(place, 'bookingId', path, stringValue)
   optional(place, 'locationPending', path, booleanValue)
   optional(place, 'time', path, stringValue)
   optional(place, 'durationMin', path, (entry, entryPath) => boundedInteger(entry, 1, 1440, entryPath))
@@ -425,6 +427,7 @@ function validateDay(value, path, dayIds, placeIds, tripPath) {
   enumValue(day.transportMode, TRANSPORT_MODES, `${path}.transportMode`)
   optional(day, 'notes', path, stringValue)
   optional(day, 'stay', path, stringValue)
+  optional(day, 'stayBookingId', path, stringValue)
 }
 
 function validateMember(value, path, ids, collectionPath) {

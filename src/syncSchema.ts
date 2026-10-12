@@ -140,7 +140,7 @@ function sanitizeSaved(value: unknown) {
 function sanitizePlace(value: unknown) {
   const clean = pickKnown(value, ['id', 'locationPending', 'name', 'category', 'setting', 'time', 'durationMin', 'notes', 'cost',
     'ticketNeeded', 'ticketUrl', 'booked', 'priority', 'transportToNext', 'coords', 'address', 'socialBuzz', 'checkedIn',
-    'checkedInAt', 'feeling'])
+    'checkedInAt', 'feeling', 'sourceSavedId', 'bookingId'])
   if (!record(clean)) return clean
   if (Object.hasOwn(clean, 'cost')) clean.cost = sanitizeMoney(clean.cost, true)
   if (Object.hasOwn(clean, 'coords')) clean.coords = pickKnown(clean.coords, ['lat', 'lng'])
@@ -148,7 +148,7 @@ function sanitizePlace(value: unknown) {
 }
 
 function sanitizeDay(value: unknown) {
-  const clean = pickKnown(value, ['id', 'date', 'city', 'weather', 'planA', 'planB', 'activePlan', 'notes', 'transportMode', 'stay'])
+  const clean = pickKnown(value, ['id', 'date', 'city', 'weather', 'planA', 'planB', 'activePlan', 'notes', 'transportMode', 'stay', 'stayBookingId'])
   if (!record(clean)) return clean
   if (Object.hasOwn(clean, 'weather')) {
     clean.weather = pickKnown(clean.weather, ['condition', 'tMin', 'tMax', 'rainProb', 'rainWindow', 'summary', 'source', 'precipMm'])
@@ -250,6 +250,8 @@ function place(value: JsonRecord, ids: Set<string>, allowLocalFields: boolean) {
     && stringValue(value.name)
     && stringValue(value.category)
     && enumValue(value.setting, PLACE_SETTINGS)
+    && optional(value, 'sourceSavedId', stringValue)
+    && optional(value, 'bookingId', stringValue)
     && optional(value, 'locationPending', booleanValue)
     && optional(value, 'time', stringValue)
     && optional(value, 'durationMin', (entry) => integerIn(entry, 1, 1440))
@@ -408,7 +410,7 @@ function trip(value: JsonRecord, ids: Set<string>, allowLocalFields: boolean) {
     const plansValid = arrayOf(entry.planA, (item) => record(item) && place(item, placeIds, allowLocalFields), 200)
       && arrayOf(entry.planB, (item) => record(item) && place(item, placeIds, allowLocalFields), 200)
     return plansValid && enumValue(entry.activePlan, PLAN_VARIANTS) && enumValue(entry.transportMode, TRANSPORT_MODES)
-      && optional(entry, 'notes', stringValue) && optional(entry, 'stay', stringValue)
+      && optional(entry, 'notes', stringValue) && optional(entry, 'stay', stringValue) && optional(entry, 'stayBookingId', stringValue)
   }, 730)) return false
 
   return uniqueArray(value.saved, (item, itemIds) => savedItem(item, itemIds, allowLocalFields), 5000)

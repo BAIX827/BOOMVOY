@@ -63,6 +63,8 @@ export interface WeatherSnap {
 
 export interface PlaceStop {
   id: string
+  sourceSavedId?: string
+  bookingId?: string
   /** Recommendation lookup could not confirm this location; require user review. */
   locationPending?: boolean
   name: string
@@ -97,6 +99,7 @@ export interface DayPlan {
   notes?: string
   transportMode: TransportMode
   stay?: string
+  stayBookingId?: string
 }
 
 export interface SavedItem {

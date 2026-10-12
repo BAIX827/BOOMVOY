@@ -207,6 +207,7 @@ export default function CreateTrip() {
             </div>
           </div>
         )}
+        {step === 1 && <div className="mt-6 border-t pt-4" style={{ borderColor: 'var(--line)' }}><button className="btn btn-ghost" onClick={() => { const issue = validate(0) || validate(1) || validate(2); setError(issue); if (!issue) submit() }}>{t('journey.quickCreate')}</button><p className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>{t('journey.quickCreateHint')}</p></div>}
         {error && <p className="mt-4 text-sm" style={{ color: 'var(--warn)' }}>{error}</p>}
         <div className="mt-6 flex justify-between">
           <button className="btn btn-ghost" disabled={step === 0} onClick={() => { setError(''); setStep((s) => s - 1) }}>

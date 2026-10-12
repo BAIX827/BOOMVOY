@@ -2,7 +2,10 @@ import { useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import { useApp, useTrip } from '../store'
 import { KINDS } from '../catalog'
-import type { DecisionStatus, SavedKind } from '../types'
+import type { DecisionStatus, SavedKind, SavedItem } from '../types'
+import ScheduleSaved from '../ScheduleSaved'
+import { Link } from 'react-router-dom'
+import { useTripContext } from '../useTripContext'
 import { Label, Modal, Tone } from '../ui'
 import { money, safeWebUrl } from '../lib'
 import { kindLabel, statusLabel, useT } from '../i18n'
@@ -19,6 +22,8 @@ export default function Saved() {
   const { t } = useT()
   const [kind, setKind] = useState<SavedKind | 'all'>('all')
   const [open, setOpen] = useState(false)
+  const [scheduling, setScheduling] = useState<SavedItem | null>(null)
+  const { href } = useTripContext(trip)
   if (!trip) return null
   const items = trip.saved.filter((s) => kind === 'all' || s.kind === kind)
 
@@ -103,6 +108,7 @@ export default function Saved() {
               </a>
             )}
             <div className="mt-3 flex flex-wrap gap-2">
+              {['hotel', 'restaurant', 'place', 'activity', 'souvenir'].includes(s.kind) && <button className="btn px-3 py-2 text-sm" onClick={() => setScheduling(s)}>{t('journey.schedule')}</button>}
               {(() => {
                 const board = trip.compares.find((item) => item.kind === s.kind)
                 const added = !!board?.itemIds.includes(s.id)
@@ -119,6 +125,7 @@ export default function Saved() {
                   </button>
                 )
               })()}
+              {trip.compares.some((board) => board.itemIds.includes(s.id)) && <Link className="btn btn-ghost px-3 py-1 text-xs no-underline" to={href('compare')}>{t('trip.compare')} →</Link>}
               <button className="btn btn-ghost px-3 py-1 text-xs" onClick={() => removeSaved(trip.id, s.id)}>
                 {t('saved.delete')}
               </button>
@@ -126,6 +133,7 @@ export default function Saved() {
           </article>
         })}
       </div>
+      {scheduling && <ScheduleSaved key={scheduling.id} trip={trip} item={scheduling} onClose={() => setScheduling(null)} />}
       <AddSaved
         open={open}
         onClose={() => setOpen(false)}

@@ -21,6 +21,7 @@ import { cityForDay, copyJSON, eachDate, uid } from './lib'
 import { hasTravelRecord, planFingerprint, prepareRecommendation, type RecommendationApplyResult, type RecommendationMode, type RecommendationUndo } from './recommendationApplication'
 import { selectDecision } from './decisionSelection'
 import type { DecisionCandidate, DecisionPreferences } from './decisionTypes'
+import { reconcileBookingLinks } from './bookingLinkage'
 
 interface AppState {
   profile: Profile
@@ -44,7 +45,8 @@ interface AppState {
   deleteTrip: (id: string) => void
   cloneTrip: (id: string, asMine?: boolean) => string
   cloneDay: (tripId: string, dayId: string, targetTripId: string) => void
-  addDayPlace: (tripId: string, dayId: string, plan: PlanVariant, place: Omit<PlaceStop, 'id'>) => void
+  addDayPlace: (tripId: string, dayId: string, plan: PlanVariant, place: Omit<PlaceStop, 'id'>) => string
+  scheduleSaved: (tripId: string, savedId: string, dayId: string, time: string, checkout?: string) => string | null
   updatePlace: (tripId: string, dayId: string, plan: PlanVariant, placeId: string, patch: Partial<PlaceStop>) => void
   removePlace: (tripId: string, dayId: string, plan: PlanVariant, placeId: string) => void
   reorderPlaces: (tripId: string, dayId: string, plan: PlanVariant, ids: string[]) => void
@@ -212,15 +214,43 @@ export const useApp = create<AppState>()(
           trips: patchTrip(get().trips, targetTripId, (t) => ({ ...t, days: [...t.days, cloned] })),
         })
       },
-      addDayPlace: (tripId, dayId, plan, place) =>
+      addDayPlace: (tripId, dayId, plan, place) => {
+        const id = uid()
         set({
           trips: patchTrip(get().trips, tripId, (t) =>
             patchDay(t, dayId, (d) => {
               const key = plan === 'A' ? 'planA' : 'planB'
-              return { ...d, [key]: [...d[key], { ...place, id: uid() }] }
+              return { ...d, [key]: [...d[key], { ...place, id }] }
             }),
           ),
-        }),
+        })
+        return id
+      },
+      scheduleSaved: (tripId, savedId, dayId, time, checkout) => {
+        const trip = get().trips.find((item) => item.id === tripId)
+        const saved = trip?.saved.find((item) => item.id === savedId)
+        const day = trip?.days.find((item) => item.id === dayId)
+        if (!trip || !saved || !day || !['hotel', 'restaurant', 'place', 'activity', 'souvenir'].includes(saved.kind)) return null
+        if (saved.kind === 'hotel') {
+          if (!checkout || !trip.days.some((item) => item.date === checkout) || checkout <= day.date) return null
+          const existing = trip.bookings.find((item) => item.sourceSavedId === savedId && item.date === day.date && item.status !== 'cancelled' && item.status !== 'refunded')
+          const booking: Booking = { ...existing, id: existing?.id || uid(), kind: 'hotel', name: saved.name, status: existing?.status || 'need', date: day.date, checkout, url: saved.url, cost: existing?.cost, sourceSavedId: savedId }
+          const next = reconcileBookingLinks({ ...trip, bookings: existing ? trip.bookings.map((item) => item.id === existing.id ? booking : item) : [...trip.bookings, booking],
+            saved: trip.saved.map((item) => item.id === savedId && item.status !== 'booked' ? { ...item, status: 'chosen' as const } : item),
+            days: trip.days.map((item) => item.date >= day.date && item.date < checkout ? { ...item, stay: saved.name, stayBookingId: booking.id } : item),
+          })
+          set({ trips: patchTrip(get().trips, tripId, () => next) })
+          return booking.id
+        }
+        if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return null
+        const key = day.activePlan === 'A' ? 'planA' : 'planB'
+        const duplicate = day[key].find((place) => place.sourceSavedId === savedId)
+        if (duplicate) return duplicate.id
+        const id = uid()
+        const place: PlaceStop = { id, sourceSavedId: savedId, name: saved.name, time, category: saved.kind === 'restaurant' ? '餐饮' : saved.kind === 'souvenir' ? '购物' : saved.kind === 'activity' ? '活动' : '景点', setting: saved.kind === 'restaurant' ? 'indoor' : 'mixed', notes: saved.notes, transportToNext: day.transportMode, cost: saved.price ? { ...saved.price, status: 'estimated' } : undefined }
+        set({ trips: patchTrip(get().trips, tripId, () => reconcileBookingLinks(patchDay(trip, dayId, (item) => ({ ...item, [key]: [...item[key], place] })))) })
+        return id
+      },
       updatePlace: (tripId, dayId, plan, placeId, patch) =>
         set({
           trips: patchTrip(get().trips, tripId, (t) =>
@@ -292,12 +322,12 @@ export const useApp = create<AppState>()(
         if (!trip) return 'trip'
         const result = selectDecision(trip, candidate, preferences, label, choose, boardTitle)
         if ('error' in result) return result.error
-        set({ trips: get().trips.map((entry) => entry.id === tripId ? result.trip : entry) })
+        set({ trips: get().trips.map((entry) => entry.id === tripId ? reconcileBookingLinks(result.trip) : entry) })
         return null
       },
       updateSaved: (tripId, itemId, patch) =>
         set({
-          trips: patchTrip(get().trips, tripId, (t) => ({
+          trips: patchTrip(get().trips, tripId, (t) => reconcileBookingLinks({
             ...t,
             saved: t.saved.map((s) => (s.id === itemId ? { ...s, ...patch } : s)),
           })),
@@ -349,23 +379,24 @@ export const useApp = create<AppState>()(
         }),
       addBooking: (tripId, item) =>
         set({
-          trips: patchTrip(get().trips, tripId, (t) => ({
+          trips: patchTrip(get().trips, tripId, (t) => reconcileBookingLinks({
             ...t,
             bookings: [...t.bookings, { ...item, id: uid() }],
           })),
         }),
       updateBooking: (tripId, id, patch) =>
         set({
-          trips: patchTrip(get().trips, tripId, (t) => ({
+          trips: patchTrip(get().trips, tripId, (t) => reconcileBookingLinks({
             ...t,
             bookings: t.bookings.map((b) => (b.id === id ? { ...b, ...patch } : b)),
           })),
         }),
       removeBooking: (tripId, id) =>
         set({
-          trips: patchTrip(get().trips, tripId, (t) => ({
+          trips: patchTrip(get().trips, tripId, (t) => reconcileBookingLinks({
             ...t,
             bookings: t.bookings.filter((booking) => booking.id !== id),
+            saved: t.saved.map((item) => item.status === 'booked' && t.bookings.some((booking) => booking.id === id && booking.sourceSavedId === item.id) ? { ...item, status: 'chosen' as const } : item),
           })),
         }),
       addExpense: (tripId, item) =>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
+import { useTripContext } from '../useTripContext'
 import { useApp, useTrip } from '../store'
 import { DAY_COLORS, TRANSPORT } from '../catalog'
 import { activePlaces, cityRoute } from '../domain'
@@ -9,6 +10,8 @@ import TripMap, { type MapLine, type MapStop } from '../TripMap'
 import type { PlaceStop, TransportMode } from '../types'
 import { transportLabel, useT } from '../i18n'
 
+const hopKey = (a: PlaceStop, b: PlaceStop) => `${a.id}:${a.coords?.lat},${a.coords?.lng}:${a.transportToNext || 'public'}-${b.id}:${b.coords?.lat},${b.coords?.lng}`
+
 const HOP_MODES: TransportMode[] = ['walking', 'public', 'taxi', 'self-drive', 'cycling']
 
 export default function MapPage() {
@@ -16,12 +19,12 @@ export default function MapPage() {
   const trip = useTrip(id)
   const updatePlace = useApp((s) => s.updatePlace)
   const { t, locale } = useT()
-  const [filter, setFilter] = useState<'all' | string>('all')
+  const { day: selectedDay, placeId, selectDay, selectPlace, allDays, showAllDays, href } = useTripContext(trip)
+  const filter = allDays ? 'all' : selectedDay?.id
   const [routes, setRoutes] = useState<Record<string, HopRoute>>({})
-  if (!trip) return null
 
-  const days = filter === 'all' ? trip.days : trip.days.filter((d) => d.id === filter)
-  const geoFingerprint = trip.days.map((d) => `${d.id}:${d.city}:${d.activePlan}:${activePlaces(d)
+  const days = filter === 'all' ? (trip?.days || []) : (trip?.days || []).filter((d) => d.id === filter)
+  const geoFingerprint = (trip?.days || []).map((d) => `${d.id}:${d.city}:${d.activePlan}:${activePlaces(d)
     .map((p) => `${p.id}:${p.name}:${p.coords?.lat ?? ''},${p.coords?.lng ?? ''}`).join(',')}`).join('|')
   const routeFingerprint = days.map((d) => `${d.id}:${activePlaces(d)
     .map((p) => `${p.id}:${p.coords?.lat ?? ''},${p.coords?.lng ?? ''}:${p.transportToNext ?? ''}`).join(',')}`).join('|')
@@ -29,11 +32,11 @@ export default function MapPage() {
   useEffect(() => {
     let live = true
     ;(async () => {
-      for (const d of trip.days) {
+      for (const d of days) {
         for (const p of activePlaces(d)) {
           if (!p.coords) {
             const g = await ensurePlaceGeo(d.city, p)
-            if (g.coords && live) updatePlace(trip.id, d.id, d.activePlan, p.id, { coords: g.coords, address: g.address })
+            if (g.coords && live) updatePlace(trip!.id, d.id, d.activePlan, p.id, { coords: g.coords, address: g.address })
           }
         }
       }
@@ -41,34 +44,41 @@ export default function MapPage() {
     return () => {
       live = false
     }
-  }, [trip.id, geoFingerprint, updatePlace])
+  }, [trip?.id, filter, geoFingerprint, updatePlace])
 
   useEffect(() => {
     let live = true
     ;(async () => {
-      const next: Record<string, HopRoute> = {}
-      for (const d of days) {
-        const pts = activePlaces(d).filter((p) => p.coords)
-        for (let i = 0; i < pts.length - 1; i++) {
-          const a = pts[i]
-          const b = pts[i + 1]
+      const jobs = days.flatMap((d) => {
+        const pts = activePlaces(d)
+        return pts.slice(0, -1).flatMap((a, index) => {
+          const b = pts[index + 1]
+          return a.coords && b.coords ? [{ a, b }] : []
+        })
+      })
+      let cursor = 0
+      await Promise.all(Array.from({ length: Math.min(4, jobs.length) }, async () => {
+        while (cursor < jobs.length) {
+          const { a, b } = jobs[cursor++]
           const hop = await routeHop(a.coords!, b.coords!, a.transportToNext || 'public')
           if (!live) return
-          next[`${a.id}-${b.id}`] = hop
+          setRoutes((previous) => ({ ...previous, [hopKey(a, b)]: hop }))
         }
-      }
-      if (live) setRoutes(next)
+      }))
     })()
     return () => {
       live = false
     }
   }, [routeFingerprint])
 
+  useEffect(() => { if (placeId) document.getElementById(`map-list-${placeId}`)?.scrollIntoView({ block: 'nearest', behavior: 'instant' }) }, [placeId])
+
   const stops: MapStop[] = days.flatMap((d) => {
-    const color = DAY_COLORS[trip.days.findIndex((x) => x.id === d.id) % DAY_COLORS.length]
+    const dayIndex = (trip?.days || []).findIndex((x) => x.id === d.id)
+    const color = DAY_COLORS[dayIndex % DAY_COLORS.length]
     return activePlaces(d)
-      .filter((p) => p.coords)
-      .map((p) => ({
+      .map((p, index) => ({
+        number: filter === 'all' ? `${dayIndex + 1}.${index + 1}` : String(index + 1),
         id: p.id,
         name: p.name,
         time: p.time,
@@ -76,33 +86,38 @@ export default function MapPage() {
         color,
         checkedIn: p.checkedIn,
         feeling: p.feeling,
-      }))
+      })).filter((stop) => stop.coords)
   })
-  const lines: MapLine[] = Object.entries(routes).map(([id, hop]) => {
-    const day = trip.days.find((d) => activePlaces(d).some((p) => id.startsWith(p.id)))
-    const color = DAY_COLORS[Math.max(0, trip.days.findIndex((x) => x.id === day?.id)) % DAY_COLORS.length]
-    return { id, color, pts: hop.geometry }
+  const lines: MapLine[] = days.flatMap((day) => {
+    const pts = activePlaces(day)
+    const color = DAY_COLORS[(trip?.days || []).findIndex((entry) => entry.id === day.id) % DAY_COLORS.length]
+    return pts.slice(0, -1).flatMap((place, index) => {
+      const next = pts[index + 1], id = `${place.id}-${next.id}`, hop = routes[hopKey(place, next)]
+      return place.coords && next.coords ? [{ id, color, pts: hop?.geometry || [[place.coords.lat, place.coords.lng], [next.coords.lat, next.coords.lng]] as [number, number][], estimated: !hop || hop.source === 'estimate' }] : []
+    })
   })
+  if (!trip) return null
   const route = cityRoute(trip)
 
   return (
     <div className="space-y-4">
       <h1 className="display text-4xl">{t('map.title')}</h1>
       <div className="flex gap-2 overflow-auto pb-1">
-        <Chip active={filter === 'all'} onClick={() => setFilter('all')}>
+        <Chip active={filter === 'all'} onClick={() => showAllDays()}>
           {t('map.all')}
         </Chip>
-        {trip.days.map((d, i) => (
-          <Chip key={d.id} active={filter === d.id} onClick={() => setFilter(d.id)} color={DAY_COLORS[i % DAY_COLORS.length]}>
+        {(trip?.days || []).map((d, i) => (
+          <Chip key={d.id} active={filter === d.id} onClick={() => selectDay(d.id)} color={DAY_COLORS[i % DAY_COLORS.length]}>
             Day {i + 1} · {d.city}
           </Chip>
         ))}
       </div>
 
       <div className="paper overflow-hidden p-3">
-        <TripMap stops={stops} lines={lines} empty={t('map.empty')} />
+        <TripMap stops={stops} lines={lines} empty={t('journey.emptyMap')} selectedId={placeId} onSelect={(id) => { const day = trip.days.find((entry) => activePlaces(entry).some((place) => place.id === id)); selectPlace(id, day?.id) }} />
       </div>
 
+      <p className="text-xs" style={{ color: 'var(--muted)' }}>{t('journey.numbered')}</p>
       {filter === 'all' ? (
         <div className="paper p-5">
           <h2 className="display text-2xl">{t('map.nodes')}</h2>
@@ -130,7 +145,7 @@ export default function MapPage() {
       ) : (
         days.map((d) => {
           const pts = activePlaces(d)
-          const hops = pts.slice(0, -1).map((point, index) => routes[`${point.id}-${pts[index + 1].id}`]).filter(Boolean)
+          const hops = pts.slice(0, -1).map((point, index) => routes[hopKey(point, pts[index + 1])]).filter(Boolean)
           const routeKm = hops.reduce((sum, hop) => sum + hop.km, 0)
           const routeMinutes = hops.reduce((sum, hop) => sum + hop.minutes, 0)
           const estimated = hops.length < Math.max(0, pts.length - 1) || hops.some((hop) => hop.source === 'estimate')
@@ -139,22 +154,24 @@ export default function MapPage() {
               <h2 className="display text-2xl">
                 {d.city} · Plan {d.activePlan}
               </h2>
+              <Link className="btn btn-ghost mt-3 no-underline" to={href('plan', d.id)}>{t('journey.editDay')}</Link>
               <ol className="mt-3 space-y-3">
                 {pts.map((p, i) => (
-                  <li key={p.id} className="text-sm">
-                    <div className="flex gap-3">
+                  <li key={p.id} id={`map-list-${p.id}`} className="rounded-xl p-2 text-sm" style={{ background: placeId === p.id ? 'var(--accent-soft)' : undefined }}>
+                    <div className="flex items-center gap-3">
+                      <button className="route-stop-number" aria-label={`${i + 1}. ${p.name}`} aria-pressed={placeId === p.id} onClick={() => selectPlace(p.id)}>{i + 1}</button>
                       <span className="w-12" style={{ color: 'var(--muted)' }}>
                         {p.time || '—'}
                       </span>
-                      <span className="flex-1 font-medium">{p.name}</span>
+                      <button className="flex-1 text-left font-medium" onClick={() => selectPlace(p.id)}>{p.name}</button>
                       {p.checkedIn && <span className="chip">✓</span>}
                     </div>
                     {pts[i + 1] && (
                       <HopPick
                         from={p}
                         to={pts[i + 1]}
-                        hop={routes[`${p.id}-${pts[i + 1].id}`]}
-                        onMode={(mode) => updatePlace(trip.id, d.id, d.activePlan, p.id, { transportToNext: mode })}
+                        hop={routes[hopKey(p, pts[i + 1])]}
+                        onMode={(mode) => updatePlace(trip!.id, d.id, d.activePlan, p.id, { transportToNext: mode })}
                       />
                     )}
                   </li>

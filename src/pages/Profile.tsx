@@ -116,17 +116,18 @@ export default function Profile() {
       if (file.size > MAX_IMPORT_BYTES) throw new Error('too large')
       const data: unknown = JSON.parse(await file.text())
       if (!record(data) || data.schemaVersion !== undefined && data.schemaVersion !== 1 || !Array.isArray(data.trips)) throw new Error('invalid')
-      const importedProfile = mergeImportedProfile(data.profile, profile)
+      const sharedTrip = data.kind === 'boomvoy-trip'
+      const importedProfile = mergeImportedProfile(sharedTrip ? undefined : data.profile, profile)
       const snapshot: unknown = { schemaVersion: 1, profile: importedProfile, trips: data.trips }
       if (!isSyncSnapshot(snapshot, { allowLocalFields: true })) throw new Error('invalid')
       replaceTravelData({
-        trips: snapshot.trips,
+        trips: sharedTrip ? [...trips, ...snapshot.trips.filter((trip) => !trips.some((existing) => existing.id === trip.id))] : snapshot.trips,
         profile: {
           ...profile,
           ...snapshot.profile,
         },
       })
-      window.alert(t('profile.importDone', { n: snapshot.trips.length }))
+      window.alert(t('profile.importDone', { n: sharedTrip ? snapshot.trips.filter((trip) => !trips.some((existing) => existing.id === trip.id)).length : snapshot.trips.length }))
     } catch {
       window.alert(t('profile.importFail'))
     }

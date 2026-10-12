@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
+import { useTripContext } from '../useTripContext'
 import { useApp, useTrip } from '../store'
 import { WEATHER } from '../catalog'
 import { formatDayLong } from '../lib'
@@ -13,6 +14,7 @@ export default function Weather() {
   const trip = useTrip(id)
   const { setActivePlan, replacePlaces, patchDaysWeather } = useApp()
   const { t, locale } = useT()
+  const { day: selectedDay, selectDay, allDays, showAllDays, href } = useTripContext(trip)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   if (!trip) return null
@@ -52,7 +54,9 @@ export default function Weather() {
           {t('wx.updated', { at: trip.weatherUpdatedAt.replace('T', ' ').slice(0, 16) })}
         </p>
       )}
-      {trip.days.map((d, i) => {
+      <div className="flex gap-2 overflow-x-auto pb-1"><button className={allDays ? 'btn text-sm' : 'btn btn-ghost text-sm'} onClick={showAllDays}>{t('map.all')}</button>{trip.days.map((day, index) => <button key={day.id} className={!allDays && selectedDay?.id === day.id ? 'btn text-sm whitespace-nowrap' : 'btn btn-ghost text-sm whitespace-nowrap'} onClick={() => selectDay(day.id)}>Day {index + 1} · {day.city}</button>)}</div>
+      {trip.days.filter((day) => allDays || day.id === selectedDay?.id).map((d) => {
+        const i = trip.days.findIndex((day) => day.id === d.id)
         const places = activePlaces(d)
         const advice = weatherAdvice(d, t)
         const swap = suggestedSwap(d)
@@ -75,6 +79,7 @@ export default function Weather() {
               </div>
             </div>
             <p className="mt-2 text-sm">{weatherBlurb(d.weather, t)}</p>
+            <Link className="btn btn-ghost mt-3 text-sm no-underline" to={href('plan', d.id)}>{t('journey.editDay')}</Link>
             <div className="mt-3 flex flex-wrap gap-2 text-sm">
               <span className="chip">{t('wx.plan', { plan: d.activePlan })}</span>
               <span className="chip">{t('wx.outdoor', { n: Math.round(outdoorRatio(places) * 100) })}</span>

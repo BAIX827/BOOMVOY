@@ -21,7 +21,7 @@ export function guideSteps(t: TFn, tripId?: string): GuideStep[] {
   const trip = `/trip/${tripId}`
   return [
     step('step5', trip, '[data-guide="trip-nav"]'),
-    step('step6', `${trip}/plan`, '[data-guide="day-suggest"]'),
+    step('step6', `${trip}/plan`, '[data-guide="recommend"]'),
     step('step8', `${trip}/map`, '[data-guide="nav-map"]'),
     step('stepPack', `${trip}/pack`, '[data-guide="pack-list"]'),
     step('step9', `${trip}/bookings`, '[data-guide="booking-links"]'),

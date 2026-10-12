@@ -50,9 +50,7 @@ export default function Bookings() {
         </button>
       </div>
 
-      <div className="mb-6">
-        <BookingSearch trip={trip} />
-      </div>
+
 
       <div className="space-y-6">
         {groups.map((kind) => {
@@ -145,6 +143,7 @@ export default function Bookings() {
           )
         })}
       </div>
+      <details className="paper mt-6 p-4" open={trip.bookings.length === 0}><summary className="cursor-pointer text-sm font-medium" data-guide="booking-links">{t('journey.findBookings')}</summary><div className="mt-5"><BookingSearch trip={trip} /></div></details>
       <AddBooking
         key={editing?.id || 'new'}
         open={open}

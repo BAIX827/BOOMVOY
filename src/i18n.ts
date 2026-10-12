@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { decisionZh, decisionEn } from './decisionI18n'
+import { journeyZh, journeyEn } from './journeyI18n'
 import { useApp } from './store'
 import type {
   BookingStatus,
@@ -18,6 +19,7 @@ export type Vars = Record<string, string | number>
 export type TFn = (key: string, vars?: Vars) => string
 
 const zh = {
+  ...journeyZh,
   ...decisionZh,
   'nav.trips': '我的旅行',
   'nav.explore': '发现',
@@ -307,8 +309,8 @@ const zh = {
   'plan.weatherSwap': '天气替换建议',
   'plan.weatherSwapHint': '上午雨更大：把室内项目提前，户外挪到后面。',
   'plan.apply': '应用调整',
-  'plan.emptyB': '还没有雨天备选。上面有室内建议，也可以自己加。',
-  'plan.emptyA': '这一天还是空的。上面选一套建议，一键贴进计划表。',
+  'plan.emptyB': '添加室内地点，或点“帮我补充行程”安排雨天备选。',
+  'plan.emptyA': '添加一个地点，或点“帮我补充行程”获取建议。',
   'plan.addPlace': '添加地点',
   'plan.optimize': 'Optimize · 就近排序',
   'plan.openRoute': '打开当天路线',
@@ -783,6 +785,7 @@ const zh = {
 } as const
 
 const en: Record<keyof typeof zh, string> = {
+  ...journeyEn,
   ...decisionEn,
   'nav.trips': 'My trips',
   'nav.explore': 'Explore',
@@ -1072,8 +1075,8 @@ const en: Record<keyof typeof zh, string> = {
   'plan.weatherSwap': 'Weather reorder',
   'plan.weatherSwapHint': 'Heavier rain in the morning: indoor first, outdoor later.',
   'plan.apply': 'Apply changes',
-  'plan.emptyB': 'No rain backup yet. Indoor suggestions are above, or add your own.',
-  'plan.emptyA': 'This day is empty. Pick a suggestion above and drop it into the plan.',
+  'plan.emptyB': 'Add indoor stops, or choose “Help me fill this day” for a rain backup.',
+  'plan.emptyA': 'Add a stop, or choose “Help me fill this day” for suggestions.',
   'plan.addPlace': 'Add a place',
   'plan.optimize': 'Optimize · nearest order',
   'plan.openRoute': 'Open today’s route',

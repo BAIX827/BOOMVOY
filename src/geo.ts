@@ -13,8 +13,14 @@ export function mapsPlaceUrl(name: string, coords?: Coords) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name)}`
 }
 
+export function mapsNavigateUrl(name: string, coords?: Coords, mode: TransportMode = 'public') {
+  const travelmode = mode === 'walking' ? 'walking' : mode === 'cycling' ? 'bicycling' : mode === 'self-drive' || mode === 'taxi' ? 'driving' : 'transit'
+  const destination = coords ? `${coords.lat},${coords.lng}` : name
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}&travelmode=${travelmode}`
+}
+
 export function mapsDirUrl(a: Coords, b: Coords, mode: TransportMode = 'public') {
-  const travelmode = mode === 'walking' ? 'walking' : mode === 'self-drive' || mode === 'taxi' ? 'driving' : 'transit'
+  const travelmode = mode === 'walking' ? 'walking' : mode === 'cycling' ? 'bicycling' : mode === 'self-drive' || mode === 'taxi' ? 'driving' : 'transit'
   return `https://www.google.com/maps/dir/?api=1&origin=${a.lat},${a.lng}&destination=${b.lat},${b.lng}&travelmode=${travelmode}`
 }
 

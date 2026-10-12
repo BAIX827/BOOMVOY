@@ -1,5 +1,4 @@
 import type { Trip } from './types'
-import { cityRoute } from './domain'
 import { formatDay } from './lib'
 import { t, type Locale } from './i18n'
 
@@ -158,11 +157,13 @@ export function tripFlightPlan(trip: Trip, locale: Locale = 'zh') {
 }
 
 export function tripHotelStays(trip: Trip) {
-  const nodes = cityRoute(trip)
-  return nodes
-    .map((n, i) => {
-      const checkout = nodes[i + 1]?.start || trip.endDate
-      return { city: n.city, checkin: n.start, checkout, stay: n.stay }
-    })
-    .filter((s) => s.checkin < s.checkout)
+  const stays: Array<{ city: string; checkin: string; checkout: string; stay?: string; stayBookingId?: string }> = []
+  for (let index = 0; index < trip.days.length - 1; index++) {
+    const day = trip.days[index], checkout = trip.days[index + 1].date
+    if (day.date >= checkout) continue
+    const previous = stays[stays.length - 1]
+    if (previous && previous.city === day.city && previous.stay === day.stay && previous.stayBookingId === day.stayBookingId && previous.checkout === day.date) previous.checkout = checkout
+    else stays.push({ city: day.city, checkin: day.date, checkout, stay: day.stay, stayBookingId: day.stayBookingId })
+  }
+  return stays
 }

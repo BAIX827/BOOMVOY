@@ -1,6 +1,6 @@
 import { build } from 'esbuild'
 
-for (const entry of ['tests/core.test.ts', 'tests/boomi.test.ts', 'tests/packing.test.ts', 'tests/recommendation.test.ts', 'tests/recommendation-application.test.ts', 'tests/decision.test.ts', 'tests/decision-selection.test.ts', 'tests/sync-client.test.ts', 'tests/provider-settings-client.test.ts']) {
+for (const entry of ['tests/journey.test.ts', 'tests/core.test.ts', 'tests/boomi.test.ts', 'tests/packing.test.ts', 'tests/recommendation.test.ts', 'tests/recommendation-application.test.ts', 'tests/decision.test.ts', 'tests/decision-selection.test.ts', 'tests/sync-client.test.ts', 'tests/provider-settings-client.test.ts']) {
   const result = await build({
     entryPoints: [entry],
     bundle: true,
@@ -12,7 +12,12 @@ for (const entry of ['tests/core.test.ts', 'tests/boomi.test.ts', 'tests/packing
   })
 
   const source = result.outputFiles[0].text
-  await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`)
+  try {
+    await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`)
+  } catch (error) {
+    if (error instanceof Error && error.stack) error.stack = error.stack.replace(/data:text\/javascript;base64,[A-Za-z0-9+/=]+/g, entry)
+    throw error
+  }
 }
 
 await import('../tests/decision-provider.test.mjs')

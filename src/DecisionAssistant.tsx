@@ -1,3 +1,6 @@
+import { Link } from 'react-router-dom'
+import ScheduleSaved from './ScheduleSaved'
+import { useTripContext } from './useTripContext'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import type { Trip } from './types'
@@ -40,6 +43,9 @@ export function decisionDiscoveryKey(preferences: DecisionPreferences, locale: '
 
 export default function DecisionAssistant({ trip }: { trip: Trip }) {
   const { t, locale } = useT()
+  const { href } = useTripContext(trip)
+  const [lastSavedId, setLastSavedId] = useState<string | null>(null)
+  const [scheduleOpen, setScheduleOpen] = useState(false)
   const { saveDecision, updateTrip } = useApp()
   const profile = useApp((state) => state.profile)
   const backend = resolveBackend(profile)
@@ -110,6 +116,7 @@ export default function DecisionAssistant({ trip }: { trip: Trip }) {
     }
     setPrefs(next)
     setStatus('')
+    setLastSavedId(null)
     setPending(null)
   }
   function readIntent(text = prompt) {
@@ -161,6 +168,8 @@ export default function DecisionAssistant({ trip }: { trip: Trip }) {
       if (error) {
         setSelectionError(t(error === 'label' ? 'decision.savedLabelError' : error === 'date' ? 'decision.dateError' : error === 'mealConflict' ? 'decision.mealConflict' : 'decision.tripError'))
       } else {
+        const saved = useApp.getState().trips.find((entry) => entry.id === trip.id)?.saved.find((item) => item.meta?.decisionId === pending.ranked.candidate.id || pending.ranked.candidate.id === `saved:${item.id}`)
+        setLastSavedId(saved?.id || null)
         setStatus(t(pending.choose ? 'decision.chosen' : 'decision.saved'))
         setPending(null)
       }
@@ -206,6 +215,8 @@ export default function DecisionAssistant({ trip }: { trip: Trip }) {
       </div>
       {!valid && <p role="alert" className="mt-3 text-sm" style={{ color: 'var(--warn)' }}>{t('decision.invalid')}</p>}
       {status && <p role="status" className="mt-3 text-sm">{status}</p>}
+      {lastSavedId && <div className="mt-3 flex flex-wrap gap-2"><button className="btn text-sm" onClick={() => setScheduleOpen(true)}>{t('journey.schedule')}</button><Link className="btn btn-ghost text-sm no-underline" to={href('bookings')}>{t('journey.order')}</Link><Link className="btn btn-ghost text-sm no-underline" to={href('saved')}>{t('trip.saved')} →</Link></div>}
+      {scheduleOpen && lastSavedId && trip.saved.find((item) => item.id === lastSavedId) && <ScheduleSaved trip={trip} item={trip.saved.find((item) => item.id === lastSavedId)!} onClose={() => setScheduleOpen(false)} />}
       {searched && <div className="mt-5 space-y-4">
         {offline && <p role="status" className="rounded-xl p-3 text-sm" style={{ background: 'var(--bg-2)' }}>{t('decision.offline')}</p>}
         <p className="text-xs" style={{ color: 'var(--muted)' }}>{t('decision.scoreHint')}</p>

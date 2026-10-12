@@ -159,7 +159,7 @@ export default function BookingSearch({ trip }: { trip: Trip }) {
                   <div className="display mt-1 text-3xl text-white">{s.city}</div>
                   <div className="mt-8 text-sm" style={{ color: 'var(--muted)' }}>
                     {formatDay(s.checkin, locale)} – {formatDay(s.checkout, locale)}
-                    {s.stay ? ` · ${s.stay}` : ''}
+                    {` · ${s.stay || t('map.stayTbd')}`}
                   </div>
                   {primary && (
                     <button

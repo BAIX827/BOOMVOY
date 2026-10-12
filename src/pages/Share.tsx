@@ -1,3 +1,6 @@
+import { useState } from 'react'
+import { itineraryExport } from '../tripExport'
+import { tripHref } from '../journey'
 import { Link, useParams } from 'react-router-dom'
 import { useTrip } from '../store'
 import { CoverArt } from '../ui'
@@ -11,31 +14,40 @@ export default function Share() {
   const { id } = useParams()
   const trip = useTrip(id)
   const { t, locale } = useT()
+  const [status, setStatus] = useState('')
   if (!trip) return <div className="p-10">{t('share.notFound')}</div>
 
   const route = cityRoute(trip)
 
-  function copyLink() {
-    navigator.clipboard.writeText(window.location.href)
+  function exportTrip() {
+    if (!trip) return
+    const data = itineraryExport(trip)
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `boomvoy-trip-${trip.id}.json`
+    link.click()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    setStatus(t('journey.exportDone'))
   }
 
   return (
-    <div className={`theme-${trip.theme} min-h-screen px-4 py-10`}>
+    <div className={`share-page theme-${trip.theme} min-h-screen px-4 py-10`}>
       <div className="mx-auto max-w-2xl">
-        <div className="mb-6 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 no-underline" style={{ color: 'var(--ink)' }}>
+        <div className="share-controls mb-6 flex flex-wrap items-center justify-between gap-3">
+          <Link to={tripHref(trip.id)} className="flex items-center gap-2 no-underline" style={{ color: 'var(--ink)' }}>
             <Mark />
             <span className="display text-xl">BOOMVOY</span>
           </Link>
-          <button className="btn" onClick={copyLink}>
-            {t('share.copy')}
-          </button>
+          <div className="flex flex-wrap gap-2"><button className="btn" onClick={exportTrip}>{t('journey.exportTrip')}</button><button className="btn btn-ghost" onClick={() => window.print()}>{t('journey.printTrip')}</button></div>
         </div>
+        <p className="share-controls mb-5 text-sm" style={{ color: 'var(--muted)' }}>{t('journey.shareHint')}</p>
+        {status && <p className="share-controls mb-4 text-sm" role="status">{status}</p>}
         <article className="paper overflow-hidden">
           <CoverArt kind={trip.cover} title={trip.name} />
           <div className="p-6">
             <div className="text-sm" style={{ color: 'var(--muted)' }}>
-              {formatRange(trip.startDate, trip.endDate, locale)} · {trip.share.visibility === 'public' ? t('share.publicTag') : t('share.friendsTag')}
+              {formatRange(trip.startDate, trip.endDate, locale)} · {t('journey.sharePreview')}
             </div>
             <p className="mt-2 text-lg">
               {trip.origin} → {trip.destinations.join(' → ')} → {trip.origin}

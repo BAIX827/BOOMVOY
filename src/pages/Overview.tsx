@@ -7,6 +7,8 @@ import { bookingProgress, cityRoute, itineraryProgress, weatherAdvice } from '..
 import { flightLinks, lookupAir, tripFlightPlan } from '../bookingLinks'
 import type { Trip } from '../types'
 import { bookingStatusLabel, kindLabel, transportLabel, useT, type TFn } from '../i18n'
+import { nextJourneyAction, tripHref } from '../journey'
+import { ArrowRight } from 'lucide-react'
 
 export default function Overview() {
   const { id } = useParams()
@@ -17,9 +19,20 @@ export default function Overview() {
   const booking = bookingProgress(trip)
   const itin = itineraryProgress(trip)
   const rainDay = trip.days.find((d) => weatherAdvice(d, t)?.suggestSwitch)
+  const next = nextJourneyAction(trip)
 
   return (
     <div className="space-y-6">
+      <section className="paper journey-next p-5 sm:p-6" aria-labelledby="next-action-title">
+        <p className="text-sm" style={{ color: 'var(--muted)' }}>{t('journey.next')}</p>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-4">
+          <div><h1 id="next-action-title" className="display text-3xl">{t(`journey.${next.kind}`, { n: next.count || 0 })}</h1><p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>{t(`journey.${next.kind}Hint`, { city: next.day?.city || trip.destinations[0] || trip.origin })}</p></div>
+          <Link className="btn no-underline" to={tripHref(trip.id, next.section, next.day?.id)}>{t('journey.open')}<ArrowRight size={17} /></Link>
+        </div>
+        <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs" style={{ color: 'var(--muted)' }}>
+          {['stagePlan', 'stagePrepare', 'stageTravel', 'stageMemory'].map((stage, index) => <span key={stage}>{index + 1} · {t(`journey.${stage}`)}</span>)}
+        </div>
+      </section>
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,280px)_1fr]">
         <CoverArt kind={trip.cover} title={trip.name} polaroid />
         <div className="pt-2">

@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { decisionZh, decisionEn } from './decisionI18n'
 import { journeyZh, journeyEn } from './journeyI18n'
+import { upgradeZh, upgradeEn } from './upgradeI18n'
 import { useApp } from './store'
 import type {
   BookingStatus,
@@ -20,6 +21,7 @@ export type TFn = (key: string, vars?: Vars) => string
 
 const zh = {
   ...journeyZh,
+  ...upgradeZh,
   ...decisionZh,
   'nav.trips': '我的旅行',
   'nav.explore': '发现',
@@ -786,6 +788,7 @@ const zh = {
 
 const en: Record<keyof typeof zh, string> = {
   ...journeyEn,
+  ...upgradeEn,
   ...decisionEn,
   'nav.trips': 'My trips',
   'nav.explore': 'Explore',

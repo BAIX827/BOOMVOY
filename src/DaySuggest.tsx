@@ -1,3 +1,4 @@
+import { TripButton, TripInput, TripSelect } from './TripControls'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { useApp } from './store'
@@ -176,22 +177,22 @@ export default function DaySuggest({ city, date, weather, existing, planned = []
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <label className="min-w-0 space-y-1 text-xs">
             <span>{t('suggest.pace')}</span>
-            <select className="field w-full" value={preferences.pace} onChange={(e) => changePreferences({ pace: e.target.value as RecommendationPreferences['pace'] })}>
+            <TripSelect className="field w-full" value={preferences.pace} onChange={(e) => changePreferences({ pace: e.target.value as RecommendationPreferences['pace'] })}>
               {(['relaxed', 'balanced', 'full'] as const).map((pace) => <option key={pace} value={pace}>{t(`suggest.pace.${pace}`)}</option>)}
-            </select>
+            </TripSelect>
           </label>
           <label className="min-w-0 space-y-1 text-xs">
             <span>{t('suggest.transport')}</span>
-            <select className="field w-full" value={preferences.transportMode} onChange={(e) => changePreferences({ transportMode: e.target.value as TransportMode })}>
+            <TripSelect className="field w-full" value={preferences.transportMode} onChange={(e) => changePreferences({ transportMode: e.target.value as TransportMode })}>
               {(['public', 'walking', 'taxi', 'self-drive', 'cycling', 'mixed'] as TransportMode[]).map((value) => <option key={value} value={value}>{transportLabel(t, value)}</option>)}
-            </select>
+            </TripSelect>
           </label>
-          <label className="min-w-0 space-y-1 text-xs"><span>{t('suggest.startTime')}</span><input className="field w-full" type="time" value={preferences.startTime} onChange={(e) => changePreferences({ startTime: e.target.value })} /></label>
-          <label className="min-w-0 space-y-1 text-xs"><span>{t('suggest.endTime')}</span><input className="field w-full" type="time" value={preferences.endTime} onChange={(e) => changePreferences({ endTime: e.target.value })} /></label>
+          <label className="min-w-0 space-y-1 text-xs"><span>{t('suggest.startTime')}</span><TripInput className="field w-full" type="time" value={preferences.startTime} onChange={(e) => changePreferences({ startTime: e.target.value })} /></label>
+          <label className="min-w-0 space-y-1 text-xs"><span>{t('suggest.endTime')}</span><TripInput className="field w-full" type="time" value={preferences.endTime} onChange={(e) => changePreferences({ endTime: e.target.value })} /></label>
         </div>
         <div className="flex flex-wrap items-center gap-4 text-sm">
-          <label className="flex items-center gap-2"><input type="checkbox" checked={preferences.indoorOnly} onChange={(e) => changePreferences({ indoorOnly: e.target.checked })} />{t('suggest.indoorOnly')}</label>
-          {existing.length > 0 && <label className="flex flex-wrap items-center gap-2"><span>{t('suggest.mode')}</span><select className="field" value={mode} onChange={(e) => { clearResults(); setStatus(''); setMode(e.target.value as RecommendationMode) }}><option value="append">{t('suggest.mode.append')}</option><option value="replace" disabled={protectedPlan}>{t('suggest.mode.replace')}</option></select></label>}
+          <label className="flex items-center gap-2"><TripInput type="checkbox" checked={preferences.indoorOnly} onChange={(e) => changePreferences({ indoorOnly: e.target.checked })} />{t('suggest.indoorOnly')}</label>
+          {existing.length > 0 && <label className="flex flex-wrap items-center gap-2"><span>{t('suggest.mode')}</span><TripSelect className="field" value={mode} onChange={(e) => { clearResults(); setStatus(''); setMode(e.target.value as RecommendationMode) }}><option value="append">{t('suggest.mode.append')}</option><option value="replace" disabled={protectedPlan}>{t('suggest.mode.replace')}</option></TripSelect></label>}
         </div>
         {anchor && !missingTime && <p className="text-xs" style={{ color: 'var(--muted)' }}>{t('suggest.anchor', { name: anchor.name })}</p>}
         {!validWindow && <p role="alert" className="text-sm" style={{ color: 'var(--warn)' }}>{t('suggest.invalidWindow')}</p>}
@@ -199,17 +200,17 @@ export default function DaySuggest({ city, date, weather, existing, planned = []
         {orderConflict && <p role="alert" className="text-sm" style={{ color: 'var(--warn)' }}>{t('suggest.orderConflict')}</p>}
         {protectedPlan && <p className="text-xs" style={{ color: 'var(--muted)' }}>{t('suggest.protectedHint')}</p>}
         <div className="flex flex-wrap items-center gap-3">
-          <button type="button" className="btn" disabled={loading || locating || cannotGenerate} data-guide="recommend" onClick={() => void run()}><Sparkles size={16} />{asked ? t('suggest.regenerate') : t('suggest.recommend')}</button>
-          {loading && <button type="button" className="btn btn-ghost" onClick={() => { clearResults(); setStatus(t('suggest.cancelled')) }}>{t('suggest.cancel')}</button>}
+          <TripButton type="button" className="btn" disabled={loading || locating || cannotGenerate} data-guide="recommend" onClick={() => void run()}><Sparkles size={16} />{asked ? t('suggest.regenerate') : t('suggest.recommend')}</TripButton>
+          {loading && <TripButton type="button" className="btn btn-ghost" onClick={() => { clearResults(); setStatus(t('suggest.cancelled')) }}>{t('suggest.cancel')}</TripButton>}
           {loading && <span role="status" className="text-sm">{t('suggest.loading', { city })}</span>}
         </div>
-        {(status || undo) && <div role="status" className="flex flex-wrap items-center gap-3 text-sm"><span>{status}</span>{undo && <button className="btn btn-ghost text-xs" onClick={() => { setStatus(t(onUndo(undo) ? 'suggest.undone' : 'suggest.undoChanged')); setUndo(null) }}>{t('suggest.undo')}</button>}</div>}
+        {(status || undo) && <div role="status" className="flex flex-wrap items-center gap-3 text-sm"><span>{status}</span>{undo && <TripButton className="btn btn-ghost text-xs" onClick={() => { setStatus(t(onUndo(undo) ? 'suggest.undone' : 'suggest.undoChanged')); setUndo(null) }}>{t('suggest.undo')}</TripButton>}</div>}
         {error && <p role="status" className="text-xs" style={{ color: 'var(--warn)' }}>{error}</p>}
         {asked && !loading && !current && <p className="text-sm">{t('suggest.noCandidates')}</p>}
       </div>
       {current && <div className="space-y-4 border-t p-5" style={{ borderColor: 'var(--line)' }}>
         <div className="flex flex-wrap gap-2" aria-label={t('suggest.options')}>
-          {items.map((item, index) => <button key={`${item.title}-${index}`} type="button" aria-pressed={picked === index} className={picked === index ? 'btn text-xs' : 'btn btn-ghost text-xs'} onClick={() => { setPicked(index); setExcluded(new Set()); setStatus('') }}>{item.title}</button>)}
+          {items.map((item, index) => <TripButton key={`${item.title}-${index}`} type="button" aria-pressed={picked === index} className={picked === index ? 'btn text-xs' : 'btn btn-ghost text-xs'} onClick={() => { setPicked(index); setExcluded(new Set()); setStatus('') }}>{item.title}</TripButton>)}
         </div>
         <div>
           <p className="text-sm">{current.vibe}</p>
@@ -217,7 +218,7 @@ export default function DaySuggest({ city, date, weather, existing, planned = []
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
           <span>{t('suggest.summary', { n: schedule.places.length, min: schedule.totalMinutes, travel: schedule.travelMinutes })}</span>
-          <button className="btn btn-ghost text-xs" onClick={() => setExcluded(excluded.size ? new Set() : new Set(candidates.map((_, index) => index)))}>{excluded.size ? t('suggest.selectAll') : t('suggest.deselectAll')}</button>
+          <TripButton className="btn btn-ghost text-xs" onClick={() => setExcluded(excluded.size ? new Set() : new Set(candidates.map((_, index) => index)))}>{excluded.size ? t('suggest.selectAll') : t('suggest.deselectAll')}</TripButton>
         </div>
         {schedule.omitted > 0 && <p className="text-xs" style={{ color: 'var(--warn)' }}>{t('suggest.omitted', { n: schedule.omitted })}</p>}
         {schedule.unlocated > 0 && <p className="text-xs" style={{ color: 'var(--warn)' }}>{t('suggest.unlocatedHint')}</p>}
@@ -226,7 +227,7 @@ export default function DaySuggest({ city, date, weather, existing, planned = []
             const scheduled = schedule.places.find((item) => samePlace(item, place))
             const selectedPlace = !excluded.has(index)
             return <li key={`${place.name}-${index}`} className="flex items-start gap-3 text-sm" style={{ opacity: scheduled ? 1 : 0.6 }}>
-              <input type="checkbox" className="mt-1" aria-label={t('suggest.selectPlace', { name: place.name })} checked={selectedPlace} onChange={() => setExcluded((previous) => { const next = new Set(previous); if (next.has(index)) next.delete(index); else next.add(index); return next })} />
+              <TripInput type="checkbox" className="mt-1" aria-label={t('suggest.selectPlace', { name: place.name })} checked={selectedPlace} onChange={() => setExcluded((previous) => { const next = new Set(previous); if (next.has(index)) next.delete(index); else next.add(index); return next })} />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2"><span className="chip text-xs">{scheduled?.time || t(selectedPlace ? 'suggest.notScheduled' : 'suggest.notSelected')}</span><span className="font-medium">{place.name}</span></div>
                 <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>{placeCatLabel(t, place.category)} · {settingLabel(t, place.setting)} · {scheduled?.durationMin || place.durationMin || 60} min</p>
@@ -242,7 +243,7 @@ export default function DaySuggest({ city, date, weather, existing, planned = []
         </ol>
         {schedule.places.length === 0 && <p className="text-sm">{t(candidates.length ? 'suggest.noRoom' : 'suggest.allPlanned')}</p>}
         <div className="flex flex-wrap gap-2">
-          <button className="btn" disabled={locating || !schedule.places.length || cannotGenerate} onClick={() => { if (mode === 'replace' && existing.length) setPending({ places: schedule.places, expected: revision }); else void apply(schedule.places, revision) }}>{t(mode === 'replace' ? 'suggest.replace' : 'suggest.add')}</button>
+          <TripButton className="btn" disabled={locating || !schedule.places.length || cannotGenerate} onClick={() => { if (mode === 'replace' && existing.length) setPending({ places: schedule.places, expected: revision }); else void apply(schedule.places, revision) }}>{t(mode === 'replace' ? 'suggest.replace' : 'suggest.add')}</TripButton>
           {route && schedule.places.length > 0 && <a className="btn btn-ghost no-underline" href={route} target="_blank" rel="noreferrer">{t('suggest.openRoute')}</a>}
           {locating && <span role="status" className="text-sm">{t('suggest.locating')}</span>}
         </div>
@@ -250,7 +251,7 @@ export default function DaySuggest({ city, date, weather, existing, planned = []
       <Modal open={!!pending} title={t('suggest.confirmReplace')} onClose={() => setPending(null)}>
         <p className="text-sm">{t('suggest.replaceHint', { old: existing.length, n: pending?.places.length || 0, plan })}</p>
         <ol className="my-4 space-y-2 text-sm">{pending?.places.map((place) => <li key={place.name}>{place.time} · {place.name}</li>)}</ol>
-        <button className="btn" disabled={locating} onClick={() => { if (pending) void apply(pending.places, pending.expected) }}>{t('suggest.confirmReplace')}</button>
+        <TripButton className="btn" disabled={locating} onClick={() => { if (pending) void apply(pending.places, pending.expected) }}>{t('suggest.confirmReplace')}</TripButton>
       </Modal>
     </section>
   )

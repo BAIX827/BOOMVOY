@@ -162,7 +162,7 @@ export function sanitizeTripForSync(value: Trip): Trip {
   const clean = pickKnown(value, ['id', 'name', 'origin', 'destinations', 'startDate', 'endDate', 'travellers', 'members',
     'budgetPerPerson', 'totalBudget', 'homeCurrency', 'theme', 'cover', 'transportModes', 'days', 'saved', 'compares',
     'bookings', 'budget', 'expenses', 'gifts', 'packing', 'notes', 'share', 'createdAt', 'template', 'weatherUpdatedAt',
-    'decisionPreferences', 'mealSelections'])
+    'decisionPreferences', 'mealSelections', 'settlements'])
   if (!record(clean)) return value
   if (Object.hasOwn(clean, 'members')) clean.members = mapKnown(clean.members, (entry) => pickKnown(entry, ['id', 'name', 'role', 'color']))
   if (Object.hasOwn(clean, 'days')) clean.days = mapKnown(clean.days, sanitizeDay)
@@ -171,7 +171,7 @@ export function sanitizeTripForSync(value: Trip): Trip {
   if (Object.hasOwn(clean, 'bookings')) {
     clean.bookings = mapKnown(clean.bookings, (entry) => {
       const booking = pickKnown(entry, ['id', 'kind', 'name', 'status', 'date', 'checkout', 'confirmation', 'url', 'cost',
-        'homeAmount', 'exchangeRate', 'notes', 'sourceSavedId'])
+        'homeAmount', 'exchangeRate', 'notes', 'sourceSavedId', 'costFromSaved'])
       if (record(booking) && Object.hasOwn(booking, 'cost')) booking.cost = sanitizeMoney(booking.cost)
       return booking
     })
@@ -181,6 +181,7 @@ export function sanitizeTripForSync(value: Trip): Trip {
     clean.expenses = mapKnown(clean.expenses, (entry) => pickKnown(entry, ['id', 'title', 'amount', 'currency', 'homeAmount',
       'category', 'date', 'paidBy', 'split', 'excluded', 'status', 'notes', 'exchangeRate', 'bookingId']))
   }
+  if (Object.hasOwn(clean, 'settlements')) clean.settlements = mapKnown(clean.settlements, (entry) => pickKnown(entry, ['id', 'from', 'to', 'amount', 'currency', 'settledAt']))
   if (Object.hasOwn(clean, 'gifts')) clean.gifts = mapKnown(clean.gifts, (entry) => pickKnown(entry, ['id', 'forWhom', 'item', 'city', 'status']))
   if (Object.hasOwn(clean, 'packing')) {
     clean.packing = pickKnown(clean.packing, ['phase', 'groupBy', 'dismissed', 'items'])
@@ -340,6 +341,7 @@ function booking(value: JsonRecord, ids: Set<string>) {
     && ['confirmation', 'notes', 'sourceSavedId'].every((key) => optional(value, key, stringValue))
     && optional(value, 'url', webUrlValue)
     && optional(value, 'cost', money)
+    && optional(value, 'costFromSaved', booleanValue)
     && optional(value, 'homeAmount', (entry) => numberIn(entry, 0, 1_000_000_000_000))
     && optional(value, 'exchangeRate', (entry) => numberIn(entry, 0, 1_000_000))
 }
@@ -419,6 +421,7 @@ function trip(value: JsonRecord, ids: Set<string>, allowLocalFields: boolean) {
     && uniqueArray(value.budget, budgetCategory, 500)
     && uniqueArray(value.expenses, expense, 10_000)
     && uniqueArray(value.gifts, gift, 5000)
+    && optional(value, 'settlements', (entry) => uniqueArray(entry, (payment, paymentIds) => addUniqueId(payment, paymentIds) && stringValue(payment.from) && stringValue(payment.to) && payment.from !== payment.to && numberIn(payment.amount, 0.01, 1_000_000_000_000) && stringValue(payment.currency, 12) && stringValue(payment.settledAt, 40) && Number.isFinite(Date.parse(payment.settledAt)), 10000))
     && stringValue(value.notes)
     && record(value.share) && enumValue(value.share.visibility, VISIBILITIES)
     && dateValue(value.createdAt)

@@ -8,7 +8,7 @@ export function itineraryExport(trip: Trip) {
     template: false, share: { visibility: 'private' as const },
     bookings: clean.bookings.map(({ confirmation: _confirmation, cost: _cost, homeAmount: _homeAmount, exchangeRate: _rate, notes: _notes, ...booking }) => booking),
     days: clean.days.map((day) => ({ ...day, notes: '', planA: day.planA.map(publicStop), planB: day.planB.map(publicStop) })),
-    budget: [], expenses: [], gifts: [], notes: '', packing: undefined, decisionPreferences: undefined,
+    budget: [], expenses: [], settlements: [], gifts: [], notes: '', packing: undefined, decisionPreferences: undefined,
     saved: clean.saved.map(({ notes: _notes, priceHistory: _history, votes: _votes, pros: _pros, cons: _cons, ...item }) => ({ ...item, votes: {} })),
   }] }
 }

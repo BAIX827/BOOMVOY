@@ -1,3 +1,4 @@
+import { TripInput } from '../TripControls'
 import { useParams } from 'react-router-dom'
 import { useApp, useTrip } from '../store'
 import { money } from '../lib'
@@ -45,7 +46,7 @@ export default function Budget() {
               <div className="grid grid-cols-3 gap-2 text-sm">
                 <label>
                   <span className="mb-1 block text-[11px] uppercase tracking-wider" style={{ color: 'var(--muted)' }}>{t('budget.est')}</span>
-                  <input
+                  <TripInput
                     className="field"
                     type="number"
                     min={0}

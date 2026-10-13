@@ -924,7 +924,7 @@ export function oceanRoadTrip(): Trip {
     origin: 'Melbourne',
     destinations: ['Lorne', 'Apollo Bay', 'Port Campbell'],
     startDate: '2026-11-06',
-    endDate: '2026-11-09',
+    endDate: '2026-11-07',
     travellers: 2,
     members: [{ id: 'm-a', name: 'You', role: 'owner', color: '#4F6F52' }],
     budgetPerPerson: 900,

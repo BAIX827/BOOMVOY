@@ -1,3 +1,4 @@
+import { TripButton, TripInput, TripSelect } from '../TripControls'
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Luggage, Plus, Trash2 } from 'lucide-react'
@@ -108,26 +109,26 @@ export default function Pack() {
 
       <div className="flex flex-wrap gap-2">
         {phase === 'out' ? (
-          <button className="btn btn-accent" onClick={() => save(applyReturnExtras({ ...list, phase: 'back' }))}>
+          <TripButton className="btn btn-accent" onClick={() => save(applyReturnExtras({ ...list, phase: 'back' }))}>
             {t('pack.ready')}
-          </button>
+          </TripButton>
         ) : (
-          <button className="btn" onClick={() => save({ ...list, phase: 'out' })}>
+          <TripButton className="btn" onClick={() => save({ ...list, phase: 'out' })}>
             {t('pack.backToOut')}
-          </button>
+          </TripButton>
         )}
-        <button
+        <TripButton
           className={list.groupBy === 'category' ? 'btn' : 'btn btn-ghost'}
           onClick={() => save({ ...list, groupBy: 'category' })}
         >
           {t('pack.byCat')}
-        </button>
-        <button
+        </TripButton>
+        <TripButton
           className={list.groupBy === 'bag' ? 'btn' : 'btn btn-ghost'}
           onClick={() => save({ ...list, groupBy: 'bag' })}
         >
           {t('pack.byBag')}
-        </button>
+        </TripButton>
       </div>
 
       <div className="paper flex flex-wrap items-center justify-between gap-3 p-4">
@@ -135,13 +136,13 @@ export default function Pack() {
           <span>{t('pack.weatherLine', { n: days, min: wx.tMin, max: wx.tMax })}</span>
           {days > 7 && <span className="chip ml-2">{t('pack.weeklyLaundry')}</span>}
         </div>
-        <button className="btn btn-ghost text-sm" onClick={() => save(applyPackingSuggestions(currentTrip, list))}>
+        <TripButton className="btn btn-ghost text-sm" onClick={() => save(applyPackingSuggestions(currentTrip, list))}>
           {t('pack.refreshSuggestions')}
-        </button>
+        </TripButton>
       </div>
 
       <div className="paper overflow-hidden" data-guide="pack-tips">
-        <button
+        <TripButton
           type="button"
           className="flex w-full items-center justify-between px-5 py-3 text-left"
           onClick={() => setTipsOpen((v) => !v)}
@@ -152,7 +153,7 @@ export default function Pack() {
           <span className="text-xs" style={{ color: 'var(--muted)' }}>
             {tipsOpen ? t('pack.tipsHide') : t('pack.tipsShow')}
           </span>
-        </button>
+        </TripButton>
         {tipsOpen && (
           <div className="grid gap-3 border-t px-5 py-4 sm:grid-cols-2" style={{ borderColor: 'var(--line)' }}>
             {FLIGHT_TIPS.map((tip) => (
@@ -182,7 +183,7 @@ export default function Pack() {
                   className="flex flex-wrap items-center gap-3 border-b px-5 py-3 last:border-b-0"
                   style={{ borderColor: 'var(--line)' }}
                 >
-                  <input
+                  <TripInput
                     type="checkbox"
                     className="h-4 w-4"
                     checked={checked}
@@ -205,7 +206,7 @@ export default function Pack() {
                     )}
                   </div>
                   {list.groupBy === 'category' && (
-                    <select
+                    <TripSelect
                       className="field w-auto py-1 text-xs"
                       value={item.bag}
                       onChange={(e) => patchItem(item.id, { bag: e.target.value as PackBag })}
@@ -216,28 +217,28 @@ export default function Pack() {
                           {t(`pack.bag.${b}`)}
                         </option>
                       ))}
-                    </select>
+                    </TripSelect>
                   )}
                   <div className="flex items-center gap-1">
-                    <button
+                    <TripButton
                       type="button"
                       className="btn btn-ghost px-2 py-1 text-xs"
                       onClick={() => patchItem(item.id, { qty: Math.max(1, item.qty - 1) })}
                     >
                       −
-                    </button>
+                    </TripButton>
                     <span className="min-w-4 text-center text-xs">{item.qty}</span>
-                    <button
+                    <TripButton
                       type="button"
                       className="btn btn-ghost px-2 py-1 text-xs"
                       onClick={() => patchItem(item.id, { qty: item.qty + 1 })}
                     >
                       +
-                    </button>
+                    </TripButton>
                   </div>
-                  <button type="button" className="btn btn-ghost px-2 py-1" onClick={() => removeItem(item)} aria-label={t('pack.delete')}>
+                  <TripButton type="button" className="btn btn-ghost px-2 py-1" onClick={() => removeItem(item)} aria-label={t('pack.delete')}>
                     <Trash2 size={14} />
-                  </button>
+                  </TripButton>
                 </li>
               )
             })}
@@ -257,32 +258,32 @@ export default function Pack() {
         <div className="flex items-center gap-2 text-sm">
           <Luggage size={16} /> {t('pack.add')}
         </div>
-        <input className="field" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={t('pack.addPh')} />
+        <TripInput className="field" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={t('pack.addPh')} />
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <Label>{t('pack.category')}</Label>
-            <select className="field" value={cat} onChange={(e) => setCat(e.target.value as PackCategory)}>
+            <TripSelect className="field" value={cat} onChange={(e) => setCat(e.target.value as PackCategory)}>
               {PACK_CATS.map((c) => (
                 <option key={c} value={c}>
                   {t(`pack.cat.${c}`)}
                 </option>
               ))}
-            </select>
+            </TripSelect>
           </div>
           <div>
             <Label>{t('pack.bag')}</Label>
-            <select className="field" value={bag} onChange={(e) => setBag(e.target.value as PackBag)}>
+            <TripSelect className="field" value={bag} onChange={(e) => setBag(e.target.value as PackBag)}>
               {PACK_BAGS.map((b) => (
                 <option key={b} value={b}>
                   {t(`pack.bag.${b}`)}
                 </option>
               ))}
-            </select>
+            </TripSelect>
           </div>
         </div>
-        <button className="btn" type="submit" disabled={!draft.trim()}>
+        <TripButton className="btn" type="submit" disabled={!draft.trim()}>
           <Plus size={15} /> {t('pack.addBtn')}
-        </button>
+        </TripButton>
       </form>
     </div>
   )

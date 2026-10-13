@@ -799,3 +799,11 @@ body { line-height: 1.5; }
 }
 .map-stop-label { position: relative; z-index: 1; }
 .map-stop-leader { position: absolute; left: 18px; top: 18px; height: 2px; transform-origin: left center; pointer-events: none; }
+
+/* Route overlays remain distinct from road colours on every travel theme. */
+.trip-leaflet { background: #f4f5f3; }
+.map-route-arrow { width: 30px; height: 30px; font: 900 28px/30px system-ui; text-shadow: -2px -2px 0 white, 2px -2px 0 white, -2px 2px 0 white, 2px 2px 0 white; }
+.map-edge-label { position: absolute; top: 39px; left: 18px; transform: translateX(-50%); white-space: nowrap; background: #26364a; color: white; border: 2px solid white; border-radius: 8px; padding: 2px 7px; font: 600 11px system-ui; }
+.map-fit-control { position: absolute; z-index: 900; top: 12px; right: 12px; background: white; color: #26364a; border-radius: 12px; padding: 9px 12px; box-shadow: 0 2px 8px #0003; font-size: 12px; }
+.map-stop-label.is-selected { outline-color: #b02f66; transform: scale(1.12); }
+.collab-readonly { position: relative; }

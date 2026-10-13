@@ -1,3 +1,4 @@
+import { TripButton, TripInput, TripSelect } from '../TripControls'
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useApp, useTrip } from '../store'
@@ -6,7 +7,7 @@ import { money } from '../lib'
 import { settle } from '../domain'
 import { Label, Modal } from '../ui'
 import { namedCat, useT } from '../i18n'
-import type { Expense } from '../types'
+import type { Expense, GiftItem } from '../types'
 
 const MAX_AMOUNT = 1_000_000_000_000
 function validDate(value: string) {
@@ -18,10 +19,12 @@ function validDate(value: string) {
 export default function Expenses() {
   const { id } = useParams()
   const trip = useTrip(id)
-  const { addExpense, updateExpense, removeExpense, addGift, updateGift } = useApp()
+  const { addExpense, updateExpense, removeExpense, addGift, updateGift, removeGift, recordSettlement, undoSettlement } = useApp()
   const { t } = useT()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Expense | undefined>()
+  const [giftOpen, setGiftOpen] = useState(false)
+  const [giftEditing, setGiftEditing] = useState<GiftItem | undefined>()
   if (!trip) return null
   const { transfers } = settle(trip)
   const name = (mid: string) => trip.members.find((m) => m.id === mid)?.name || mid
@@ -30,9 +33,9 @@ export default function Expenses() {
     <div className="space-y-6">
       <div className="flex items-end justify-between">
         <h1 className="display text-4xl">{t('aa.title')}</h1>
-        <button className="btn" onClick={() => { setEditing(undefined); setOpen(true) }}>
+        <TripButton className="btn" onClick={() => { setEditing(undefined); setOpen(true) }}>
           {t('aa.add')}
-        </button>
+        </TripButton>
       </div>
 
       <div className="paper p-5">
@@ -48,11 +51,13 @@ export default function Expenses() {
                 <span>
                   {name(tr.from)} → {name(tr.to)}
                 </span>
-                <span className="font-medium">{money(tr.amount, trip.homeCurrency)}</span>
+                <div className="flex flex-wrap items-center justify-end gap-3"><span className="font-medium">{money(tr.amount, trip.homeCurrency)}</span><TripButton className="btn btn-soft px-3 py-1 text-xs" onClick={() => recordSettlement(trip.id, tr)}>{t('aa.recordTransfer')}</TripButton></div>
               </li>
             ))}
           </ul>
         )}
+        <p className="mt-3 text-xs" style={{ color: 'var(--muted)' }}>{t('aa.transferHint')}</p>
+        {!!trip.settlements?.length && <div className="mt-4 border-t pt-3" style={{ borderColor: 'var(--line)' }}><h3 className="font-medium">{t('aa.history')}</h3>{trip.settlements.map((payment) => <div key={payment.id} className="mt-2 flex flex-wrap justify-between gap-2 text-sm"><span>{name(payment.from)} → {name(payment.to)} · {money(payment.amount, payment.currency)} · {payment.settledAt.slice(0, 10)}</span><TripButton className="underline" onClick={() => undoSettlement(trip.id, payment.id)}>{t('aa.undoTransfer')}</TripButton></div>)}</div>}
       </div>
 
       <div className="space-y-2">
@@ -72,12 +77,12 @@ export default function Expenses() {
                   ? money(e.amount, e.currency)
                   : `${e.currency} ${e.amount.toLocaleString()} ≈ ${money(e.homeAmount ?? e.amount * 0.0102, trip.homeCurrency)}`}
               </div>
-              <button className="text-xs" style={{ color: 'var(--muted)' }} onClick={() => removeExpense(trip.id, e.id)}>
+              <TripButton className="text-xs" style={{ color: 'var(--muted)' }} onClick={() => removeExpense(trip.id, e.id)}>
                 {t('aa.delete')}
-              </button>
-              <button className="ml-2 text-xs" style={{ color: 'var(--muted)' }} onClick={() => { setEditing(e); setOpen(true) }}>
+              </TripButton>
+              <TripButton className="ml-2 text-xs" style={{ color: 'var(--muted)' }} onClick={() => { setEditing(e); setOpen(true) }}>
                 {t('aa.edit')}
-              </button>
+              </TripButton>
             </div>
           </div>
         ))}
@@ -96,7 +101,7 @@ export default function Expenses() {
                   {g.city}
                 </div>
               </div>
-              <select
+              <div className="flex flex-col gap-2"><TripSelect
                 className="field w-auto"
                 value={g.status}
                 onChange={(e) => updateGift(trip.id, g.id, { status: e.target.value as typeof g.status })}
@@ -104,18 +109,19 @@ export default function Expenses() {
                 <option value="need">{t('aa.giftNeed')}</option>
                 <option value="bought">{t('aa.giftBought')}</option>
                 <option value="packed">{t('aa.giftPacked')}</option>
-              </select>
+              </TripSelect><TripButton className="text-xs underline" onClick={() => { setGiftEditing(g); setGiftOpen(true) }}>{t('aa.giftEdit')}</TripButton></div>
             </div>
           ))}
         </div>
-        <button
+        <TripButton
           className="btn btn-ghost mt-3 text-sm"
-          onClick={() => addGift(trip.id, { forWhom: t('aa.giftWho'), item: t('aa.giftItem'), city: trip.destinations[0], status: 'need' })}
+          onClick={() => { setGiftEditing(undefined); setGiftOpen(true) }}
         >
           {t('aa.addGift')}
-        </button>
+        </TripButton>
       </section>
 
+      {giftOpen && <GiftEditor initial={giftEditing} defaultCity={trip.destinations[0]} onClose={() => setGiftOpen(false)} onSave={(value) => { if (giftEditing) updateGift(trip.id, giftEditing.id, value); else addGift(trip.id, value); setGiftOpen(false) }} onDelete={giftEditing ? () => { removeGift(trip.id, giftEditing.id); setGiftOpen(false) } : undefined} />}
       <AddExpense
         key={editing?.id || 'new'}
         open={open}
@@ -193,61 +199,61 @@ function AddExpense({
   return (
     <Modal open={open} title={initial ? t('aa.editTitle') : t('aa.addTitle')} onClose={onClose}>
       <div className="space-y-3">
-        <input className="field" maxLength={20_000} value={title} onChange={(e) => setTitle(e.target.value)} />
+        <TripInput className="field" maxLength={20_000} value={title} onChange={(e) => setTitle(e.target.value)} />
         <div className="grid grid-cols-2 gap-2">
-          <input className="field" type="number" min={0} max={MAX_AMOUNT} step="0.01" value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
-          <select className="field" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+          <TripInput className="field" type="number" min={0} max={MAX_AMOUNT} step="0.01" value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
+          <TripSelect className="field" value={currency} onChange={(e) => setCurrency(e.target.value)}>
             {Array.from(new Set([homeCurrency, 'AUD', 'JPY', 'USD', 'CNY', 'EUR', 'IDR'])).map((c) => (
               <option key={c}>{c}</option>
             ))}
-          </select>
+          </TripSelect>
         </div>
         {needsRate && (
           <div>
             <Label>{t('aa.rate', { from: currency, to: homeCurrency })}</Label>
-            <input className="field" type="number" min="0.000001" max={1_000_000} step="0.000001" value={rate} onChange={(e) => setRate(e.target.value)} placeholder={t('aa.ratePh')} />
+            <TripInput className="field" type="number" min="0.000001" max={1_000_000} step="0.000001" value={rate} onChange={(e) => setRate(e.target.value)} placeholder={t('aa.ratePh')} />
             {Number(rate) > 0 && Number(rate) <= 1_000_000 && <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>{currency} {amount.toLocaleString()} ≈ {money(amount * Number(rate), homeCurrency)}</p>}
           </div>
         )}
         <div>
           <Label>{t('aa.date')}</Label>
-          <input className="field" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <TripInput className="field" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
-        <select className="field" value={category} onChange={(e) => setCategory(e.target.value)}>
+        <TripSelect className="field" value={category} onChange={(e) => setCategory(e.target.value)}>
           {BUDGET_CATS.map((c) => (
             <option key={c} value={c}>
               {namedCat(t, c)}
             </option>
           ))}
-        </select>
+        </TripSelect>
         <div>
           <Label>{t('aa.whoPaid')}</Label>
-          <select className="field" value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
+          <TripSelect className="field" value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
             {members.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name}
               </option>
             ))}
-          </select>
+          </TripSelect>
         </div>
         <div>
           <Label>{t('aa.splitMode')}</Label>
           <div className="flex gap-2">
-            <button className={mode === 'equal' ? 'btn' : 'btn btn-ghost'} onClick={() => setMode('equal')}>{t('aa.equal')}</button>
-            <button className={mode === 'custom' ? 'btn' : 'btn btn-ghost'} onClick={() => setMode('custom')}>{t('aa.custom')}</button>
+            <TripButton className={mode === 'equal' ? 'btn' : 'btn btn-ghost'} onClick={() => setMode('equal')}>{t('aa.equal')}</TripButton>
+            <TripButton className={mode === 'custom' ? 'btn' : 'btn btn-ghost'} onClick={() => setMode('custom')}>{t('aa.custom')}</TripButton>
           </div>
         </div>
         {mode === 'equal' ? <div>
           <Label>{t('aa.skip')}</Label>
           <div className="mt-1 flex gap-2">
             {members.map((m) => (
-              <button
+              <TripButton
                 key={m.id}
                 className={excluded.includes(m.id) ? 'btn' : 'btn btn-ghost'}
                 onClick={() => setExcluded((xs) => (xs.includes(m.id) ? xs.filter((x) => x !== m.id) : [...xs, m.id]))}
               >
                 {m.name}
-              </button>
+              </TripButton>
             ))}
           </div>
         </div> : (
@@ -257,7 +263,7 @@ function AddExpense({
               {members.map((member) => (
                 <label key={member.id} className="flex items-center justify-between gap-3 text-sm">
                   <span>{member.name}</span>
-                  <input className="field w-32" type="number" min={0} max={MAX_AMOUNT} step="0.01" value={shares[member.id] || ''} onChange={(e) => setShares((current) => ({ ...current, [member.id]: Number(e.target.value) }))} />
+                  <TripInput className="field w-32" type="number" min={0} max={MAX_AMOUNT} step="0.01" value={shares[member.id] || ''} onChange={(e) => setShares((current) => ({ ...current, [member.id]: Number(e.target.value) }))} />
                 </label>
               ))}
             </div>
@@ -267,10 +273,24 @@ function AddExpense({
           </div>
         )}
         {error && <p className="text-sm" style={{ color: 'var(--warn)' }}>{error}</p>}
-        <button className="btn w-full" onClick={save}>
+        <TripButton className="btn w-full" onClick={save}>
           {initial ? t('aa.saveEdit') : t('aa.save')}
-        </button>
+        </TripButton>
       </div>
     </Modal>
   )
+}
+
+function GiftEditor({ initial, defaultCity, onClose, onSave, onDelete }: { initial?: GiftItem; defaultCity?: string; onClose: () => void; onSave: (value: Omit<GiftItem, 'id'>) => void; onDelete?: () => void }) {
+  const { t } = useT()
+  const [forWhom, setWho] = useState(initial?.forWhom || '')
+  const [item, setItem] = useState(initial?.item || '')
+  const [city, setCity] = useState(initial?.city || defaultCity || '')
+  return <Modal open title={initial ? t('aa.giftEdit') : t('aa.addGift')} onClose={onClose}><div className="space-y-3">
+    <label className="block text-sm">{t('aa.giftWhoLabel')}<TripInput className="field mt-1" maxLength={20000} value={forWhom} onChange={(e) => setWho(e.target.value)} /></label>
+    <label className="block text-sm">{t('aa.giftItemLabel')}<TripInput className="field mt-1" maxLength={20000} value={item} onChange={(e) => setItem(e.target.value)} /></label>
+    <label className="block text-sm">{t('aa.giftCityLabel')}<TripInput className="field mt-1" maxLength={20000} value={city} onChange={(e) => setCity(e.target.value)} /></label>
+    <TripButton className="btn w-full" disabled={!forWhom.trim() || !item.trim()} onClick={() => onSave({ forWhom: forWhom.trim(), item: item.trim(), city: city.trim(), status: initial?.status || 'need' })}>{t('aa.giftSave')}</TripButton>
+    {onDelete && <TripButton className="btn btn-ghost" onClick={onDelete}>{t('aa.giftDelete')}</TripButton>}
+  </div></Modal>
 }

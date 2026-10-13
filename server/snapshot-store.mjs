@@ -37,7 +37,7 @@ const PRICE_HISTORY_FIELDS = ['date', 'amount']
 const COMPARE_FIELDS = ['id', 'city', 'kind', 'title', 'itemIds']
 const BOOKING_FIELDS = [
   'id', 'kind', 'name', 'status', 'date', 'checkout', 'confirmation', 'url', 'cost', 'homeAmount',
-  'exchangeRate', 'notes', 'sourceSavedId',
+  'exchangeRate', 'notes', 'sourceSavedId', 'costFromSaved',
 ]
 const BUDGET_FIELDS = ['id', 'name', 'estimated', 'booked', 'paid']
 const EXPENSE_FIELDS = [
@@ -57,7 +57,7 @@ const TRIP_FIELDS = [
   'id', 'name', 'origin', 'destinations', 'startDate', 'endDate', 'travellers', 'members',
   'budgetPerPerson', 'totalBudget', 'homeCurrency', 'theme', 'cover', 'transportModes', 'days', 'saved',
   'compares', 'bookings', 'budget', 'expenses', 'gifts', 'packing', 'notes', 'share', 'createdAt',
-  'template', 'weatherUpdatedAt', 'decisionPreferences', 'mealSelections',
+  'template', 'weatherUpdatedAt', 'decisionPreferences', 'mealSelections', 'settlements',
 ]
 const UNSAFE_KEYS = new Set(['__proto__', 'prototype', 'constructor'])
 const THEMES = new Set(['cream', 'ocean', 'forest'])
@@ -239,6 +239,7 @@ function sanitizeTrip(value) {
     bookings: (entry) => projectArray(entry, projectBooking),
     budget: (entry) => projectArray(entry, projectBudget),
     expenses: (entry) => projectArray(entry, projectExpense),
+    settlements: (entry) => projectArray(entry, (value) => projectRecord(value, ['id', 'from', 'to', 'amount', 'currency', 'settledAt'])),
     gifts: (entry) => projectArray(entry, projectGift),
     packing: projectPacking,
     share: projectShare,
@@ -525,6 +526,7 @@ function validateBooking(value, path, ids, collectionPath) {
   for (const field of ['confirmation', 'notes', 'sourceSavedId']) optional(booking, field, path, stringValue)
   optional(booking, 'url', path, webUrlValue)
   optional(booking, 'cost', path, validateMoney)
+  optional(booking, 'costFromSaved', path, booleanValue)
   optional(booking, 'homeAmount', path, (entry, entryPath) => boundedNumber(entry, 0, 1_000_000_000_000, entryPath))
   optional(booking, 'exchangeRate', path, (entry, entryPath) => boundedNumber(entry, 0, 1_000_000, entryPath))
 }
@@ -677,6 +679,19 @@ function validateTrip(value, path, tripIds) {
     validateExpense(expense, `${path}.expenses[${index}]`, expenseIds, `${path}.expenses`)
   })
 
+  optional(trip, 'settlements', path, (entry, entryPath) => {
+    const ids = new Set()
+    arrayValue(entry, entryPath, 10000).forEach((payment, index) => {
+      const p = `${entryPath}[${index}]`
+      recordValue(payment, p); uniqueId(payment, p, ids, entryPath)
+      stringValue(payment.from, `${p}.from`); stringValue(payment.to, `${p}.to`)
+      if (payment.from === payment.to || !memberIds.has(payment.from) || !memberIds.has(payment.to)) invalid(`${p} contains invalid members`)
+      boundedNumber(payment.amount, 0.01, 1_000_000_000_000, `${p}.amount`)
+      stringValue(payment.currency, `${p}.currency`, 12)
+      stringValue(payment.settledAt, `${p}.settledAt`, 40)
+      if (!Number.isFinite(Date.parse(payment.settledAt))) invalid(`${p}.settledAt is invalid`)
+    })
+  })
   const giftIds = new Set()
   arrayValue(trip.gifts, `${path}.gifts`, 5000).forEach((gift, index) => {
     validateGift(gift, `${path}.gifts[${index}]`, giftIds, `${path}.gifts`)

@@ -146,40 +146,42 @@ export function budgetCategoryActuals(trip: Trip, category: string) {
 }
 
 export function settle(trip: Trip) {
-  const bal: Record<string, number> = {}
-  trip.members.forEach((m) => (bal[m.id] = 0))
-  for (const e of trip.expenses) {
-    const amount = expenseHomeAmount(trip, e)
-    const included = trip.members.filter((m) => !e.excluded.includes(m.id))
-    if (!included.length) continue
-    if (e.split === 'equal') {
-      const share = amount / included.length
-      included.forEach((m) => (bal[m.id] -= share))
+  const cents: Record<string, number> = {}
+  trip.members.forEach((member) => (cents[member.id] = 0))
+  for (const expense of trip.expenses) {
+    const amount = Math.round(expenseHomeAmount(trip, expense) * 100)
+    const included = trip.members.filter((member) => !expense.excluded.includes(member.id))
+    if (!included.length || cents[expense.paidBy] === undefined) continue
+    if (expense.split === 'equal') {
+      const share = Math.floor(amount / included.length), remainder = amount % included.length
+      included.forEach((member, index) => (cents[member.id] -= share + (index < remainder ? 1 : 0)))
     } else {
-      const custom = e.split
-      const rate = e.amount ? amount / e.amount : 1
-      included.forEach((m) => (bal[m.id] -= (custom[m.id] ?? 0) * rate))
+      const rate = expense.amount ? amount / expense.amount : 1
+      const shares = included.map((member) => Math.round((expense.split as Record<string, number>)[member.id] * rate || 0))
+      let last = shares.length - 1
+      while (last >= 0 && shares[last] <= 0) last--
+      if (last >= 0) shares[last] += amount - shares.reduce((sum, share) => sum + share, 0)
+      included.forEach((member, index) => (cents[member.id] -= shares[index]))
     }
-    if (bal[e.paidBy] !== undefined) bal[e.paidBy] += amount
+    cents[expense.paidBy] += amount
   }
-  const debtors = Object.entries(bal)
-    .filter(([, v]) => v < -0.5)
-    .map(([id, v]) => ({ id, v: -v }))
-  const creditors = Object.entries(bal)
-    .filter(([, v]) => v > 0.5)
-    .map(([id, v]) => ({ id, v }))
+  for (const payment of trip.settlements || []) {
+    if (payment.currency !== trip.homeCurrency || cents[payment.from] === undefined || cents[payment.to] === undefined || payment.from === payment.to) continue
+    cents[payment.from] += Math.round(payment.amount * 100)
+    cents[payment.to] -= Math.round(payment.amount * 100)
+  }
+  const debtors = Object.entries(cents).filter(([, value]) => value < 0).map(([id, value]) => ({ id, value: -value }))
+  const creditors = Object.entries(cents).filter(([, value]) => value > 0).map(([id, value]) => ({ id, value }))
   const transfers: { from: string; to: string; amount: number }[] = []
-  let i = 0
-  let j = 0
+  let i = 0, j = 0
   while (i < debtors.length && j < creditors.length) {
-    const pay = Math.min(debtors[i].v, creditors[j].v)
-    transfers.push({ from: debtors[i].id, to: creditors[j].id, amount: pay })
-    debtors[i].v -= pay
-    creditors[j].v -= pay
-    if (debtors[i].v < 0.5) i++
-    if (creditors[j].v < 0.5) j++
+    const pay = Math.min(debtors[i].value, creditors[j].value)
+    transfers.push({ from: debtors[i].id, to: creditors[j].id, amount: pay / 100 })
+    debtors[i].value -= pay; creditors[j].value -= pay
+    if (debtors[i].value === 0) i++
+    if (creditors[j].value === 0) j++
   }
-  return { balances: bal, transfers }
+  return { balances: Object.fromEntries(Object.entries(cents).map(([id, value]) => [id, value / 100])), transfers }
 }
 
 export function expenseHomeAmount(trip: Trip, e: Expense) {

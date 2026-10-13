@@ -1,3 +1,4 @@
+import { TripButton } from './TripControls'
 import {
   Camera, Check, Compass, Leaf, MapPin, Mountain, Plane, Sun, TreePine, Waves,
   type LucideIcon,
@@ -91,7 +92,7 @@ export function ThemeBadge({ theme }: { theme: ThemeId }) {
 export function ThemePreview({ theme, selected, onSelect }: { theme: ThemeId; selected: boolean; onSelect: () => void }) {
   const { t } = useT()
   return (
-    <button type="button" className={`theme-option theme-${theme}`} aria-pressed={selected} onClick={onSelect}>
+    <TripButton type="button" className={`theme-option theme-${theme}`} aria-pressed={selected} onClick={onSelect}>
       <div className="theme-option-scene"><ThemeScene theme={theme} /></div>
       <div className="theme-option-body">
         <div className="flex items-center justify-between gap-2">
@@ -104,6 +105,6 @@ export function ThemePreview({ theme, selected, onSelect }: { theme: ThemeId; se
           <span className="ml-auto text-[9px] tracking-[0.15em]" style={{ color: 'var(--muted)' }}>{THEMES[theme].name.toUpperCase()}</span>
         </div>
       </div>
-    </button>
+    </TripButton>
   )
 }

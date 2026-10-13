@@ -1,3 +1,4 @@
+import { CollaborationJoin } from '../CollaborationPanel'
 import { useEffect, useRef, useState } from 'react'
 import { replaceTravelData, useApp } from '../store'
 import { THEMES } from '../catalog'
@@ -135,7 +136,7 @@ export default function Profile() {
 
   return (
     <div className="mx-auto max-w-xl">
-      <h1 className="display mb-6 text-4xl">{t('profile.title')}</h1>
+      <h1 className="display mb-6 text-4xl">{t('profile.title')}</h1><CollaborationJoin />
       <div className="paper mb-6 space-y-4 p-6">
         <div>
           <Label>{t('profile.language')}</Label>

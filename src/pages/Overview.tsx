@@ -67,7 +67,7 @@ export default function Overview() {
         </Link>
       )}
 
-      <FlightJump trip={trip} t={t} locale={locale} />
+      {(trip.transportModes.includes('flight') || !!lookupAir(trip.origin) && !!lookupAir(trip.destinations[0]) && lookupAir(trip.origin)?.iata !== lookupAir(trip.destinations[0])?.iata && trip.transportModes.some((mode) => mode === 'public' || mode === 'mixed')) && <FlightJump trip={trip} t={t} locale={locale} />}
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="paper p-5">

@@ -1,3 +1,4 @@
+import { TripButton, TripInput, TripSelect, TripTextarea } from '../TripControls'
 import { useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import { useApp, useTrip } from '../store'
@@ -22,6 +23,7 @@ export default function Saved() {
   const { t } = useT()
   const [kind, setKind] = useState<SavedKind | 'all'>('all')
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<SavedItem | undefined>()
   const [scheduling, setScheduling] = useState<SavedItem | null>(null)
   const { href } = useTripContext(trip)
   if (!trip) return null
@@ -31,9 +33,9 @@ export default function Saved() {
     <div>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <h1 className="display text-4xl">{t('saved.title')}</h1>
-        <button className="btn" onClick={() => setOpen(true)}>
+        <TripButton className="btn" onClick={() => { setEditing(undefined); setOpen(true) }}>
           {t('saved.add')}
-        </button>
+        </TripButton>
       </div>
       <div className="mb-4 flex gap-2 overflow-auto">
         <FilterChip active={kind === 'all'} onClick={() => setKind('all')}>
@@ -93,13 +95,13 @@ export default function Saved() {
             )}
             <div className="mt-3 flex flex-wrap gap-1">
               {(Object.keys(STATUS) as DecisionStatus[]).map((st) => (
-                <button
+                <TripButton
                   key={st}
                   className={s.status === st ? 'btn px-2 py-1 text-xs' : 'btn btn-ghost px-2 py-1 text-xs'}
                   onClick={() => updateSaved(trip.id, s.id, { status: st })}
                 >
                   {statusLabel(t, st)}
-                </button>
+                </TripButton>
               ))}
             </div>
             {safeUrl && (
@@ -108,12 +110,12 @@ export default function Saved() {
               </a>
             )}
             <div className="mt-3 flex flex-wrap gap-2">
-              {['hotel', 'restaurant', 'place', 'activity', 'souvenir'].includes(s.kind) && <button className="btn px-3 py-2 text-sm" onClick={() => setScheduling(s)}>{t('journey.schedule')}</button>}
+              {['hotel', 'restaurant', 'place', 'activity', 'souvenir'].includes(s.kind) && <TripButton className="btn px-3 py-2 text-sm" onClick={() => setScheduling(s)}>{t('journey.schedule')}</TripButton>}
               {(() => {
                 const board = trip.compares.find((item) => item.kind === s.kind)
                 const added = !!board?.itemIds.includes(s.id)
                 return (
-                  <button
+                  <TripButton
                     className="btn btn-soft px-3 py-1 text-xs"
                     disabled={added}
                     onClick={() => {
@@ -122,23 +124,28 @@ export default function Saved() {
                     }}
                   >
                     {added ? t('saved.inCompare') : t('saved.addCompare')}
-                  </button>
+                  </TripButton>
                 )
               })()}
               {trip.compares.some((board) => board.itemIds.includes(s.id)) && <Link className="btn btn-ghost px-3 py-1 text-xs no-underline" to={href('compare')}>{t('trip.compare')} →</Link>}
-              <button className="btn btn-ghost px-3 py-1 text-xs" onClick={() => removeSaved(trip.id, s.id)}>
+              <TripButton className="btn btn-ghost px-3 py-1 text-xs" onClick={() => { setEditing(s); setOpen(true) }}>{t('saved.edit')}</TripButton>
+              <TripButton className="btn btn-ghost px-3 py-1 text-xs" onClick={() => removeSaved(trip.id, s.id)}>
                 {t('saved.delete')}
-              </button>
+              </TripButton>
             </div>
           </article>
         })}
       </div>
       {scheduling && <ScheduleSaved key={scheduling.id} trip={trip} item={scheduling} onClose={() => setScheduling(null)} />}
-      <AddSaved
+      <SavedEditor
+        key={editing?.id || `new-${open}`}
+        initial={editing}
+        homeCurrency={trip.homeCurrency}
         open={open}
         onClose={() => setOpen(false)}
         onAdd={(item) => {
-          addSaved(trip.id, item)
+          if (editing) updateSaved(trip.id, editing.id, item)
+          else addSaved(trip.id, item)
           setOpen(false)
         }}
       />
@@ -148,69 +155,80 @@ export default function Saved() {
 
 function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
   return (
-    <button className={active ? 'btn whitespace-nowrap' : 'btn btn-ghost whitespace-nowrap'} onClick={onClick}>
+    <TripButton data-browse className={active ? 'btn whitespace-nowrap' : 'btn btn-ghost whitespace-nowrap'} onClick={onClick}>
       {children}
-    </button>
+    </TripButton>
   )
 }
 
-function AddSaved({
+export function SavedEditor({
+  initial,
+  homeCurrency,
   open,
   onClose,
   onAdd,
 }: {
+  initial?: SavedItem
+  homeCurrency: string
   open: boolean
   onClose: () => void
-  onAdd: (item: { kind: SavedKind; name: string; subtitle?: string; status: DecisionStatus; price?: { amount: number; currency: string }; url?: string; notes?: string }) => void
+  onAdd: (item: Omit<SavedItem, 'id' | 'votes'>) => void
 }) {
   const { t } = useT()
-  const [kind, setKind] = useState<SavedKind>('hotel')
-  const [name, setName] = useState('')
-  const [subtitle, setSubtitle] = useState('')
-  const [price, setPrice] = useState('')
-  const [url, setUrl] = useState('')
-  const [notes, setNotes] = useState('')
+  const [kind, setKind] = useState<SavedKind>(initial?.kind || 'hotel')
+  const [name, setName] = useState(initial?.name || '')
+  const [subtitle, setSubtitle] = useState(initial?.subtitle || '')
+  const [price, setPrice] = useState(initial?.price ? String(initial.price.amount) : '')
+  const [currency, setCurrency] = useState(initial?.price?.currency || homeCurrency)
+  const [meta, setMeta] = useState(initial?.meta || {})
+  const [url, setUrl] = useState(initial?.url || '')
+  const [notes, setNotes] = useState(initial?.notes || '')
   const amount = price.trim() ? Number(price) : undefined
   const amountValid = amount === undefined || Number.isFinite(amount) && amount >= 0 && amount <= MAX_AMOUNT
 
   function save() {
     if (!name || !amountValid || name.length > MAX_TEXT_LENGTH || subtitle.length > MAX_TEXT_LENGTH || notes.length > MAX_TEXT_LENGTH) return
     onAdd({
+      ...initial,
       kind,
       name,
       subtitle,
-      status: 'interested',
+      status: initial?.status || 'interested',
       url: safeWebUrl(url.trim()),
       notes,
-      price: amount === undefined ? undefined : { amount, currency: 'AUD' },
+      meta: { ...meta, ...(initial?.meta?.decisionSource === 'google' ? { decisionSource: 'saved' } : {}) },
+      decision: initial?.decision?.source === 'google' ? undefined : initial?.decision,
+      price: amount === undefined ? undefined : { amount, currency },
     })
   }
 
   return (
-    <Modal open={open} title={t('saved.add')} onClose={onClose}>
+    <Modal open={open} title={initial ? t('saved.editTitle') : t('saved.add')} onClose={onClose}>
       <div className="space-y-3">
         <div>
           <Label>{t('saved.kind')}</Label>
-          <select className="field" value={kind} onChange={(e) => setKind(e.target.value as SavedKind)}>
+          <TripSelect className="field" disabled={!!initial} value={kind} onChange={(e) => setKind(e.target.value as SavedKind)}>
             {kinds.map((k) => (
               <option key={k} value={k}>
                 {kindLabel(t, k)}
               </option>
             ))}
-          </select>
+          </TripSelect>
         </div>
-        <input className="field" maxLength={MAX_TEXT_LENGTH} placeholder={t('saved.name')} value={name} onChange={(e) => setName(e.target.value)} />
-        <input className="field" maxLength={MAX_TEXT_LENGTH} placeholder={t('saved.extra')} value={subtitle} onChange={(e) => setSubtitle(e.target.value)} />
-        <input className="field" type="number" min={0} max={MAX_AMOUNT} step="0.01" placeholder={t('saved.pricePh')} value={price} onChange={(e) => setPrice(e.target.value)} />
-        <input className="field" type="url" maxLength={4096} placeholder={t('saved.urlPh')} value={url} onChange={(e) => setUrl(e.target.value)} />
-        <textarea className="field" maxLength={MAX_TEXT_LENGTH} placeholder={t('saved.notesPh')} value={notes} onChange={(e) => setNotes(e.target.value)} />
-        <button
+        <TripInput className="field" maxLength={MAX_TEXT_LENGTH} placeholder={t('saved.name')} value={name} onChange={(e) => setName(e.target.value)} />
+        <TripInput className="field" maxLength={MAX_TEXT_LENGTH} placeholder={t('saved.extra')} value={subtitle} onChange={(e) => setSubtitle(e.target.value)} />
+        <TripInput className="field" type="number" min={0} max={MAX_AMOUNT} step="0.01" placeholder={t('saved.pricePh')} value={price} onChange={(e) => setPrice(e.target.value)} />
+        <label className="block text-sm">{t('saved.currency')}<TripSelect className="field mt-1" value={currency} onChange={(e) => setCurrency(e.target.value)}>{Array.from(new Set([homeCurrency, 'AUD', 'JPY', 'USD', 'CNY', 'EUR', 'IDR'])).map((value) => <option key={value}>{value}</option>)}</TripSelect></label>
+        {kind === 'hotel' && <div className="space-y-3"><label className="block text-sm">{t('saved.priceBasis')}<TripSelect className="field mt-1" value={meta.priceBasis || 'total'} onChange={(e) => setMeta({ ...meta, priceBasis: e.target.value })}><option value="total">{t('saved.totalPrice')}</option><option value="night">{t('saved.nightPrice')}</option></TripSelect></label><p className="text-sm">{t('saved.manualFacts')} · {t('saved.metaHint')}</p>{['breakfast', 'parking', 'cancel', 'size'].map((key) => <label key={key} className="block text-sm">{t('compare.' + (key === 'size' ? 'room' : key))}<TripInput className="field mt-1" maxLength={20000} value={meta[key] || ''} onChange={(e) => setMeta({ ...meta, [key]: e.target.value })} /></label>)}</div>}
+        <TripInput className="field" type="url" maxLength={4096} placeholder={t('saved.urlPh')} value={url} onChange={(e) => setUrl(e.target.value)} />
+        <TripTextarea className="field" maxLength={MAX_TEXT_LENGTH} placeholder={t('saved.notesPh')} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <TripButton
           className="btn w-full"
           disabled={!name || !amountValid}
           onClick={save}
         >
-          {t('saved.save')}
-        </button>
+          {initial ? t('saved.updated') : t('saved.save')}
+        </TripButton>
       </div>
     </Modal>
   )

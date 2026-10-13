@@ -138,6 +138,7 @@ export interface Booking {
   status: BookingStatus
   date?: string
   checkout?: string
+  costFromSaved?: boolean
   confirmation?: string
   url?: string
   cost?: Money
@@ -170,6 +171,15 @@ export interface Expense {
   notes?: string
   exchangeRate?: number
   bookingId?: string
+}
+
+export interface Settlement {
+  id: string
+  from: string
+  to: string
+  amount: number
+  currency: string
+  settledAt: string
 }
 
 export interface GiftItem {
@@ -226,6 +236,7 @@ export interface Trip {
   budget: BudgetCategory[]
   expenses: Expense[]
   gifts: GiftItem[]
+  settlements?: Settlement[]
   packing?: PackingState
   notes: string
   share: { visibility: 'private' | 'friends' | 'public' }

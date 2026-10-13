@@ -1,3 +1,4 @@
+import { TripButton, TripInput, TripSelect, TripTextarea } from './TripControls'
 import { Link } from 'react-router-dom'
 import ScheduleSaved from './ScheduleSaved'
 import { useTripContext } from './useTripContext'
@@ -183,39 +184,39 @@ export default function DecisionAssistant({ trip }: { trip: Trip }) {
       <h2 className="display flex items-center gap-2 text-2xl"><Sparkles size={20} />{t('decision.title')}</h2>
       <p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>{t('decision.intro')}</p>
       <div className="mt-4 flex flex-wrap gap-2">
-        {(['hotel', 'restaurant'] as const).map((kind) => <button key={kind} className={prefs.kind === kind ? 'btn' : 'btn btn-ghost'} aria-pressed={prefs.kind === kind} onClick={() => change({ kind, budgetMax: undefined })}>{t('decision.' + kind)}</button>)}
+        {(['hotel', 'restaurant'] as const).map((kind) => <TripButton key={kind} className={prefs.kind === kind ? 'btn' : 'btn btn-ghost'} aria-pressed={prefs.kind === kind} onClick={() => change({ kind, budgetMax: undefined })}>{t('decision.' + kind)}</TripButton>)}
       </div>
-      <label className="mt-4 block space-y-2 text-sm"><span>{t('decision.prompt')}</span><textarea className="field min-h-20" value={prompt} maxLength={2000} onChange={(event) => setPrompt(event.target.value)} placeholder={t('decision.promptPh')} /></label>
+      <label className="mt-4 block space-y-2 text-sm"><span>{t('decision.prompt')}</span><TripTextarea className="field min-h-20" value={prompt} maxLength={2000} onChange={(event) => setPrompt(event.target.value)} placeholder={t('decision.promptPh')} /></label>
       <div className="mt-2 flex flex-wrap gap-2">
-        <button className="btn btn-soft text-xs" disabled={!prompt.trim()} onClick={() => readIntent()}>{t('decision.parse')}</button>
-        <button className="btn btn-ghost text-xs" onClick={() => readIntent(t('decision.hotelExample'))}>{t('decision.hotelExample')}</button>
-        <button className="btn btn-ghost text-xs" onClick={() => readIntent(t('decision.foodExample'))}>{t('decision.foodExample')}</button>
+        <TripButton className="btn btn-soft text-xs" disabled={!prompt.trim()} onClick={() => readIntent()}>{t('decision.parse')}</TripButton>
+        <TripButton className="btn btn-ghost text-xs" onClick={() => readIntent(t('decision.hotelExample'))}>{t('decision.hotelExample')}</TripButton>
+        <TripButton className="btn btn-ghost text-xs" onClick={() => readIntent(t('decision.foodExample'))}>{t('decision.foodExample')}</TripButton>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <label className="min-w-0 space-y-1 text-xs"><span>{t('decision.city')}</span><input className="field" list={'decision-cities-' + trip.id} value={prefs.city} maxLength={120} onChange={(event) => change({ city: event.target.value })} /></label>
+        <label className="min-w-0 space-y-1 text-xs"><span>{t('decision.city')}</span><TripInput className="field" list={'decision-cities-' + trip.id} value={prefs.city} maxLength={120} onChange={(event) => change({ city: event.target.value })} /></label>
         <datalist id={'decision-cities-' + trip.id}>{[...new Set([...trip.destinations, ...DECISION_CATALOG.map((candidate) => candidate.city)])].map((city) => <option key={city} value={city} />)}</datalist>
-        <label className="min-w-0 space-y-1 text-xs"><span>{t(prefs.kind === 'hotel' ? 'decision.budgetHotel' : 'decision.budgetFood')}</span><input className="field" type="number" min="1" value={prefs.budgetMax ?? ''} placeholder={t('decision.budgetNone')} onChange={(event) => change({ budgetMax: event.target.value === '' ? undefined : Number(event.target.value) })} /></label>
-        <label className="min-w-0 space-y-1 text-xs"><span>{t('decision.currency')}</span><select className="field" value={prefs.currency} onChange={(event) => change({ currency: event.target.value })}>{[...new Set([trip.homeCurrency, 'AUD', 'USD', 'CNY', 'JPY', 'EUR', 'IDR'])].map((currency) => <option key={currency}>{currency}</option>)}</select></label>
-        <label className="min-w-0 space-y-1 text-xs"><span>{t('decision.guests')}</span><input className="field" type="number" min="1" max="20" value={prefs.travellers} onChange={(event) => change({ travellers: Number(event.target.value) })} /></label>
-        <label className="min-w-0 space-y-1 text-xs"><span>{t(prefs.kind === 'hotel' ? 'decision.checkin' : 'decision.mealDate')}</span><input className="field" type="date" value={prefs.checkin} onChange={(event) => change({ checkin: event.target.value })} /></label>
-        {prefs.kind === 'hotel' ? <label className="min-w-0 space-y-1 text-xs"><span>{t('decision.checkout')}</span><input className="field" type="date" value={prefs.checkout} onChange={(event) => change({ checkout: event.target.value })} /></label> : <label className="min-w-0 space-y-1 text-xs"><span>{t('decision.cuisine')}</span><select className="field" value={prefs.cuisine} onChange={(event) => change({ cuisine: event.target.value as Cuisine })}>{CUISINES.map((cuisine) => <option key={cuisine} value={cuisine}>{t('decision.cuisine.' + cuisine)}</option>)}</select></label>}
-        <label className="min-w-0 space-y-1 text-xs"><span>{t('decision.minRating')}</span><select className="field" value={prefs.minRating} onChange={(event) => change({ minRating: Number(event.target.value) })}>{[0, 4, 4.3, 4.5, 4.7].map((value) => <option key={value} value={value}>{value === 0 ? '—' : value.toFixed(1)}</option>)}</select></label>
-        <label className="min-w-0 space-y-1 text-xs"><span>{t('decision.minReviews')}</span><select className="field" value={prefs.minReviews} onChange={(event) => change({ minReviews: Number(event.target.value) })}>{[0, 50, 100, 500].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+        <label className="min-w-0 space-y-1 text-xs"><span>{t(prefs.kind === 'hotel' ? 'decision.budgetHotel' : 'decision.budgetFood')}</span><TripInput className="field" type="number" min="1" value={prefs.budgetMax ?? ''} placeholder={t('decision.budgetNone')} onChange={(event) => change({ budgetMax: event.target.value === '' ? undefined : Number(event.target.value) })} /></label>
+        <label className="min-w-0 space-y-1 text-xs"><span>{t('decision.currency')}</span><TripSelect className="field" value={prefs.currency} onChange={(event) => change({ currency: event.target.value })}>{[...new Set([trip.homeCurrency, 'AUD', 'USD', 'CNY', 'JPY', 'EUR', 'IDR'])].map((currency) => <option key={currency}>{currency}</option>)}</TripSelect></label>
+        <label className="min-w-0 space-y-1 text-xs"><span>{t('decision.guests')}</span><TripInput className="field" type="number" min="1" max="20" value={prefs.travellers} onChange={(event) => change({ travellers: Number(event.target.value) })} /></label>
+        <label className="min-w-0 space-y-1 text-xs"><span>{t(prefs.kind === 'hotel' ? 'decision.checkin' : 'decision.mealDate')}</span><TripInput className="field" type="date" value={prefs.checkin} onChange={(event) => change({ checkin: event.target.value })} /></label>
+        {prefs.kind === 'hotel' ? <label className="min-w-0 space-y-1 text-xs"><span>{t('decision.checkout')}</span><TripInput className="field" type="date" value={prefs.checkout} onChange={(event) => change({ checkout: event.target.value })} /></label> : <label className="min-w-0 space-y-1 text-xs"><span>{t('decision.cuisine')}</span><TripSelect className="field" value={prefs.cuisine} onChange={(event) => change({ cuisine: event.target.value as Cuisine })}>{CUISINES.map((cuisine) => <option key={cuisine} value={cuisine}>{t('decision.cuisine.' + cuisine)}</option>)}</TripSelect></label>}
+        <label className="min-w-0 space-y-1 text-xs"><span>{t('decision.minRating')}</span><TripSelect className="field" value={prefs.minRating} onChange={(event) => change({ minRating: Number(event.target.value) })}>{[0, 4, 4.3, 4.5, 4.7].map((value) => <option key={value} value={value}>{value === 0 ? '—' : value.toFixed(1)}</option>)}</TripSelect></label>
+        <label className="min-w-0 space-y-1 text-xs"><span>{t('decision.minReviews')}</span><TripSelect className="field" value={prefs.minReviews} onChange={(event) => change({ minReviews: Number(event.target.value) })}>{[0, 50, 100, 500].map((value) => <option key={value} value={value}>{value}</option>)}</TripSelect></label>
       </div>
       <div className="mt-4 flex flex-wrap gap-4 text-sm">
-        {prefs.kind === 'hotel' && <label className="flex items-center gap-2"><input type="checkbox" checked={prefs.seaView} onChange={(event) => change({ seaView: event.target.checked })} />{t('decision.seaView')}</label>}
-        <label className="flex items-center gap-2"><input type="checkbox" checked={prefs.parking} onChange={(event) => change({ parking: event.target.checked, freeParking: event.target.checked ? prefs.freeParking : false })} />{t('decision.parking')}</label>
-        <label className="flex items-center gap-2"><input type="checkbox" checked={prefs.freeParking} onChange={(event) => change({ freeParking: event.target.checked, parking: event.target.checked || prefs.parking })} />{t('decision.freeParking')}</label>
-        {prefs.kind === 'restaurant' && <label className="flex items-center gap-2"><input type="checkbox" checked={prefs.variety} onChange={(event) => change({ variety: event.target.checked })} />{t('decision.variety')}</label>}
+        {prefs.kind === 'hotel' && <label className="flex items-center gap-2"><TripInput type="checkbox" checked={prefs.seaView} onChange={(event) => change({ seaView: event.target.checked })} />{t('decision.seaView')}</label>}
+        <label className="flex items-center gap-2"><TripInput type="checkbox" checked={prefs.parking} onChange={(event) => change({ parking: event.target.checked, freeParking: event.target.checked ? prefs.freeParking : false })} />{t('decision.parking')}</label>
+        <label className="flex items-center gap-2"><TripInput type="checkbox" checked={prefs.freeParking} onChange={(event) => change({ freeParking: event.target.checked, parking: event.target.checked || prefs.parking })} />{t('decision.freeParking')}</label>
+        {prefs.kind === 'restaurant' && <label className="flex items-center gap-2"><TripInput type="checkbox" checked={prefs.variety} onChange={(event) => change({ variety: event.target.checked })} />{t('decision.variety')}</label>}
       </div>
-      {prefs.kind === 'restaurant' && <details className="mt-3 text-xs"><summary className="cursor-pointer">{t('decision.exclusions')}</summary><div className="mt-2 flex flex-wrap gap-3">{CUISINES.filter((cuisine) => cuisine !== 'any').map((cuisine) => <label key={cuisine} className="flex items-center gap-1"><input type="checkbox" checked={prefs.excludedCuisines?.includes(cuisine) || false} onChange={(event) => change({ excludedCuisines: event.target.checked ? [...(prefs.excludedCuisines || []), cuisine] : prefs.excludedCuisines?.filter((value) => value !== cuisine), cuisine: event.target.checked && prefs.cuisine === cuisine ? 'any' : prefs.cuisine })} />{t('decision.cuisine.' + cuisine)}</label>)}</div></details>}
+      {prefs.kind === 'restaurant' && <details className="mt-3 text-xs"><summary className="cursor-pointer">{t('decision.exclusions')}</summary><div className="mt-2 flex flex-wrap gap-3">{CUISINES.filter((cuisine) => cuisine !== 'any').map((cuisine) => <label key={cuisine} className="flex items-center gap-1"><TripInput type="checkbox" checked={prefs.excludedCuisines?.includes(cuisine) || false} onChange={(event) => change({ excludedCuisines: event.target.checked ? [...(prefs.excludedCuisines || []), cuisine] : prefs.excludedCuisines?.filter((value) => value !== cuisine), cuisine: event.target.checked && prefs.cuisine === cuisine ? 'any' : prefs.cuisine })} />{t('decision.cuisine.' + cuisine)}</label>)}</div></details>}
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        <button className="btn" disabled={loading || !valid} onClick={() => void search()}><Sparkles size={16} />{t(loading ? 'decision.loading' : 'decision.find')}</button>
-        {loading && <button className="btn btn-ghost" onClick={() => { controller.current?.abort(); controller.current = null; generation.current += 1; setLoading(false) }}>{t('decision.cancel')}</button>}
+        <TripButton className="btn" disabled={loading || !valid} onClick={() => void search()}><Sparkles size={16} />{t(loading ? 'decision.loading' : 'decision.find')}</TripButton>
+        {loading && <TripButton className="btn btn-ghost" onClick={() => { controller.current?.abort(); controller.current = null; generation.current += 1; setLoading(false) }}>{t('decision.cancel')}</TripButton>}
       </div>
       {!valid && <p role="alert" className="mt-3 text-sm" style={{ color: 'var(--warn)' }}>{t('decision.invalid')}</p>}
       {status && <p role="status" className="mt-3 text-sm">{status}</p>}
-      {lastSavedId && <div className="mt-3 flex flex-wrap gap-2"><button className="btn text-sm" onClick={() => setScheduleOpen(true)}>{t('journey.schedule')}</button><Link className="btn btn-ghost text-sm no-underline" to={href('bookings')}>{t('journey.order')}</Link><Link className="btn btn-ghost text-sm no-underline" to={href('saved')}>{t('trip.saved')} →</Link></div>}
+      {lastSavedId && <div className="mt-3 flex flex-wrap gap-2"><TripButton className="btn text-sm" onClick={() => setScheduleOpen(true)}>{t('journey.schedule')}</TripButton><Link className="btn btn-ghost text-sm no-underline" to={href('bookings')}>{t('journey.order')}</Link><Link className="btn btn-ghost text-sm no-underline" to={href('saved')}>{t('trip.saved')} →</Link></div>}
       {scheduleOpen && lastSavedId && trip.saved.find((item) => item.id === lastSavedId) && <ScheduleSaved trip={trip} item={trip.saved.find((item) => item.id === lastSavedId)!} onClose={() => setScheduleOpen(false)} />}
       {searched && <div className="mt-5 space-y-4">
         {offline && <p role="status" className="rounded-xl p-3 text-sm" style={{ background: 'var(--bg-2)' }}>{t('decision.offline')}</p>}
@@ -244,7 +245,7 @@ export default function DecisionAssistant({ trip }: { trip: Trip }) {
                 {candidate.checkedAt && <span> · {t('decision.checked', { date: candidate.checkedAt.slice(0, 10) })}</span>}
                 {candidate.attributions?.map((attribution, index) => <span key={index}> · {safeDecisionUrl(attribution.url) ? <a href={safeDecisionUrl(attribution.url)} target="_blank" rel="noreferrer">{attribution.name}</a> : attribution.name}</span>)}
               </div>
-              <div className="mt-3 flex flex-wrap gap-2"><button className="btn btn-soft text-xs" onClick={() => select(ranked, false)}>{t('decision.save')}</button><button className="btn text-xs" onClick={() => select(ranked, true)}>{t('decision.choose')}</button></div>
+              <div className="mt-3 flex flex-wrap gap-2"><TripButton className="btn btn-soft text-xs" onClick={() => select(ranked, false)}>{t('decision.save')}</TripButton><TripButton className="btn text-xs" onClick={() => select(ranked, true)}>{t('decision.choose')}</TripButton></div>
             </article>
           })}
         </div>
@@ -259,7 +260,7 @@ export default function DecisionAssistant({ trip }: { trip: Trip }) {
           return <li key={meal.date} className="rounded-xl p-3 text-sm" style={{ background: 'var(--bg-2)' }}>
             <p>{meal.date.slice(5)} · {meal.city} · {t('decision.cuisine.' + (assigned?.cuisine || meal.cuisine))}</p>
             {meal.repeated && !assigned && <p className="mt-1 text-xs">{t('decision.mealRepeat')}</p>}
-            {savedMeal ? <div className="mt-2"><p>{t('decision.mealChosen', { name: savedMeal.name })}</p><button className="mt-2 underline text-xs" onClick={() => updateTrip(trip.id, { mealSelections: (useApp.getState().trips.find((entry) => entry.id === trip.id)?.mealSelections || []).filter((entry) => entry.date !== meal.date) })}>{t('decision.mealRemove')}</button></div> : <button className="btn btn-ghost mt-2 text-xs" onClick={() => { change({ kind: 'restaurant', city: meal.city, cuisine: meal.cuisine, checkin: meal.date, checkout: nextDay(meal.date) }); setStatus(t('decision.mealReady', { date: meal.date, city: meal.city })); panel.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}>{t('decision.mealFilter')}</button>}
+            {savedMeal ? <div className="mt-2"><p>{t('decision.mealChosen', { name: savedMeal.name })}</p><TripButton className="mt-2 underline text-xs" onClick={() => updateTrip(trip.id, { mealSelections: (useApp.getState().trips.find((entry) => entry.id === trip.id)?.mealSelections || []).filter((entry) => entry.date !== meal.date) })}>{t('decision.mealRemove')}</TripButton></div> : <TripButton className="btn btn-ghost mt-2 text-xs" onClick={() => { change({ kind: 'restaurant', city: meal.city, cuisine: meal.cuisine, checkin: meal.date, checkout: nextDay(meal.date) }); setStatus(t('decision.mealReady', { date: meal.date, city: meal.city })); panel.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}>{t('decision.mealFilter')}</TripButton>}
           </li>
         })}</ol>
       </div>}
@@ -268,11 +269,11 @@ export default function DecisionAssistant({ trip }: { trip: Trip }) {
         {pending && <div className="space-y-4">
           <p className="text-sm">{pending.ranked.candidate.name}</p>
           {unknowns && <p className="text-sm" style={{ color: 'var(--warn)' }}>{t('decision.unknownConfirm', { items: unknowns })}</p>}
-          <label className="block space-y-2 text-sm"><span>{t('decision.label')}</span><input className="field" value={label} maxLength={160} placeholder={t('decision.googleLabel')} onChange={(event) => setLabel(event.target.value)} /></label>
+          <label className="block space-y-2 text-sm"><span>{t('decision.label')}</span><TripInput className="field" value={label} maxLength={160} placeholder={t('decision.googleLabel')} onChange={(event) => setLabel(event.target.value)} /></label>
           {pending.ranked.candidate.source === 'google' && <p className="text-xs">{t('decision.googleRetention')}</p>}
           {pending.choose && <p className="text-sm">{t('decision.reminder')}</p>}
           {selectionError && <p role="alert" className="text-sm" style={{ color: 'var(--warn)' }}>{selectionError}</p>}
-          <button className="btn" disabled={!label.trim()} onClick={commit}>{t(pending.choose ? 'decision.choose' : 'decision.save')}</button>
+          <TripButton className="btn" disabled={!label.trim()} onClick={commit}>{t(pending.choose ? 'decision.choose' : 'decision.save')}</TripButton>
         </div>}
       </Modal>
     </section>

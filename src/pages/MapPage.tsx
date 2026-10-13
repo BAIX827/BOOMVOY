@@ -1,3 +1,4 @@
+import { TripButton } from '../TripControls'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useTripContext } from '../useTripContext'
@@ -12,6 +13,7 @@ import { transportLabel, useT } from '../i18n'
 
 const hopKey = (a: PlaceStop, b: PlaceStop) => `${a.id}:${a.coords?.lat},${a.coords?.lng}:${a.transportToNext || 'public'}-${b.id}:${b.coords?.lat},${b.coords?.lng}`
 
+const ROUTE_COLORS = ['#2454a4', '#8b316e', '#226747', '#865014', '#663ca0', '#146574', '#a73737']
 const HOP_MODES: TransportMode[] = ['walking', 'public', 'taxi', 'self-drive', 'cycling']
 
 export default function MapPage() {
@@ -75,7 +77,7 @@ export default function MapPage() {
 
   const stops: MapStop[] = days.flatMap((d) => {
     const dayIndex = (trip?.days || []).findIndex((x) => x.id === d.id)
-    const color = DAY_COLORS[dayIndex % DAY_COLORS.length]
+    const color = ROUTE_COLORS[dayIndex % ROUTE_COLORS.length]
     return activePlaces(d)
       .map((p, index) => ({
         number: filter === 'all' ? `${dayIndex + 1}.${index + 1}` : String(index + 1),
@@ -86,14 +88,15 @@ export default function MapPage() {
         color,
         checkedIn: p.checkedIn,
         feeling: p.feeling,
+        edge: p.id === activePlaces(d).find((place) => place.coords)?.id ? t(index === 0 ? 'route.start' : 'route.partialStart') : p.id === activePlaces(d).filter((place) => place.coords).at(-1)?.id ? t(index === activePlaces(d).length - 1 ? 'route.end' : 'route.partialEnd') : undefined,
       })).filter((stop) => stop.coords)
   })
   const lines: MapLine[] = days.flatMap((day) => {
     const pts = activePlaces(day)
-    const color = DAY_COLORS[(trip?.days || []).findIndex((entry) => entry.id === day.id) % DAY_COLORS.length]
+    const color = ROUTE_COLORS[(trip?.days || []).findIndex((entry) => entry.id === day.id) % ROUTE_COLORS.length]
     return pts.slice(0, -1).flatMap((place, index) => {
       const next = pts[index + 1], id = `${place.id}-${next.id}`, hop = routes[hopKey(place, next)]
-      return place.coords && next.coords ? [{ id, color, pts: hop?.geometry || [[place.coords.lat, place.coords.lng], [next.coords.lat, next.coords.lng]] as [number, number][], estimated: !hop || hop.source === 'estimate' }] : []
+      return place.coords && next.coords ? [{ id, color, fromId: place.id, toId: next.id, pts: hop?.geometry || [[place.coords.lat, place.coords.lng], [next.coords.lat, next.coords.lng]] as [number, number][], estimated: !hop || hop.source === 'estimate' }] : []
     })
   })
   if (!trip) return null
@@ -117,7 +120,8 @@ export default function MapPage() {
         <TripMap stops={stops} lines={lines} empty={t('journey.emptyMap')} selectedId={placeId} onSelect={(id) => { const day = trip.days.find((entry) => activePlaces(entry).some((place) => place.id === id)); selectPlace(id, day?.id) }} />
       </div>
 
-      <p className="text-xs" style={{ color: 'var(--muted)' }}>{t('journey.numbered')}</p>
+      {days.some((day) => activePlaces(day).some((place) => !place.coords)) && <p className="text-sm">{t('route.missing', { n: days.reduce((count, day) => count + activePlaces(day).filter((place) => !place.coords).length, 0) })}</p>}
+      <p className="text-xs" style={{ color: 'var(--muted)' }}>{t('journey.numbered')} {t('route.legend')}</p>
       {filter === 'all' ? (
         <div className="paper p-5">
           <h2 className="display text-2xl">{t('map.nodes')}</h2>
@@ -155,15 +159,17 @@ export default function MapPage() {
                 {d.city} · Plan {d.activePlan}
               </h2>
               <Link className="btn btn-ghost mt-3 no-underline" to={href('plan', d.id)}>{t('journey.editDay')}</Link>
+              {placeId && (() => { const index = pts.findIndex((place) => place.id === placeId), selected = pts[index], next = pts[index + 1]; return selected && <div className="mt-3 rounded-xl p-3" style={{ background: 'var(--accent-soft)' }}><strong>{t('route.focus', { name: selected.name })}</strong>{next && <p className="mt-1">{t('route.next', { name: next.name })}</p>}</div> })()}
               <ol className="mt-3 space-y-3">
                 {pts.map((p, i) => (
                   <li key={p.id} id={`map-list-${p.id}`} className="rounded-xl p-2 text-sm" style={{ background: placeId === p.id ? 'var(--accent-soft)' : undefined }}>
                     <div className="flex items-center gap-3">
-                      <button className="route-stop-number" aria-label={`${i + 1}. ${p.name}`} aria-pressed={placeId === p.id} onClick={() => selectPlace(p.id)}>{i + 1}</button>
+                      <TripButton data-browse className="route-stop-number" aria-label={`${i + 1}. ${p.name}`} aria-pressed={placeId === p.id} onClick={() => selectPlace(p.id)}>{i + 1}</TripButton>
                       <span className="w-12" style={{ color: 'var(--muted)' }}>
                         {p.time || '—'}
                       </span>
-                      <button className="flex-1 text-left font-medium" onClick={() => selectPlace(p.id)}>{p.name}</button>
+                      <TripButton data-browse className="flex-1 text-left font-medium" onClick={() => selectPlace(p.id)}>{p.name}</TripButton>
+                      {!p.coords && <span className="chip">{t('route.locate')}</span>}
                       {p.checkedIn && <span className="chip">✓</span>}
                     </div>
                     {pts[i + 1] && (
@@ -213,15 +219,15 @@ function HopPick({
     <div className="mt-2 ml-12 space-y-1">
       <div className="flex flex-wrap gap-1">
         {HOP_MODES.map((m) => (
-          <button key={m} className={mode === m ? 'btn px-2 py-0.5 text-[11px]' : 'btn btn-ghost px-2 py-0.5 text-[11px]'} onClick={() => onMode(m)}>
+          <TripButton key={m} className={mode === m ? 'btn px-2 py-0.5 text-[11px]' : 'btn btn-ghost px-2 py-0.5 text-[11px]'} onClick={() => onMode(m)}>
             {TRANSPORT[m].icon} {transportLabel(t, m)}
-          </button>
+          </TripButton>
         ))}
       </div>
       <div className="text-xs" style={{ color: 'var(--muted)' }}>
         {hop
           ? t('map.hopEta', { km: hop.km.toFixed(1), min: hop.minutes })
-          : t('map.hopWait')}
+          : !from.coords || !to.coords ? t('route.locate') : t('map.hopWait')}
         {url && (
           <>
             {' · '}
@@ -247,7 +253,7 @@ function Chip({
   color?: string
 }) {
   return (
-    <button
+    <TripButton data-browse
       onClick={onClick}
       className="rounded-full px-3 py-1.5 text-sm whitespace-nowrap"
       style={{
@@ -258,6 +264,6 @@ function Chip({
       }}
     >
       {children}
-    </button>
+    </TripButton>
   )
 }

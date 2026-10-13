@@ -5,6 +5,7 @@ import { ApiControlError, createApiControl, stableProviderKey } from './api-cont
 import { createAiResultCache, recommendationFormat } from './ai-policy.mjs'
 import { normalizePlaceName } from '../src/placeIdentity.mjs'
 import { boomiSay } from '../src/boomiVoice.mjs'
+import { createCollaborationStore, CollaborationError } from './collaboration-store.mjs'
 import { createSnapshotStore, MAX_SNAPSHOT_BYTES, SnapshotStoreError, SnapshotValidationError } from './snapshot-store.mjs'
 import { createProviderSettingsStore, MAX_SETTINGS_BYTES, ProviderSettingsError, validateProviderSettingsPatch } from './provider-settings.mjs'
 
@@ -399,6 +400,7 @@ export function createBoomvoyServer({ apiKey = process.env.GOOGLE_PLACES_API_KEY
   aiCacheTtlMs = Number(process.env.BOOMVOY_AI_CACHE_TTL_MS ?? 600000),
   syncToken = process.env.BOOMVOY_SYNC_TOKEN || '',
   snapshotFilePath = process.env.BOOMVOY_DATA_FILE || fileURLToPath(new URL('./data/snapshot.json', import.meta.url)), snapshotStore,
+  collaborationDirectory = fileURLToPath(new URL('./data/rooms', import.meta.url)), collaborationStore,
   settingsFilePath, settingsStore,
   allowedOrigins = [...LOCAL_ORIGINS, ...(process.env.BOOMVOY_ALLOWED_ORIGINS || process.env.DECISION_ALLOWED_ORIGINS || '').split(',').filter(Boolean)],
   allowedHosts = [...LOCAL_HOSTS, ...(process.env.BOOMVOY_ALLOWED_HOSTS || process.env.DECISION_ALLOWED_HOSTS || '').split(',').filter(Boolean)],
@@ -419,6 +421,7 @@ export function createBoomvoyServer({ apiKey = process.env.GOOGLE_PLACES_API_KEY
   const requests = new Map()
   let activeSnapshotRequests = 0
   const control = apiControl || createApiControl({ maxConcurrent: upstreamConcurrency, callLimit: upstreamRateLimit, callWindowMs: upstreamRateWindowMs, now })
+  const rooms = collaborationStore || createCollaborationStore({ directory: collaborationDirectory, now })
   const snapshots = snapshotStore || createSnapshotStore({ filePath: snapshotFilePath })
   // Factory defaults are isolated for tests/embedded users; direct startup supplies the local file.
   const providerSettings = settingsStore || createProviderSettingsStore({ filePath: settingsFilePath })
@@ -485,11 +488,11 @@ export function createBoomvoyServer({ apiKey = process.env.GOOGLE_PLACES_API_KEY
     })
   }
 
-  function enforceClientRate(req, res) {
-    const time = now(), address = req.socket.remoteAddress || 'unknown'
+  function enforceClientRate(req, res, scope = '', limit = rateLimit) {
+    const time = now(), address = `${req.socket.remoteAddress || 'unknown'}:${scope}`
     for (const [key, entry] of requests) if (time - entry.start >= rateWindowMs) requests.delete(key)
     const entry = requests.get(address) || { count: 0, start: time }
-    if (++entry.count > rateLimit) {
+    if (++entry.count > limit) {
       res.setHeader('Retry-After', String(Math.max(1, Math.ceil((rateWindowMs - time + entry.start) / 1000))))
       throw new RequestError(429, 'rate_limited')
     }
@@ -656,6 +659,32 @@ export function createBoomvoyServer({ apiKey = process.env.GOOGLE_PLACES_API_KEY
     }
   }
 
+  async function collaboration(req, res) {
+    const match = /^\/api\/v1\/rooms(?:\/([a-f0-9-]{36})(?:\/(invites|votes))?)?$/.exec(req.url)
+    if (!match) throw new RequestError(404, 'not_found')
+    if (req.method === 'OPTIONS') {
+      const headers = String(req.headers['access-control-request-headers'] || '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean)
+      if (!req.headers.origin || !['GET', 'PUT', 'POST'].includes(req.headers['access-control-request-method']) || headers.some(header => !['authorization', 'content-type', 'if-match'].includes(header))) throw new RequestError(403, 'origin_not_allowed')
+      res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, POST, OPTIONS'); res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, If-Match'); send(res, 204); return
+    }
+    enforceClientRate(req, res, 'collaboration', Math.max(180, rateLimit))
+    const token = /^Bearer ([A-Za-z0-9_-]{32,512})$/.exec(req.headers.authorization || '')?.[1]
+    const [, id, action] = match
+    if (req.method === 'GET' && id && !action) { send(res, 200, await rooms.get(id, token)); return }
+    if (!['POST', 'PUT'].includes(req.method)) throw new RequestError(405, 'method_not_allowed')
+    if (!/^application\/json(?:\s*;.*)?$/i.test(req.headers['content-type'] || '') || req.headers['content-encoding'] && req.headers['content-encoding'] !== 'identity') throw new RequestError(415, 'json_required')
+    if (!id) {
+      if (req.method !== 'POST') throw new RequestError(405, 'method_not_allowed')
+      if (!syncToken) throw new RequestError(503, 'sync_not_configured')
+      if (!bearerMatches(req.headers.authorization, syncToken)) throw new RequestError(401, 'access_denied')
+      send(res, 201, await rooms.create(await readBody(req, MAX_SNAPSHOT_BYTES))); return
+    }
+    if (action === 'invites' && req.method === 'POST') { const body = await readBody(req, 1024); send(res, 200, await rooms.invite(id, token, body.memberId)); return }
+    if (action === 'votes' && req.method === 'POST') { const body = await readBody(req, 1024); send(res, 200, await rooms.vote(id, token, body.savedId)); return }
+    if (!action && req.method === 'PUT') { const result = await rooms.put(id, token, await readBody(req, MAX_SNAPSHOT_BYTES), expectedRevision(req.headers['if-match'])); send(res, result.conflict ? 409 : 200, result); return }
+    throw new RequestError(405, 'method_not_allowed')
+  }
+
   const server = http.createServer(async (req, res) => {
     res.setHeader('Vary', 'Origin')
     try {
@@ -667,6 +696,8 @@ export function createBoomvoyServer({ apiKey = process.env.GOOGLE_PLACES_API_KEY
       const origin = req.headers.origin
       if (origin && !origins.has(origin)) throw new RequestError(403, 'origin_not_allowed')
       if (origin) res.setHeader('Access-Control-Allow-Origin', origin)
+
+      if (req.url.startsWith('/api/v1/rooms')) { await collaboration(req, res); return }
 
       if (req.url === '/api/health') {
         if (req.method !== 'GET') { res.setHeader('Allow', 'GET'); throw new RequestError(405, 'method_not_allowed') }
@@ -698,7 +729,7 @@ export function createBoomvoyServer({ apiKey = process.env.GOOGLE_PLACES_API_KEY
       send(res, 200, await handler(await readBody(req, bodyLimit)))
     } catch (error) {
       if (error instanceof RequestError && error.retryAfter) res.setHeader('Retry-After', String(error.retryAfter))
-      const known = error instanceof RequestError || error instanceof SnapshotValidationError || error instanceof SnapshotStoreError || error instanceof ProviderSettingsError
+      const known = error instanceof RequestError || error instanceof SnapshotValidationError || error instanceof SnapshotStoreError || error instanceof ProviderSettingsError || error instanceof CollaborationError
       send(res, known ? error.status : 500, { error: known ? error.code : 'internal_error' })
     }
   })

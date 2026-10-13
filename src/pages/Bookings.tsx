@@ -1,3 +1,4 @@
+import { TripButton, TripInput, TripSelect, TripTextarea } from '../TripControls'
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useApp, useTrip } from '../store'
@@ -45,9 +46,9 @@ export default function Bookings() {
         <div>
           <h1 className="display text-4xl">{t('book.title')}</h1>
         </div>
-        <button className="btn" onClick={() => { setEditing(undefined); setOpen(true) }}>
+        <TripButton className="btn" onClick={() => { setEditing(undefined); setOpen(true) }}>
           {t('book.register')}
-        </button>
+        </TripButton>
       </div>
 
 
@@ -75,6 +76,7 @@ export default function Bookings() {
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <div className="font-medium">{b.name}</div>
+                        {b.date && (b.date < trip.startDate || b.date > trip.endDate || b.checkout && b.checkout > trip.endDate) && <p className="mt-1 text-sm">{t('settings.bookingOutside')}</p>}
                         <div className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
                           {b.date || t('book.dateTbd')}
                           {b.kind === 'hotel' && b.checkout ? ` → ${b.checkout}` : ''}
@@ -86,7 +88,7 @@ export default function Bookings() {
                     </div>
                     <div className="mt-3 flex flex-wrap gap-1">
                       {(Object.keys(BOOKING_STATUS) as BookingStatus[]).map((st) => (
-                        <button
+                        <TripButton
                           key={st}
                           className={b.status === st ? 'btn px-2 py-1 text-xs' : 'btn btn-ghost px-2 py-1 text-xs'}
                           onClick={() => {
@@ -98,18 +100,18 @@ export default function Bookings() {
                           }}
                         >
                           {bookingStatusLabel(t, st)}
-                        </button>
+                        </TripButton>
                       ))}
                       {safeUrl && (
                         <a className="btn btn-soft px-2 py-1 text-xs no-underline" href={safeUrl} target="_blank" rel="noreferrer">
                           {t('book.openSite')}
                         </a>
                       )}
-                      <button className="btn btn-ghost px-2 py-1 text-xs" onClick={() => { setEditing(b); setOpen(true) }}>
+                      <TripButton className="btn btn-ghost px-2 py-1 text-xs" onClick={() => { setEditing(b); setOpen(true) }}>
                         {t('book.edit')}
-                      </button>
+                      </TripButton>
                       {b.status === 'paid' && expenseCost && b.name.length <= MAX_TEXT_LENGTH && !trip.expenses.some((expense) => expense.bookingId === b.id) && (
-                        <button
+                        <TripButton
                           className="btn btn-soft px-2 py-1 text-xs"
                           onClick={() => addExpense(trip.id, {
                             title: b.name,
@@ -128,12 +130,12 @@ export default function Bookings() {
                           })}
                         >
                           {t('book.toExpense')}
-                        </button>
+                        </TripButton>
                       )}
                       {trip.expenses.some((expense) => expense.bookingId === b.id) && <Tone tone="good">{t('book.expenseLinked')}</Tone>}
-                      <button className="btn btn-ghost px-2 py-1 text-xs" onClick={() => removeBooking(trip.id, b.id)}>
+                      <TripButton className="btn btn-ghost px-2 py-1 text-xs" onClick={() => removeBooking(trip.id, b.id)}>
                         {t('book.delete')}
-                      </button>
+                      </TripButton>
                     </div>
                     {b.notes && <p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>{b.notes}</p>}
                   </div>
@@ -219,52 +221,52 @@ function AddBooking({
       <div className="space-y-3">
         <div>
           <Label>{t('book.kind')}</Label>
-          <select className="field" value={kind} onChange={(e) => setKind(e.target.value as SavedKind)}>
+          <TripSelect className="field" value={kind} onChange={(e) => setKind(e.target.value as SavedKind)}>
             {Object.keys(KINDS).map((k) => (
               <option key={k} value={k}>
                 {kindLabel(t, k as SavedKind)}
               </option>
             ))}
-          </select>
+          </TripSelect>
         </div>
-        <input className="field" maxLength={MAX_TEXT_LENGTH} placeholder={t('book.name')} value={name} onChange={(e) => setName(e.target.value)} />
+        <TripInput className="field" maxLength={MAX_TEXT_LENGTH} placeholder={t('book.name')} value={name} onChange={(e) => setName(e.target.value)} />
         <div className="grid grid-cols-2 gap-2">
           <div>
             <Label>{t('book.date')}</Label>
-            <input className="field" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <TripInput className="field" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
           <div>
             <Label>{t('book.status')}</Label>
-            <select className="field" value={status} onChange={(e) => setStatus(e.target.value as BookingStatus)}>
+            <TripSelect className="field" value={status} onChange={(e) => setStatus(e.target.value as BookingStatus)}>
               {(Object.keys(BOOKING_STATUS) as BookingStatus[]).map((value) => <option key={value} value={value}>{bookingStatusLabel(t, value)}</option>)}
-            </select>
+            </TripSelect>
           </div>
         </div>
-        {kind === 'hotel' && <label className="block space-y-2 text-sm"><span>{t('decision.checkout')}</span><input className="field" type="date" value={checkout} onChange={(event) => setCheckout(event.target.value)} /></label>}
-        <input className="field" maxLength={MAX_TEXT_LENGTH} placeholder={t('book.confirmation')} value={confirmation} onChange={(e) => setConfirmation(e.target.value)} />
+        {kind === 'hotel' && <label className="block space-y-2 text-sm"><span>{t('decision.checkout')}</span><TripInput className="field" type="date" value={checkout} onChange={(event) => setCheckout(event.target.value)} /></label>}
+        <TripInput className="field" maxLength={MAX_TEXT_LENGTH} placeholder={t('book.confirmation')} value={confirmation} onChange={(e) => setConfirmation(e.target.value)} />
         <div className="grid grid-cols-2 gap-2">
-          <input className="field" type="number" min={0} max={MAX_AMOUNT} step="0.01" placeholder={t('book.cost')} value={cost} onChange={(e) => setCost(e.target.value)} />
-          <select className="field" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+          <TripInput className="field" type="number" min={0} max={MAX_AMOUNT} step="0.01" placeholder={t('book.cost')} value={cost} onChange={(e) => setCost(e.target.value)} />
+          <TripSelect className="field" value={currency} onChange={(e) => setCurrency(e.target.value)}>
             {['AUD', 'CNY', 'USD', 'JPY', 'EUR', 'IDR'].map((value) => <option key={value}>{value}</option>)}
-          </select>
+          </TripSelect>
         </div>
         {needsRate && (
           <div>
             <Label>{t('aa.rate', { from: currency, to: homeCurrency })}</Label>
-            <input className="field" type="number" min="0.000001" max={MAX_EXCHANGE_RATE} step="0.000001" value={rate} onChange={(e) => setRate(e.target.value)} placeholder={t('aa.ratePh')} />
+            <TripInput className="field" type="number" min="0.000001" max={MAX_EXCHANGE_RATE} step="0.000001" value={rate} onChange={(e) => setRate(e.target.value)} placeholder={t('aa.ratePh')} />
             {Number(rate) > 0 && <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>{currency} {Number(cost).toLocaleString()} ≈ {money(Number(cost) * Number(rate), homeCurrency)}</p>}
           </div>
         )}
-        <input className="field" type="url" maxLength={4096} placeholder={t('book.url')} value={url} onChange={(e) => setUrl(e.target.value)} />
-        <textarea className="field min-h-[90px]" maxLength={MAX_TEXT_LENGTH} placeholder={t('book.notes')} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <TripInput className="field" type="url" maxLength={4096} placeholder={t('book.url')} value={url} onChange={(e) => setUrl(e.target.value)} />
+        <TripTextarea className="field min-h-[90px]" maxLength={MAX_TEXT_LENGTH} placeholder={t('book.notes')} value={notes} onChange={(e) => setNotes(e.target.value)} />
         {error && <p className="text-sm" style={{ color: 'var(--warn)' }}>{error}</p>}
-        <button
+        <TripButton
           className="btn w-full"
           disabled={!name.trim() || !amountValid}
           onClick={save}
         >
           {initial ? t('book.save') : t('book.add')}
-        </button>
+        </TripButton>
       </div>
     </Modal>
   )

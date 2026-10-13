@@ -1,19 +1,20 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { divIcon } from 'leaflet'
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Pane, useMap } from 'react-leaflet'
 import type { Coords } from './types'
 import 'leaflet/dist/leaflet.css'
+import { useT } from './i18n'
 
-export type MapStop = { id: string; name: string; time?: string; coords: Coords; color: string; checkedIn?: boolean; feeling?: string; number?: string }
-export type MapLine = { id: string; color: string; pts: [number, number][]; estimated?: boolean }
+export type MapStop = { id: string; name: string; time?: string; coords: Coords; color: string; checkedIn?: boolean; feeling?: string; number?: string; edge?: string }
+export type MapLine = { id: string; color: string; pts: [number, number][]; estimated?: boolean; fromId?: string; toId?: string }
 
-function Fit({ points }: { points: Coords[] }) {
+function Fit({ points, reset }: { points: Coords[]; reset: number }) {
   const map = useMap()
   const fingerprint = points.map((point) => `${point.lat},${point.lng}`).join('|')
   useEffect(() => {
     if (points.length >= 2) map.fitBounds(points.map((point) => [point.lat, point.lng] as [number, number]), { padding: [36, 36] })
     else if (points.length === 1) map.setView([points[0].lat, points[0].lng], 13)
-  }, [map, fingerprint])
+  }, [map, fingerprint, reset])
   return null
 }
 
@@ -38,6 +39,7 @@ function stopIcon(stop: MapStop, selected: boolean, offset: [number, number]) {
     wrapper.append(leader)
   }
   wrapper.append(element)
+  if (stop.edge) { const badge = document.createElement('span'); badge.className = 'map-edge-label'; badge.textContent = stop.edge; wrapper.append(badge) }
   return divIcon({ html: wrapper, className: 'map-stop-icon', iconSize: [36, 36], iconAnchor: [18 - offset[0], 18 - offset[1]], popupAnchor: [offset[0], offset[1] - 18] })
 }
 
@@ -75,18 +77,25 @@ function Direction({ line }: { line: MapLine }) {
   element.style.color = line.color
   element.style.transform = `rotate(${angle}deg)`
   const icon = divIcon({ html: element, className: 'map-arrow-icon', iconSize: [24, 24], iconAnchor: [12, 12] })
-  return <Marker position={[(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]} icon={icon} interactive={false} keyboard={false} zIndexOffset={-1000} />
+  return <Marker position={[(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]} icon={icon} interactive={false} keyboard={false} pane="route-arrows" zIndexOffset={0} />
 }
 
 export default function TripMap({ stops, lines = [], empty, selectedId, onSelect }: { stops: MapStop[]; lines?: MapLine[]; empty: string; selectedId?: string; onSelect?: (id: string) => void }) {
+  const { t } = useT()
+  const [reset, setReset] = useState(0)
   if (!stops.length) return <div className="grid h-[420px] place-items-center p-5 text-center text-sm" style={{ color: 'var(--muted)' }}>{empty}</div>
   const center = stops[0].coords
-  return <MapContainer center={[center.lat, center.lng]} zoom={12} className="trip-leaflet" scrollWheelZoom>
-    <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-    <Fit points={stops.map((stop) => stop.coords)} />
+  return <div className="relative"><button className="map-fit-control" onClick={() => setReset((n) => n + 1)}>{t('route.fit')}</button><MapContainer center={[center.lat, center.lng]} zoom={12} className="trip-leaflet" scrollWheelZoom>
+    <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" opacity={0.55} />
+    <Fit points={stops.map((stop) => stop.coords)} reset={reset} />
     <Focus stop={stops.find((stop) => stop.id === selectedId)} />
-    {lines.map((line) => <Polyline key={line.id} positions={line.pts} pathOptions={{ color: line.color, weight: 4, opacity: 0.85, dashArray: line.estimated ? '6 8' : undefined }} />)}
-    {lines.map((line) => <Direction key={`direction-${line.id}`} line={line} />)}
+    {lines.map((line) => { const focused = line.fromId === selectedId || line.toId === selectedId
+      return <Fragment key={line.id}>
+        <Polyline positions={line.pts} pathOptions={{ color: '#fff', weight: focused ? 13 : 11, opacity: 1 }} interactive={false} />
+        <Polyline positions={line.pts} pathOptions={{ color: focused ? '#b02f66' : line.color, weight: focused ? 8 : 6, opacity: 1, dashArray: line.estimated ? '9 9' : undefined }} eventHandlers={{ click: () => onSelect?.(line.fromId || line.toId || '') }} />
+      </Fragment>
+    })}
+    <Pane name="route-arrows" style={{ zIndex: 550 }}>{lines.map((line) => <Direction key={`direction-${line.id}`} line={line} />)}</Pane>
     <Stops stops={stops} selectedId={selectedId} onSelect={onSelect} />
-  </MapContainer>
+  </MapContainer></div>
 }

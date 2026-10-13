@@ -1,3 +1,4 @@
+import { canEditTrip, useShared } from './collaborationState'
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type {
@@ -21,6 +22,8 @@ import { cityForDay, copyJSON, eachDate, uid } from './lib'
 import { hasTravelRecord, planFingerprint, prepareRecommendation, type RecommendationApplyResult, type RecommendationMode, type RecommendationUndo } from './recommendationApplication'
 import { selectDecision } from './decisionSelection'
 import type { DecisionCandidate, DecisionPreferences } from './decisionTypes'
+import { rescheduleTrip, scheduleDraft, shiftDate } from './tripSchedule'
+import { settle } from './domain'
 import { reconcileBookingLinks } from './bookingLinkage'
 
 interface AppState {
@@ -43,7 +46,7 @@ interface AppState {
   }) => string
   updateTrip: (id: string, patch: Partial<Trip>) => void
   deleteTrip: (id: string) => void
-  cloneTrip: (id: string, asMine?: boolean) => string
+  cloneTrip: (id: string, asMine?: boolean, startDate?: string) => string
   cloneDay: (tripId: string, dayId: string, targetTripId: string) => void
   addDayPlace: (tripId: string, dayId: string, plan: PlanVariant, place: Omit<PlaceStop, 'id'>) => string
   scheduleSaved: (tripId: string, savedId: string, dayId: string, time: string, checkout?: string) => string | null
@@ -68,6 +71,9 @@ interface AppState {
   addExpense: (tripId: string, item: Omit<Expense, 'id'>) => void
   updateExpense: (tripId: string, id: string, patch: Partial<Expense>) => void
   removeExpense: (tripId: string, id: string) => void
+  recordSettlement: (tripId: string, transfer: { from: string; to: string; amount: number }) => boolean
+  undoSettlement: (tripId: string, id: string) => void
+  removeGift: (tripId: string, id: string) => void
   addGift: (tripId: string, item: Omit<GiftItem, 'id'>) => void
   updateGift: (tripId: string, id: string, patch: Partial<GiftItem>) => void
   patchDaysWeather: (tripId: string, byKey: Record<string, WeatherSnap>, fetchedAt: string) => void
@@ -89,7 +95,7 @@ function migratePersisted(state: unknown) {
     trips: stored.trips
       .filter((trip) => trip.id !== 'template-bali')
       .map((trip) =>
-        trip.id === 'japan-2026'
+        trip.id === 'template-gor' && trip.template ? oceanRoadTrip() : trip.id === 'japan-2026'
           ? { ...trip, compares: trip.compares.filter((board) => board.id !== 'cmp-hotel-osa') }
           : trip,
       ),
@@ -97,7 +103,7 @@ function migratePersisted(state: unknown) {
 }
 
 function patchTrip(trips: Trip[], id: string, fn: (t: Trip) => Trip): Trip[] {
-  return trips.map((t) => (t.id === id ? fn(t) : t))
+  return trips.map((t) => (t.id === id && canEditTrip(id) ? fn(t) : t))
 }
 
 function patchDay(trip: Trip, dayId: string, fn: (d: DayPlan) => DayPlan): Trip {
@@ -174,9 +180,9 @@ export const useApp = create<AppState>()(
         set({ trips: [trip, ...get().trips] })
         return id
       },
-      updateTrip: (id, patch) => set({ trips: patchTrip(get().trips, id, (t) => ({ ...t, ...patch })) }),
-      deleteTrip: (id) => set({ trips: get().trips.filter((t) => t.id !== id) }),
-      cloneTrip: (id, asMine = true) => {
+      updateTrip: (id, patch) => { const session = useShared.getState().sessions[id]; const previous = get().trips.find((trip) => trip.id === id); if (session && session.role !== 'owner' && (patch.members && JSON.stringify(patch.members) !== JSON.stringify(previous?.members) || patch.travellers !== undefined && patch.travellers !== previous?.travellers)) return; set({ trips: patchTrip(get().trips, id, (t) => ({ ...t, ...patch })) }) },
+      deleteTrip: (id) => { if (canEditTrip(id)) { useShared.getState().disconnect(id); set({ trips: get().trips.filter((t) => t.id !== id) }) } },
+      cloneTrip: (id, asMine = true, startDate) => {
         const src = get().trips.find((t) => t.id === id)
         if (!src) return id
         const copy = copyJSON(src)
@@ -198,8 +204,15 @@ export const useApp = create<AppState>()(
             items: copy.packing.items.map((it) => ({ ...it, id: uid() })),
           }
         }
-        set({ trips: [copy, ...get().trips] })
-        return copy.id
+        let result = copy
+        if (startDate) {
+          const draft = scheduleDraft(copy)
+          const next = rescheduleTrip(copy, { ...draft, startDate, endDate: shiftDate(startDate, copy.days.length - 1) })
+          if (!next.ok) return id
+          result = next.trip
+        }
+        set({ trips: [result, ...get().trips] })
+        return result.id
       },
       cloneDay: (tripId, dayId, targetTripId) => {
         const src = get().trips.find((t) => t.id === tripId)?.days.find((d) => d.id === dayId)
@@ -230,11 +243,12 @@ export const useApp = create<AppState>()(
         const trip = get().trips.find((item) => item.id === tripId)
         const saved = trip?.saved.find((item) => item.id === savedId)
         const day = trip?.days.find((item) => item.id === dayId)
-        if (!trip || !saved || !day || !['hotel', 'restaurant', 'place', 'activity', 'souvenir'].includes(saved.kind)) return null
+        if (!canEditTrip(tripId) || !trip || !saved || !day || !['hotel', 'restaurant', 'place', 'activity', 'souvenir'].includes(saved.kind)) return null
         if (saved.kind === 'hotel') {
           if (!checkout || !trip.days.some((item) => item.date === checkout) || checkout <= day.date) return null
-          const existing = trip.bookings.find((item) => item.sourceSavedId === savedId && item.date === day.date && item.status !== 'cancelled' && item.status !== 'refunded')
-          const booking: Booking = { ...existing, id: existing?.id || uid(), kind: 'hotel', name: saved.name, status: existing?.status || 'need', date: day.date, checkout, url: saved.url, cost: existing?.cost, sourceSavedId: savedId }
+          const existing = trip.bookings.find((item) => item.sourceSavedId === savedId && (item.date === day.date || !item.date && item.status === 'need') && item.status !== 'cancelled' && item.status !== 'refunded')
+          if (existing && (existing.status === 'booked' || existing.status === 'paid') && existing.checkout !== checkout) return null
+          const booking: Booking = { ...existing, id: existing?.id || uid(), kind: 'hotel', name: saved.name, status: existing?.status || 'need', date: day.date, checkout, url: saved.url, cost: existing?.cost, costFromSaved: existing?.costFromSaved ?? !existing?.cost, notes: existing?.notes || saved.notes, sourceSavedId: savedId }
           const next = reconcileBookingLinks({ ...trip, bookings: existing ? trip.bookings.map((item) => item.id === existing.id ? booking : item) : [...trip.bookings, booking],
             saved: trip.saved.map((item) => item.id === savedId && item.status !== 'booked' ? { ...item, status: 'chosen' as const } : item),
             days: trip.days.map((item) => item.date >= day.date && item.date < checkout ? { ...item, stay: saved.name, stayBookingId: booking.id } : item),
@@ -293,7 +307,7 @@ export const useApp = create<AppState>()(
         const trip = get().trips.find((item) => item.id === tripId)
         const day = trip?.days.find((item) => item.id === dayId)
         const key = plan === 'A' ? 'planA' : 'planB'
-        if (!day || day.activePlan !== plan || planFingerprint(day[key]) !== expected) return { ok: false, reason: 'changed' }
+        if (!canEditTrip(tripId) || !day || day.activePlan !== plan || planFingerprint(day[key]) !== expected) return { ok: false, reason: 'changed' }
         if (mode === 'replace' && hasTravelRecord(day[key])) return { ok: false, reason: 'protected' }
         if (!places.length) return { ok: false, reason: 'empty' }
         const next = prepareRecommendation(day[key], places, mode)
@@ -306,7 +320,7 @@ export const useApp = create<AppState>()(
       undoRecommendation: (tripId, dayId, plan, undo) => {
         const day = get().trips.find((item) => item.id === tripId)?.days.find((item) => item.id === dayId)
         const key = plan === 'A' ? 'planA' : 'planB'
-        if (!day || day.activePlan !== plan || planFingerprint(day[key]) !== undo.after) return false
+        if (!canEditTrip(tripId) || !day || day.activePlan !== plan || planFingerprint(day[key]) !== undo.after) return false
         set({ trips: patchTrip(get().trips, tripId, (t) => patchDay(t, dayId, (d) => ({ ...d, [key]: undo.before }))) })
         return true
       },
@@ -319,7 +333,7 @@ export const useApp = create<AppState>()(
         }),
       saveDecision: (tripId, candidate, preferences, label, choose, boardTitle) => {
         const trip = get().trips.find((entry) => entry.id === tripId)
-        if (!trip) return 'trip'
+        if (!trip || !canEditTrip(tripId)) return 'trip'
         const result = selectDecision(trip, candidate, preferences, label, choose, boardTitle)
         if ('error' in result) return result.error
         set({ trips: get().trips.map((entry) => entry.id === tripId ? reconcileBookingLinks(result.trip) : entry) })
@@ -344,7 +358,9 @@ export const useApp = create<AppState>()(
             })),
           })),
         }),
-      toggleVote: (tripId, itemId, memberId) =>
+      toggleVote: (tripId, itemId, memberId) => {
+        const session = useShared.getState().sessions[tripId]
+        if (session) { if (session.memberId === memberId) session.vote?.(itemId); return }
         set({
           trips: patchTrip(get().trips, tripId, (t) => ({
             ...t,
@@ -355,7 +371,8 @@ export const useApp = create<AppState>()(
               return { ...s, votes: next }
             }),
           })),
-        }),
+        })
+      },
       addCompareBoard: (tripId, board) =>
         set({
           trips: patchTrip(get().trips, tripId, (t) => ({
@@ -388,7 +405,7 @@ export const useApp = create<AppState>()(
         set({
           trips: patchTrip(get().trips, tripId, (t) => reconcileBookingLinks({
             ...t,
-            bookings: t.bookings.map((b) => (b.id === id ? { ...b, ...patch } : b)),
+            bookings: t.bookings.map((b) => (b.id === id ? { ...b, ...patch, costFromSaved: Object.hasOwn(patch, 'cost') && JSON.stringify(patch.cost) !== JSON.stringify(b.cost) ? false : b.costFromSaved } : b)),
           })),
         }),
       removeBooking: (tripId, id) =>
@@ -420,6 +437,15 @@ export const useApp = create<AppState>()(
             expenses: t.expenses.filter((e) => e.id !== id),
           })),
         }),
+      recordSettlement: (tripId, transfer) => {
+        const trip = get().trips.find((item) => item.id === tripId)
+        const current = trip && settle(trip).transfers.find((entry) => entry.from === transfer.from && entry.to === transfer.to && Math.abs(entry.amount - transfer.amount) < 0.005)
+        if (!trip || !current || !canEditTrip(tripId)) return false
+        set({ trips: patchTrip(get().trips, tripId, (item) => ({ ...item, settlements: [...(item.settlements || []), { ...current, id: uid(), currency: item.homeCurrency, settledAt: new Date().toISOString() }] })) })
+        return true
+      },
+      undoSettlement: (tripId, id) => set({ trips: patchTrip(get().trips, tripId, (trip) => ({ ...trip, settlements: trip.settlements?.filter((entry) => entry.id !== id) })) }),
+      removeGift: (tripId, id) => set({ trips: patchTrip(get().trips, tripId, (trip) => ({ ...trip, gifts: trip.gifts.filter((entry) => entry.id !== id) })) }),
       addGift: (tripId, item) =>
         set({
           trips: patchTrip(get().trips, tripId, (t) => ({
@@ -449,7 +475,7 @@ export const useApp = create<AppState>()(
     }),
     {
       name: 'boomvoy-v1',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => localStorage),
       migrate: migratePersisted,
     },

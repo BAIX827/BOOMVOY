@@ -1,3 +1,4 @@
+import { savedBookingCost } from './savedPricing'
 import type { Booking, DayPlan, Trip } from './types'
 
 export const confirmedBooking = (booking: Booking) => booking.status === 'booked' || booking.status === 'paid'
@@ -8,6 +9,14 @@ const coversDay = (booking: Booking, day: DayPlan) => booking.kind === 'hotel'
 
 /** Reconcile only explicit links; unrelated manually entered travel records are retained. */
 export function reconcileBookingLinks(trip: Trip): Trip {
+  trip = { ...trip, bookings: trip.bookings.map((booking) => {
+    const item = trip.saved.find((saved) => saved.id === booking.sourceSavedId)
+    if (!item || booking.status !== 'need') return booking
+    const auto = booking.costFromSaved === true || !booking.cost && booking.costFromSaved !== false
+    const cost = auto ? savedBookingCost(item, booking.date, booking.checkout) : booking.cost
+    const changed = JSON.stringify(cost) !== JSON.stringify(booking.cost)
+    return { ...booking, name: item.name, url: item.url, cost, costFromSaved: auto, ...(changed ? { homeAmount: undefined, exchangeRate: undefined } : {}) }
+  }) }
   const saved = trip.saved.map((item) => {
     const bookings = trip.bookings.filter((booking) => booking.sourceSavedId === item.id)
     if (!bookings.length) return item

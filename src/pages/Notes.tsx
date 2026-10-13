@@ -1,9 +1,11 @@
+import { TripButton, TripInput, TripTextarea } from '../TripControls'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useApp, useTrip } from '../store'
 import { THEMES, TRANSPORT } from '../catalog'
 import type { ThemeId, TransportMode } from '../types'
 import { Label } from '../ui'
 import { transportLabel, useT } from '../i18n'
+import ScheduleEditor from '../ScheduleEditor'
 import { ThemePreview } from '../ThemeDecor'
 
 const modes: TransportMode[] = ['self-drive', 'public', 'walking', 'taxi', 'cycling', 'mixed', 'flight']
@@ -31,19 +33,19 @@ export default function Notes() {
       <div className="paper space-y-4 p-5">
         <div>
           <Label>{t('notes.name')}</Label>
-          <input className="field" value={trip.name} onChange={(e) => updateTrip(trip.id, { name: e.target.value })} />
+          <TripInput className="field" value={trip.name} onChange={(e) => updateTrip(trip.id, { name: e.target.value })} />
         </div>
         <div>
           <Label>{t('notes.notes')}</Label>
-          <textarea
+          <TripTextarea
             className="field min-h-[140px]"
             value={trip.notes}
             onChange={(e) => updateTrip(trip.id, { notes: e.target.value })}
           />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div><Label>{t('create.people')}</Label><input className="field" type="number" min={1} max={100} step={1} value={trip.travellers} onChange={(event) => { const count = Number(event.target.value); if (Number.isInteger(count) && count >= 1 && count <= 100 && count * trip.budgetPerPerson <= 1_000_000_000_000) updateTrip(trip.id, { travellers: count, totalBudget: count * trip.budgetPerPerson }) }} /><Link className="mt-2 inline-block text-xs" to={`/trip/${trip.id}/group`}>{t('trip.group')} →</Link></div>
-          <div><Label>{t('create.budget', { currency: trip.homeCurrency })}</Label><input className="field" type="number" min={0} max={1_000_000_000_000 / trip.travellers} step="0.01" value={trip.budgetPerPerson} onChange={(event) => { const amount = Number(event.target.value); if (Number.isFinite(amount) && amount >= 0 && amount * trip.travellers <= 1_000_000_000_000) updateTrip(trip.id, { budgetPerPerson: amount, totalBudget: amount * trip.travellers }) }} /></div>
+          <div><Label>{t('create.people')}</Label><TripInput className="field" type="number" min={1} max={100} step={1} value={trip.travellers} onChange={(event) => { const count = Number(event.target.value); if (Number.isInteger(count) && count >= 1 && count <= 100 && count * trip.budgetPerPerson <= 1_000_000_000_000) updateTrip(trip.id, { travellers: count, totalBudget: count * trip.budgetPerPerson }) }} /><Link className="mt-2 inline-block text-xs" to={`/trip/${trip.id}/group`}>{t('trip.group')} →</Link></div>
+          <div><Label>{t('create.budget', { currency: trip.homeCurrency })}</Label><TripInput className="field" type="number" min={0} max={1_000_000_000_000 / trip.travellers} step="0.01" value={trip.budgetPerPerson} onChange={(event) => { const amount = Number(event.target.value); if (Number.isFinite(amount) && amount >= 0 && amount * trip.travellers <= 1_000_000_000_000) updateTrip(trip.id, { budgetPerPerson: amount, totalBudget: amount * trip.travellers }) }} /></div>
         </div>
         <div><Label>{t('trip.share')}</Label><Link className="btn btn-ghost mt-2 no-underline" to={`/share/${trip.id}`}>{t('journey.exportTrip')}</Link></div>
         <div>
@@ -63,14 +65,15 @@ export default function Notes() {
           <Label>{t('notes.modes')}</Label>
           <div className="mt-2 flex flex-wrap gap-2">
             {modes.map((m) => (
-              <button key={m} className={trip.transportModes.includes(m) ? 'btn' : 'btn btn-ghost'} onClick={() => toggleMode(m)}>
+              <TripButton key={m} className={trip.transportModes.includes(m) ? 'btn' : 'btn btn-ghost'} onClick={() => toggleMode(m)}>
                 {TRANSPORT[m].icon} {transportLabel(t, m)}
-              </button>
+              </TripButton>
             ))}
           </div>
         </div>
       </div>
-      <button
+      <ScheduleEditor key={trip.startDate + trip.endDate + trip.destinations.join()} trip={trip} />
+      <TripButton
         className="btn btn-ghost"
         onClick={() => {
           if (confirm(t('notes.deleteConfirm'))) {
@@ -80,7 +83,7 @@ export default function Notes() {
         }}
       >
         {t('notes.delete')}
-      </button>
+      </TripButton>
     </div>
   )
 }

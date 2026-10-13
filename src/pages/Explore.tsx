@@ -1,3 +1,8 @@
+import { useState } from 'react'
+import { Modal } from '../ui'
+import { toISODate } from '../lib'
+import type { Trip } from '../types'
+import { validTripDate, shiftDate } from '../tripSchedule'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../store'
 import { CoverArt } from '../ui'
@@ -10,6 +15,8 @@ export default function Explore() {
   const cloneTrip = useApp((s) => s.cloneTrip)
   const nav = useNavigate()
   const { t, locale } = useT()
+  const [copying, setCopying] = useState<Trip | null>(null)
+  const [start, setStart] = useState(toISODate(new Date()))
 
   return (
     <div>
@@ -37,8 +44,7 @@ export default function Explore() {
                 <button
                   className="btn"
                   onClick={() => {
-                    const id = cloneTrip(tr.id)
-                    nav(`/trip/${id}`)
+                    setCopying(tr)
                   }}
                 >
                   {t('explore.copy')}
@@ -51,6 +57,7 @@ export default function Explore() {
           </article>
         ))}
       </div>
+      {copying && <Modal open title={t('explore.copyTitle')} onClose={() => setCopying(null)}><div className="space-y-4"><label className="block">{t('explore.start')}<input className="field mt-2" type="date" value={start} onChange={(e) => setStart(e.target.value)} /></label>{validTripDate(start) && <p>{start} → {shiftDate(start, copying.days.length - 1)} · {copying.days.length} {t('settings.days')}</p>}<button className="btn" disabled={!validTripDate(start)} onClick={() => { const id = cloneTrip(copying.id, true, start); nav(`/trip/${id}`) }}>{t('explore.copy')}</button></div></Modal>}
     </div>
   )
 }

@@ -1,3 +1,4 @@
+import { TripButton, TripInput, TripSelect, TripTextarea } from '../TripControls'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
@@ -93,7 +94,7 @@ export default function Plan() {
         <h1 className="display mb-3 text-3xl">{t('plan.title')}</h1>
         <div className="flex gap-2 overflow-auto pb-2 lg:flex-col">
           {trip.days.map((d, i) => (
-            <button
+            <TripButton data-browse
               key={d.id}
               onClick={() => { selectDay(d.id); setRecommendOpen(false) }}
               aria-pressed={d.id === day.id}
@@ -107,7 +108,7 @@ export default function Plan() {
               <div className="text-xs" style={{ color: 'var(--muted)' }}>
                 {d.date.slice(5)} · Plan {d.activePlan}
               </div>
-            </button>
+            </TripButton>
           ))}
         </div>
       </div>
@@ -124,9 +125,9 @@ export default function Plan() {
           </div>
           <div className="flex flex-wrap gap-2">
             {(['A', 'B'] as PlanVariant[]).map((p) => (
-              <button key={p} className={plan === p ? 'btn' : 'btn btn-ghost'} onClick={() => setActivePlan(trip.id, day.id, p)}>
+              <TripButton key={p} className={plan === p ? 'btn' : 'btn btn-ghost'} onClick={() => setActivePlan(trip.id, day.id, p)}>
                 {p === 'A' ? '☀️ Plan A' : '🌧️ Plan B'}
-              </button>
+              </TripButton>
             ))}
           </div>
         </div>
@@ -155,9 +156,9 @@ export default function Plan() {
             <Tone tone={advice.level === 'warn' ? 'warn' : 'info'}>{advice.title}</Tone>
             <p className="mt-2 text-sm leading-6">{advice.text}</p>
             {advice.suggestSwitch && (
-              <button className="btn mt-3 text-sm" onClick={() => setActivePlan(trip.id, day.id, 'B')}>
+              <TripButton className="btn mt-3 text-sm" onClick={() => setActivePlan(trip.id, day.id, 'B')}>
                 {t('plan.switchB')}
-              </button>
+              </TripButton>
             )}
           </div>
         )}
@@ -167,13 +168,13 @@ export default function Plan() {
 
 
         <div className="flex flex-wrap gap-2">
-          <button className="btn" onClick={() => setOpen(true)}><Plus size={16} />{t('plan.addPlace')}</button>
-          <button className="btn btn-ghost" onClick={() => setSavedOpen(true)}>{t('journey.addSaved')}</button>
+          <TripButton className="btn" onClick={() => setOpen(true)}><Plus size={16} />{t('plan.addPlace')}</TripButton>
+          <TripButton className="btn btn-ghost" onClick={() => setSavedOpen(true)}>{t('journey.addSaved')}</TripButton>
           <Link className="btn btn-ghost no-underline" to={href('map')}>{t('journey.map')}</Link>
           {mapsDayRoute(places) && <a className="btn btn-ghost no-underline" href={mapsDayRoute(places)} target="_blank" rel="noreferrer">{t('plan.openRoute')}</a>}
-          <button className="btn btn-ghost" data-guide="recommend" aria-expanded={recommendOpen} onClick={() => setRecommendOpen(!recommendOpen)}><Sparkles size={16} />{t('journey.recommend')}</button>
+          <TripButton className="btn btn-ghost" data-guide="recommend" aria-expanded={recommendOpen} onClick={() => setRecommendOpen(!recommendOpen)}><Sparkles size={16} />{t('journey.recommend')}</TripButton>
         </div>
-        {(notice || undo) && <div role="status" className="flex flex-wrap items-center gap-3 text-sm"><span>{notice}</span>{undo && <button className="btn btn-ghost text-sm" onClick={() => { const restored = undoRecommendation(trip.id, undo.dayId, undo.plan, undo.snapshot); setNotice(restored ? t('journey.restored') : t('journey.undoChanged')); setUndo(null) }}>{t('journey.undo')}</button>}</div>}
+        {(notice || undo) && <div role="status" className="flex flex-wrap items-center gap-3 text-sm"><span>{notice}</span>{undo && <TripButton className="btn btn-ghost text-sm" onClick={() => { const restored = undoRecommendation(trip.id, undo.dayId, undo.plan, undo.snapshot); setNotice(restored ? t('journey.restored') : t('journey.undoChanged')); setUndo(null) }}>{t('journey.undo')}</TripButton>}</div>}
 
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={places.map((p) => p.id)} strategy={verticalListSortingStrategy}>
@@ -204,7 +205,7 @@ export default function Plan() {
 
         <div>
           <Label>{t('plan.dayNotes')}</Label>
-          <textarea
+          <TripTextarea
             className="field min-h-[80px]"
             value={day.notes || ''}
             onChange={(e) =>
@@ -227,7 +228,7 @@ export default function Plan() {
           onUndo={(undo) => undoRecommendation(trip.id, day.id, plan, undo)}
         /></div>}
         <details className="paper p-4"><summary className="cursor-pointer text-sm font-medium">{t('journey.tools')}</summary><div className="mt-4 space-y-4">
-          <button className="btn btn-ghost" disabled={places.length < 3} onClick={() => setOrdering({ before: planFingerprint(places), places: nearbyOrder(places) })}>{t('plan.optimize')}</button>
+          <TripButton className="btn btn-ghost" disabled={places.length < 3} onClick={() => setOrdering({ before: planFingerprint(places), places: nearbyOrder(places) })}>{t('plan.optimize')}</TripButton>
           {day.transportMode === 'self-drive' && (
           <SmartStops
             city={day.city}
@@ -251,9 +252,9 @@ export default function Plan() {
                 </li>
               ))}
             </ol>
-            <button className="btn btn-soft mt-3 text-sm" onClick={() => replacePlaces(trip.id, day.id, 'A', swap)}>
+            <TripButton className="btn btn-soft mt-3 text-sm" onClick={() => replacePlaces(trip.id, day.id, 'A', swap)}>
               {t('plan.apply')}
-            </button>
+            </TripButton>
           </div>
         )}
         </div></details>
@@ -261,10 +262,10 @@ export default function Plan() {
           <p className="text-sm" style={{ color: 'var(--muted)' }}>{t('journey.optimizeHint')}</p>
           <ol className="mt-4 space-y-2 text-sm">{ordering?.places.map((place, index) => <li key={place.id}>{index + 1}. {place.time || '—'} · {place.name}{place.booked ? ' 🔒' : ''}</li>)}</ol>
           {ordering && scheduleConflicts(ordering.places).length > 0 && <p className="mt-3 text-sm" style={{ color: 'var(--warn)' }}>{t('journey.conflicts', { names: scheduleConflicts(ordering.places).map((place) => place.name).join(' · ') })}</p>}
-          <button className="btn mt-4" onClick={() => { if (!ordering) return; if (ordering.before !== planFingerprint(places)) { setNotice(t('journey.orderChanged')); setOrdering(null); return }; replacePlaces(trip.id, day.id, plan, ordering.places); setUndo({ dayId: day.id, plan, snapshot: { before: [...places], after: planFingerprint(ordering.places) } }); setNotice(t('journey.ordered')); setOrdering(null) }}>{t('journey.applyOrder')}</button>
+          <TripButton className="btn mt-4" onClick={() => { if (!ordering) return; if (ordering.before !== planFingerprint(places)) { setNotice(t('journey.orderChanged')); setOrdering(null); return }; replacePlaces(trip.id, day.id, plan, ordering.places); setUndo({ dayId: day.id, plan, snapshot: { before: [...places], after: planFingerprint(ordering.places) } }); setNotice(t('journey.ordered')); setOrdering(null) }}>{t('journey.applyOrder')}</TripButton>
         </Modal>
         <Modal open={savedOpen} title={t('journey.addSaved')} onClose={() => setSavedOpen(false)}>
-          <div className="space-y-2">{trip.saved.filter((item) => ['restaurant', 'place', 'activity', 'souvenir'].includes(item.kind) && item.status !== 'rejected').map((item) => <button key={item.id} className="paper flex min-h-12 w-full items-center justify-between gap-3 p-3 text-left" onClick={() => { setSavedOpen(false); setSavedItem(item) }}>{item.name}<Plus size={16} /></button>)}</div>
+          <div className="space-y-2">{trip.saved.filter((item) => ['restaurant', 'place', 'activity', 'souvenir'].includes(item.kind) && item.status !== 'rejected').map((item) => <TripButton key={item.id} className="paper flex min-h-12 w-full items-center justify-between gap-3 p-3 text-left" onClick={() => { setSavedOpen(false); setSavedItem(item) }}>{item.name}<Plus size={16} /></TripButton>)}</div>
           {!trip.saved.some((item) => ['restaurant', 'place', 'activity', 'souvenir'].includes(item.kind) && item.status !== 'rejected') && <p className="text-sm">{t('journey.noSaved')}</p>}
           <Link className="btn btn-ghost mt-4 no-underline" to={href('saved')}>{t('trip.saved')} →</Link>
         </Modal>
@@ -315,11 +316,11 @@ function SortablePlace({
         <span className="stamp absolute right-10 top-3 z-10">booked</span>
       )}
       <div className="plan-stop-layout flex items-start gap-3">
-        <button className="mt-1 opacity-50" {...attributes} {...listeners} aria-label={t('plan.drag')}>
+        <TripButton className="mt-1 opacity-50" {...attributes} {...listeners} aria-label={t('plan.drag')}>
           <GripVertical size={16} />
-        </button>
+        </TripButton>
         <span className="route-stop-number">{number}</span>
-        <input
+        <TripInput
           type="time" aria-label={t('plan.time')} className="stop-time w-[72px] rounded-lg border px-2 py-1 text-sm"
           style={{ borderColor: 'var(--line)', background: 'transparent' }}
           value={place.time || ''}
@@ -389,11 +390,11 @@ function SortablePlace({
           <EditPlaceBtn place={place} onPatch={onPatch} />
           <CheckInBtn place={place} onPatch={onPatch} />
           {place.bookingId ? <Link className="text-xs underline" to={bookingHref} title={t('journey.orderLinked')}>{t('journey.order')}</Link> : <label className="text-xs" style={{ color: 'var(--muted)' }}>
-            <input type="checkbox" checked={!!place.booked} onChange={(e) => onPatch({ booked: e.target.checked })} /> {t('plan.bookingCheck')}
+            <TripInput type="checkbox" checked={!!place.booked} onChange={(e) => onPatch({ booked: e.target.checked })} /> {t('plan.bookingCheck')}
           </label>}
-          <button className="opacity-50 hover:opacity-100" onClick={onRemove} aria-label={t('plan.delete')}>
+          <TripButton className="opacity-50 hover:opacity-100" onClick={onRemove} aria-label={t('plan.delete')}>
             <Trash2 size={16} />
-          </button>
+          </TripButton>
         </div>
       </div>
     </div>
@@ -439,36 +440,36 @@ function EditPlaceBtn({ place, onPatch }: { place: PlaceStop; onPatch: (p: Parti
   const invalidTicketUrl = ticketNeeded && Boolean(ticketUrl) && !safeTicketUrl
   return (
     <>
-      <button className="btn btn-ghost px-2 py-1 text-xs" onClick={show} aria-label={t('plan.edit')}>
+      <TripButton className="btn btn-ghost px-2 py-1 text-xs" onClick={show} aria-label={t('plan.edit')}>
         <Pencil size={12} /> {t('plan.edit')}
-      </button>
+      </TripButton>
       <Modal open={open} title={t('plan.editTitle', { name: place.name })} onClose={() => setOpen(false)}>
         <div className="space-y-3">
           <div>
             <Label>{t('plan.placeName')}</Label>
-            <input className="field" value={name} onChange={(e) => setName(e.target.value)} />
+            <TripInput className="field" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
               <Label>{t('plan.time')}</Label>
-              <input className="field" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+              <TripInput className="field" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
             </div>
             <div>
               <Label>{t('plan.duration')}</Label>
-              <input className="field" type="number" min={5} max={1440} step={5} value={duration} onChange={(e) => setDuration(e.target.value)} />
+              <TripInput className="field" type="number" min={5} max={1440} step={5} value={duration} onChange={(e) => setDuration(e.target.value)} />
             </div>
           </div>
           <div>
             <Label>{t('plan.category')}</Label>
-            <select className="field" value={category} onChange={(e) => setCategory(e.target.value)}>
+            <TripSelect className="field" value={category} onChange={(e) => setCategory(e.target.value)}>
               {categories.map((c) => <option key={c} value={c}>{placeCatLabel(t, c)}</option>)}
-            </select>
+            </TripSelect>
           </div>
           <div>
             <Label>{t('plan.setting')}</Label>
             <div className="flex flex-wrap gap-2">
               {(['outdoor', 'indoor', 'mixed'] as PlaceSetting[]).map((value) => (
-                <button key={value} className={setting === value ? 'btn' : 'btn btn-ghost'} onClick={() => setSetting(value)}>{settingLabel(t, value)}</button>
+                <TripButton key={value} className={setting === value ? 'btn' : 'btn btn-ghost'} onClick={() => setSetting(value)}>{settingLabel(t, value)}</TripButton>
               ))}
             </div>
           </div>
@@ -476,36 +477,36 @@ function EditPlaceBtn({ place, onPatch }: { place: PlaceStop; onPatch: (p: Parti
             <Label>{t('plan.priority')}</Label>
             <div className="flex flex-wrap gap-2">
               {(['must', 'want', 'optional'] as Priority[]).map((value) => (
-                <button key={value} className={priority === value ? 'btn' : 'btn btn-ghost'} onClick={() => setPriority(value)}>{priorityLabel(t, value)}</button>
+                <TripButton key={value} className={priority === value ? 'btn' : 'btn btn-ghost'} onClick={() => setPriority(value)}>{priorityLabel(t, value)}</TripButton>
               ))}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
               <Label>{t('plan.cost')}</Label>
-              <input className="field" type="number" min={0} max={1_000_000_000_000} step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} />
+              <TripInput className="field" type="number" min={0} max={1_000_000_000_000} step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} />
             </div>
             <div>
               <Label>{t('plan.currency')}</Label>
-              <select className="field" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+              <TripSelect className="field" value={currency} onChange={(e) => setCurrency(e.target.value)}>
                 {['AUD', 'CNY', 'USD', 'JPY', 'EUR', 'IDR'].map((value) => <option key={value}>{value}</option>)}
-              </select>
+              </TripSelect>
             </div>
           </div>
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={ticketNeeded} onChange={(e) => setTicketNeeded(e.target.checked)} /> {t('plan.needTicket')}
+            <TripInput type="checkbox" checked={ticketNeeded} onChange={(e) => setTicketNeeded(e.target.checked)} /> {t('plan.needTicket')}
           </label>
           {ticketNeeded && (
             <div>
               <Label>{t('plan.ticketUrl')}</Label>
-              <input className="field" type="url" value={ticketUrl} onChange={(e) => setTicketUrl(e.target.value)} />
+              <TripInput className="field" type="url" value={ticketUrl} onChange={(e) => setTicketUrl(e.target.value)} />
             </div>
           )}
           <div>
             <Label>{t('plan.notes')}</Label>
-            <textarea className="field min-h-[90px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
+            <TripTextarea className="field min-h-[90px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
-          <button
+          <TripButton
             className="btn w-full"
             disabled={!name.trim() || invalidDuration || invalidCost || invalidTicketUrl}
             onClick={() => {
@@ -525,7 +526,7 @@ function EditPlaceBtn({ place, onPatch }: { place: PlaceStop; onPatch: (p: Parti
             }}
           >
             {t('plan.saveEdit')}
-          </button>
+          </TripButton>
         </div>
       </Modal>
     </>
@@ -568,14 +569,14 @@ function PlaceHop({
     <div className="mt-2 space-y-1">
       <div className="flex flex-wrap gap-1">
         {HOP_MODES.map((m) => (
-          <button key={m} className={mode === m ? 'btn px-2 py-0.5 text-[11px]' : 'btn btn-ghost px-2 py-0.5 text-[11px]'} onClick={() => onMode(m)}>
+          <TripButton key={m} className={mode === m ? 'btn px-2 py-0.5 text-[11px]' : 'btn btn-ghost px-2 py-0.5 text-[11px]'} onClick={() => onMode(m)}>
             {TRANSPORT[m].icon} {transportLabel(t, m)}
-          </button>
+          </TripButton>
         ))}
       </div>
       <div className="text-xs" style={{ color: 'var(--muted)' }}>
-        {hop ? t('plan.hopEta', { km: hop.km.toFixed(1), min: hop.minutes }) : t('plan.hopWait')}
-        {eta ? ` · ${t('plan.arrive', { time: eta })}` : ''}
+        {hop ? t('plan.hopEta', { km: hop.km.toFixed(1), min: hop.minutes }) : !from.coords || !to.coords ? t('route.locate') : t('plan.hopWait')}
+        {eta && hop && from.coords && to.coords ? ` · ${t('plan.arrive', { time: eta })}` : ''}
         {url && (
           <>
             {' · '}
@@ -595,20 +596,20 @@ function CheckInBtn({ place, onPatch }: { place: PlaceStop; onPatch: (p: Partial
   const [feeling, setFeeling] = useState(place.feeling || '')
   if (place.checkedIn) {
     return (
-      <button className="btn btn-ghost px-2 py-1 text-xs" data-guide="check-in" onClick={() => onPatch({ checkedIn: false })}>
+      <TripButton className="btn btn-ghost px-2 py-1 text-xs" data-guide="check-in" onClick={() => onPatch({ checkedIn: false })}>
         {t('plan.uncheck')}
-      </button>
+      </TripButton>
     )
   }
   return (
     <>
-      <button className="btn btn-soft px-2 py-1 text-xs" data-guide="check-in" onClick={() => setOpen(true)}>
+      <TripButton className="btn btn-soft px-2 py-1 text-xs" data-guide="check-in" onClick={() => setOpen(true)}>
         <Camera size={12} /> {t('plan.checkIn')}
-      </button>
+      </TripButton>
       <Modal open={open} title={t('plan.checkInTitle', { name: place.name })} onClose={() => setOpen(false)}>
         <div className="space-y-3">
-          <textarea className="field min-h-[90px]" placeholder={t('plan.feeling')} value={feeling} onChange={(e) => setFeeling(e.target.value)} />
-          <input
+          <TripTextarea className="field min-h-[90px]" placeholder={t('plan.feeling')} value={feeling} onChange={(e) => setFeeling(e.target.value)} />
+          <TripInput
             type="file"
             accept="image/*"
             multiple
@@ -622,7 +623,7 @@ function CheckInBtn({ place, onPatch }: { place: PlaceStop; onPatch: (p: Partial
               onPatch({ photos })
             }}
           />
-          <button
+          <TripButton
             className="btn w-full"
             onClick={() => {
               onPatch({ checkedIn: true, checkedInAt: new Date().toISOString(), feeling })
@@ -630,7 +631,7 @@ function CheckInBtn({ place, onPatch }: { place: PlaceStop; onPatch: (p: Partial
             }}
           >
             {t('plan.saveCheckIn')}
-          </button>
+          </TripButton>
         </div>
       </Modal>
     </>
@@ -727,15 +728,15 @@ function AddPlaceModal({
         <p className="text-sm" style={{ color: 'var(--muted)' }}>
           {t('plan.addHint', { city })}
         </p>
-        <input className="field" placeholder={t('plan.addName')} value={name} onChange={(e) => setName(e.target.value)} />
+        <TripInput className="field" placeholder={t('plan.addName')} value={name} onChange={(e) => setName(e.target.value)} />
         <div className="flex gap-2">
-          <input className="field" placeholder={t('plan.searchMap')} value={q} onChange={(e) => changeSearchQuery(e.target.value)} />
-          <button className="btn btn-ghost" disabled={searching || !q.trim()} onClick={search}>
+          <TripInput className="field" placeholder={t('plan.searchMap')} value={q} onChange={(e) => changeSearchQuery(e.target.value)} />
+          <TripButton className="btn btn-ghost" disabled={searching || !q.trim()} onClick={search}>
             {t('plan.search')}
-          </button>
+          </TripButton>
         </div>
         {hits.map((h) => (
-          <button
+          <TripButton
             key={h.lat + h.lon}
             className="block w-full rounded-xl px-3 py-2 text-left text-sm"
             style={{ background: 'var(--bg-2)' }}
@@ -746,37 +747,37 @@ function AddPlaceModal({
             }}
           >
             {h.display_name}
-          </button>
+          </TripButton>
         ))}
         <div className="grid grid-cols-2 gap-2">
-          <input className="field" value={time} onChange={(e) => setTime(e.target.value)} />
-          <select className="field" value={category} onChange={(e) => setCategory(e.target.value)}>
+          <TripInput className="field" value={time} onChange={(e) => setTime(e.target.value)} />
+          <TripSelect className="field" value={category} onChange={(e) => setCategory(e.target.value)}>
             {PLACE_CATS.map((c) => (
               <option key={c} value={c}>
                 {placeCatLabel(t, c)}
               </option>
             ))}
-          </select>
+          </TripSelect>
         </div>
         <div className="flex flex-wrap gap-2">
           {(['outdoor', 'indoor', 'mixed'] as PlaceSetting[]).map((s) => (
-            <button key={s} className={setting === s ? 'btn' : 'btn btn-ghost'} onClick={() => setSetting(s)}>
+            <TripButton key={s} className={setting === s ? 'btn' : 'btn btn-ghost'} onClick={() => setSetting(s)}>
               {settingLabel(t, s)}
-            </button>
+            </TripButton>
           ))}
         </div>
         <div className="flex flex-wrap gap-2">
           {(['must', 'want', 'optional'] as Priority[]).map((s) => (
-            <button key={s} className={priority === s ? 'btn' : 'btn btn-ghost'} onClick={() => setPriority(s)}>
+            <TripButton key={s} className={priority === s ? 'btn' : 'btn btn-ghost'} onClick={() => setPriority(s)}>
               {priorityLabel(t, s)}
-            </button>
+            </TripButton>
           ))}
         </div>
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={ticket} onChange={(e) => setTicket(e.target.checked)} /> {t('plan.needTicket')}
+          <TripInput type="checkbox" checked={ticket} onChange={(e) => setTicket(e.target.checked)} /> {t('plan.needTicket')}
         </label>
-        <textarea className="field" placeholder={t('plan.notes')} value={notes} onChange={(e) => setNotes(e.target.value)} />
-        <button
+        <TripTextarea className="field" placeholder={t('plan.notes')} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <TripButton
           className="btn w-full"
           disabled={!name}
           onClick={() =>
@@ -795,7 +796,7 @@ function AddPlaceModal({
           }
         >
           {t('plan.addToDay')}
-        </button>
+        </TripButton>
       </div>
     </Modal>
   )
@@ -878,9 +879,9 @@ function SmartStops({
               </div>
             </div>
             <div className="flex gap-1">
-              <button className="btn px-2 py-1 text-xs" onClick={() => onAdd(s)}>
+              <TripButton className="btn px-2 py-1 text-xs" onClick={() => onAdd(s)}>
                 {t('plan.add')}
-              </button>
+              </TripButton>
             </div>
           </div>
         ))}

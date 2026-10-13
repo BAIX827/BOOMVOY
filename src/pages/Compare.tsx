@@ -1,4 +1,7 @@
+import { TripButton, TripInput, TripSelect } from '../TripControls'
+import { useShared } from '../collaborationState'
 import { useState, type ReactNode } from 'react'
+import { SavedEditor } from './Saved'
 import DecisionAssistant from '../DecisionAssistant'
 import { safeDecisionUrl } from '../decision'
 import { useParams } from 'react-router-dom'
@@ -14,8 +17,10 @@ export default function Compare() {
   const trip = useTrip(id)
   const { toggleVote, updateSaved, addCompareBoard, updateCompareBoard, removeCompareBoard, addBooking } = useApp()
   const { t, locale } = useT()
+  const session = useShared((state) => id ? state.sessions[id] : undefined)
   const backendUrl = useApp((state) => state.profile.backendUrl)
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<SavedItem | undefined>()
   const [bookingCandidate, setBookingCandidate] = useState<SavedItem | undefined>()
   if (!trip) return null
 
@@ -23,7 +28,7 @@ export default function Compare() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h1 className="display text-4xl">{t('compare.title')}</h1>
-        <button className="btn" onClick={() => setOpen(true)}>{t('compare.create')}</button>
+        <TripButton className="btn" onClick={() => setOpen(true)}>{t('compare.create')}</TripButton>
       </div>
       <DecisionAssistant key={`${trip.id}-${locale}-${backendUrl || ''}`} trip={trip} />
       {trip.compares.map((board) => {
@@ -31,13 +36,13 @@ export default function Compare() {
         return (
           <section key={board.id} className="paper overflow-x-auto p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <input
+              <TripInput
                 className="field max-w-sm text-lg font-medium"
                 value={board.title}
                 onChange={(e) => updateCompareBoard(trip.id, board.id, { title: e.target.value })}
               />
               <div className="flex items-center gap-2">
-                <select
+                <TripSelect
                   className="field w-auto text-xs"
                   value=""
                   onChange={(e) => {
@@ -48,8 +53,8 @@ export default function Compare() {
                   {trip.saved.filter((item) => item.kind === board.kind && !board.itemIds.includes(item.id)).map((item) => (
                     <option key={item.id} value={item.id}>{item.name}</option>
                   ))}
-                </select>
-                <button className="btn btn-ghost px-3 py-1 text-xs" onClick={() => removeCompareBoard(trip.id, board.id)}>{t('compare.deleteBoard')}</button>
+                </TripSelect>
+                <TripButton className="btn btn-ghost px-3 py-1 text-xs" onClick={() => removeCompareBoard(trip.id, board.id)}>{t('compare.deleteBoard')}</TripButton>
               </div>
             </div>
             <table className="mt-4 w-full min-w-[640px] text-left text-sm">
@@ -59,12 +64,13 @@ export default function Compare() {
                   {items.map((it) => (
                     <th key={it!.id} className="pb-3 font-medium">
                       {it!.name}
+                      <TripButton className="mt-2 mr-3 text-xs underline" onClick={() => setEditing(it!)}>{t('saved.edit')}</TripButton>
                       <div className="mt-1">
                         <Tone tone={STATUS[it!.status].tone}>{statusLabel(t, it!.status)}</Tone>
                       </div>
-                      <button className="mt-2 text-xs underline" style={{ color: 'var(--muted)' }} onClick={() => updateCompareBoard(trip.id, board.id, { itemIds: board.itemIds.filter((id) => id !== it!.id) })}>
+                      <TripButton className="mt-2 text-xs underline" style={{ color: 'var(--muted)' }} onClick={() => updateCompareBoard(trip.id, board.id, { itemIds: board.itemIds.filter((id) => id !== it!.id) })}>
                         {t('compare.removeItem')}
-                      </button>
+                      </TripButton>
                     </th>
                   ))}
                 </tr>
@@ -101,8 +107,10 @@ export default function Compare() {
                       <td key={it!.id} className="py-3">
                         <div className="flex flex-wrap gap-1">
                           {trip.members.map((m) => (
-                            <button
+                            <TripButton
                               key={m.id}
+                              data-vote={m.id}
+                              disabled={!!session && session.memberId !== m.id}
                               className="rounded-full px-2 py-0.5 text-xs"
                               style={{
                                 background: it!.votes[m.id] ? m.color : 'var(--bg-2)',
@@ -111,7 +119,7 @@ export default function Compare() {
                               onClick={() => toggleVote(trip.id, it!.id, m.id)}
                             >
                               {m.name}
-                            </button>
+                            </TripButton>
                           ))}
                         </div>
                         <div className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>
@@ -126,7 +134,7 @@ export default function Compare() {
                   {items.map((it) => (
                     <td key={it!.id} className="py-3">
                       <div className="flex flex-wrap gap-1">
-                        <button
+                        <TripButton
                           className="btn px-2 py-1 text-xs"
                           onClick={() => {
                             updateSaved(trip.id, it!.id, { status: 'chosen' })
@@ -135,8 +143,8 @@ export default function Compare() {
                           }}
                         >
                           {t('compare.choose')}
-                        </button>
-                        <button
+                        </TripButton>
+                        <TripButton
                           className="btn btn-ghost px-2 py-1 text-xs"
                           onClick={() =>
                             updateSaved(trip.id, it!.id, {
@@ -146,7 +154,7 @@ export default function Compare() {
                           }
                         >
                           {t('compare.reject')}
-                        </button>
+                        </TripButton>
                       </div>
                     </td>
                   ))}
@@ -161,6 +169,7 @@ export default function Compare() {
           {t('compare.empty')}
         </div>
       )}
+      {editing && <SavedEditor key={editing.id} initial={editing} homeCurrency={trip.homeCurrency} open onClose={() => setEditing(undefined)} onAdd={(patch) => { updateSaved(trip.id, editing.id, patch); setEditing(undefined) }} />}
       <CreateBoard
         open={open}
         saved={trip.saved}
@@ -173,7 +182,7 @@ export default function Compare() {
       <Modal open={!!bookingCandidate} title={t('compare.createBookingTitle')} onClose={() => setBookingCandidate(undefined)}>
         <p className="text-sm leading-6">{t('compare.createBookingAsk')}</p>
         <div className="mt-4 flex gap-2">
-          <button
+          <TripButton
             className="btn"
             onClick={() => {
               if (!bookingCandidate) return
@@ -182,7 +191,8 @@ export default function Compare() {
                 name: bookingCandidate.name,
                 status: 'need',
                 url: bookingCandidate.url,
-                cost: bookingCandidate.price,
+                cost: bookingCandidate.kind === 'hotel' && bookingCandidate.meta?.priceBasis === 'night' ? undefined : bookingCandidate.price,
+                costFromSaved: true,
                 notes: bookingCandidate.notes,
                 sourceSavedId: bookingCandidate.id,
               })
@@ -190,8 +200,8 @@ export default function Compare() {
             }}
           >
             {t('compare.createBooking')}
-          </button>
-          <button className="btn btn-ghost" onClick={() => setBookingCandidate(undefined)}>{t('compare.bookingLater')}</button>
+          </TripButton>
+          <TripButton className="btn btn-ghost" onClick={() => setBookingCandidate(undefined)}>{t('compare.bookingLater')}</TripButton>
         </div>
       </Modal>
     </div>
@@ -219,20 +229,20 @@ function CreateBoard({
       <div className="space-y-3">
         <div>
           <Label>{t('saved.kind')}</Label>
-          <select className="field" value={kind} onChange={(e) => { setKind(e.target.value as SavedKind); setPicked([]) }}>
+          <TripSelect className="field" value={kind} onChange={(e) => { setKind(e.target.value as SavedKind); setPicked([]) }}>
             {(Object.keys(KINDS) as SavedKind[]).map((value) => <option key={value} value={value}>{kindLabel(t, value)}</option>)}
-          </select>
+          </TripSelect>
         </div>
         <div>
           <Label>{t('compare.boardTitle')}</Label>
-          <input className="field" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('compare.autoTitle', { kind: kindLabel(t, kind) })} />
+          <TripInput className="field" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('compare.autoTitle', { kind: kindLabel(t, kind) })} />
         </div>
         <div>
           <Label>{t('compare.pickItems')}</Label>
           <div className="space-y-2">
             {candidates.map((item) => (
               <label key={item.id} className="flex items-center gap-2 rounded-xl p-3 text-sm" style={{ background: 'var(--bg-2)' }}>
-                <input
+                <TripInput
                   type="checkbox"
                   checked={picked.includes(item.id)}
                   onChange={() => setPicked((ids) => ids.includes(item.id) ? ids.filter((id) => id !== item.id) : [...ids, item.id])}
@@ -243,13 +253,13 @@ function CreateBoard({
             {candidates.length === 0 && <p className="text-sm" style={{ color: 'var(--muted)' }}>{t('compare.noCandidates')}</p>}
           </div>
         </div>
-        <button
+        <TripButton
           className="btn w-full"
           disabled={picked.length === 0}
           onClick={() => onCreate({ kind, title: title.trim() || t('compare.autoTitle', { kind: kindLabel(t, kind) }), itemIds: picked })}
         >
           {t('compare.create')}
-        </button>
+        </TripButton>
       </div>
     </Modal>
   )

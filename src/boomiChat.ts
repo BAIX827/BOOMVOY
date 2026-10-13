@@ -1,7 +1,36 @@
+import type { Trip } from './types'
+
 export type BoomiHit = {
   sayKey: string
   route?: string
   selector?: string
+  vars?: Record<string, string | number>
+}
+
+export function itineraryRequest(q: string) {
+  const text = q.trim().slice(0, 2000)
+  const normalized = text.normalize('NFKC')
+  if (!/(?:安排|规划|计划|行程|想去|要去|帮我排)|\b(?:plan|itinerary|schedule|want to visit)\b/i.test(normalized)) return null
+  // Instruction intent wins over modifiers such as budget, weather or hotel.
+  if (!/(?:安排|规划|帮我排|想去|要去)|\b(?:plan (?:my|a|day|the)|schedule|want to visit)\b/i.test(normalized)) return null
+  const numbered = normalized.match(/第\s*([\d一二三四五六七八九十两]+)\s*天|\bday\s*(\d+)\b|\b(\d+)(?:st|nd|rd|th)?\s+day\b/i)
+  const token = numbered?.[1] || numbered?.[2] || numbered?.[3]
+  const digits: Record<string, number> = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 }
+  const dayNumber = token ? /^\d+$/.test(token) ? Number(token) : token.includes('十') ? (digits[token.split('十')[0]] || 1) * 10 + (digits[token.split('十')[1]] || 0) : digits[token] : undefined
+  const place = (normalized.match(/(?:想去|要去|去)([^，。；,;!?！？]+?)(?=，|。|；|,|;|预算|budget|$)/i)?.[1] || normalized.match(/\bvisit\s+([^,;.!?]+?)(?=,|;|\s+with\s+(?:a\s+)?budget|$)/i)?.[1])?.trim()
+  const explicitTime = normalized.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/)
+  const time = explicitTime ? `${explicitTime[1].padStart(2, '0')}:${explicitTime[2]}` : /下午|afternoon/i.test(normalized) ? '14:00' : /晚上|evening/i.test(normalized) ? '18:00' : /上午|morning/i.test(normalized) ? '09:00' : undefined
+  return { text, dayNumber, place: place?.slice(0, 120), time }
+}
+
+export function boomiPlanAction(q: string, trip?: Trip, currentDay?: string | null): BoomiHit | null {
+  const request = itineraryRequest(q)
+  if (!request) return null
+  if (!trip) return { sayKey: 'chat.needTrip', route: '/new' }
+  const selected = request.dayNumber === undefined ? trip.days.find((day) => day.id === currentDay || day.date === currentDay) || trip.days[0] : trip.days[request.dayNumber - 1]
+  if (!selected) return { sayKey: 'chat.dayMissing', vars: { n: trip.days.length } }
+  const query = new URLSearchParams({ day: selected.id, request: request.text })
+  return { sayKey: 'chat.planRequest', vars: { day: trip.days.indexOf(selected) + 1, city: selected.city }, route: `/trip/${encodeURIComponent(trip.id)}/plan?${query}`, selector: '[data-guide="plan-request"]' }
 }
 
 export function matchBoomi(q: string, tripId?: string): BoomiHit | null {
@@ -42,7 +71,7 @@ export function matchBoomi(q: string, tripId?: string): BoomiHit | null {
   if (/打卡|盖章|感受|拍照|\b(?:check[ -]?in|stamps?|journal)\b/.test(s)) {
     return inTrip('chat.checkin', 'plan', '[data-guide="check-in"], [data-guide="nav-journal"]')
   }
-  if (/推荐行程|推荐路线|生成行程|怎么排|帮我排|一天行程|排一天|\b(?:recommend(?:ations?)?|suggest(?:\s+a\s+day)?|suggestaday|plan\s+(?:a|my)\s+day)\b/.test(s)) {
+  if (/安排|规划|想去|要去|推荐行程|推荐路线|生成行程|怎么排|帮我排|一天行程|排一天|\b(?:recommend(?:ations?)?|suggest(?:\s+a\s+day)?|suggestaday|plan\s+(?:a|my)\s+day)\b/.test(s)) {
     return inTrip('chat.suggest', 'plan', '[data-guide="recommend"]')
   }
   if (/地图|路线|绕路|\b(?:maps?|routes?|detours?)\b/.test(s)) {

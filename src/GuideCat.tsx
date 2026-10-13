@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowUpRight, MessageCircle, X } from 'lucide-react'
 import { useApp } from './store'
 import boomi from './assets/boomi.png'
-import { matchBoomi, type BoomiHit } from './boomiChat'
+import { boomiPlanAction, matchBoomi, type BoomiHit } from './boomiChat'
 import { boomiSay } from './boomiVoice.mjs'
 import { guideChips, guideSteps, guideTripId } from './boomiGuide'
 import { askBoomi, resolveBackend } from './llm'
@@ -228,7 +228,8 @@ export default function GuideCat() {
     if (!hit.route) return
     const destinationTrip = hit.route.match(/^\/trip\/([^/]+)/)?.[1]
     if (destinationTrip && !trips.some((trip) => trip.id === destinationTrip)) { nav('/new'); return }
-    if (hit.route !== loc.pathname) { nav(hit.route); pointAt(hit.selector, 480, hit.route) }
+    finish()
+    if (hit.route !== loc.pathname + loc.search) { nav(hit.route); pointAt(hit.selector, 480, hit.route.split('?')[0]) }
     else pointAt(hit.selector)
   }
 
@@ -242,10 +243,10 @@ export default function GuideCat() {
     setDraft('')
     setMsgs((m) => [...m.slice(-18), { who: 'user', text: q }])
     setBusy(true)
-    const hit = matchBoomi(q, tripId)
+    const hit = boomiPlanAction(q, trips.find((trip) => trip.id === tripId), new URLSearchParams(loc.search).get('day')) || matchBoomi(q, tripId)
     try {
       if (hit) {
-        setMsgs((m) => [...m, { who: 'boomi', text: t(hit.sayKey), action: hit.route ? hit : undefined }])
+        setMsgs((m) => [...m, { who: 'boomi', text: t(hit.sayKey, hit.vars), action: hit.route ? hit : undefined }])
         return
       }
       const backend = resolveBackend(profile)

@@ -211,7 +211,7 @@ export default function DecisionAssistant({ trip }: { trip: Trip }) {
       </div>
       {prefs.kind === 'restaurant' && <details className="mt-3 text-xs"><summary className="cursor-pointer">{t('decision.exclusions')}</summary><div className="mt-2 flex flex-wrap gap-3">{CUISINES.filter((cuisine) => cuisine !== 'any').map((cuisine) => <label key={cuisine} className="flex items-center gap-1"><TripInput type="checkbox" checked={prefs.excludedCuisines?.includes(cuisine) || false} onChange={(event) => change({ excludedCuisines: event.target.checked ? [...(prefs.excludedCuisines || []), cuisine] : prefs.excludedCuisines?.filter((value) => value !== cuisine), cuisine: event.target.checked && prefs.cuisine === cuisine ? 'any' : prefs.cuisine })} />{t('decision.cuisine.' + cuisine)}</label>)}</div></details>}
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        <TripButton className="btn" disabled={loading || !valid} onClick={() => void search()}><Sparkles size={16} />{t(loading ? 'decision.loading' : 'decision.find')}</TripButton>
+        <TripButton className="btn" disabled={loading || !valid} onClick={() => void search()}><Sparkles size={16} />{t(loading ? 'decision.loading' : offline ? 'decision.retry' : 'decision.find')}</TripButton>
         {loading && <TripButton className="btn btn-ghost" onClick={() => { controller.current?.abort(); controller.current = null; generation.current += 1; setLoading(false) }}>{t('decision.cancel')}</TripButton>}
       </div>
       {!valid && <p role="alert" className="mt-3 text-sm" style={{ color: 'var(--warn)' }}>{t('decision.invalid')}</p>}
@@ -219,19 +219,24 @@ export default function DecisionAssistant({ trip }: { trip: Trip }) {
       {lastSavedId && <div className="mt-3 flex flex-wrap gap-2"><TripButton className="btn text-sm" onClick={() => setScheduleOpen(true)}>{t('journey.schedule')}</TripButton><Link className="btn btn-ghost text-sm no-underline" to={href('bookings')}>{t('journey.order')}</Link><Link className="btn btn-ghost text-sm no-underline" to={href('saved')}>{t('trip.saved')} →</Link></div>}
       {scheduleOpen && lastSavedId && trip.saved.find((item) => item.id === lastSavedId) && <ScheduleSaved trip={trip} item={trip.saved.find((item) => item.id === lastSavedId)!} onClose={() => setScheduleOpen(false)} />}
       {searched && <div className="mt-5 space-y-4">
-        {offline && <p role="status" className="rounded-xl p-3 text-sm" style={{ background: 'var(--bg-2)' }}>{t('decision.offline')}</p>}
+        {offline && <div role="status" className="space-y-2 rounded-xl p-3 text-sm" style={{ background: 'var(--bg-2)' }}><p>{t('decision.offline')}</p><Link className="inline-block underline" to="/profile">{t('decision.setup')}</Link></div>}
         <p className="text-xs" style={{ color: 'var(--muted)' }}>{t('decision.scoreHint')}</p>
         {results.length === 0 && <p className="text-sm">{t('decision.noResults')}</p>}
         {results.length > 0 && results.every((result) => !result.candidate.rating) && <p className="text-xs" style={{ color: 'var(--muted)' }}>{t('decision.pendingOnly')}</p>}
+        {(['confirmed', 'check'] as const).map((confidence) => {
+          const group = results.filter((result) => result.confidence === confidence)
+          return group.length > 0 && <section key={confidence} className="space-y-3">
+            <h3 className="display text-xl">{t(confidence === 'confirmed' ? 'decision.matchesTitle' : 'decision.unverified')}</h3>
+            {confidence === 'check' && <p className="text-xs" style={{ color: 'var(--muted)' }}>{t('decision.unverifiedHint')}</p>}
         <div className="grid gap-3 xl:grid-cols-2">
-          {results.map((ranked) => {
+          {group.map((ranked) => {
             const candidate = ranked.candidate
             const links = buildDecisionLinks(prefs, candidate)
             return <article key={candidate.id} className="min-w-0 rounded-2xl border p-4" style={{ borderColor: 'var(--line)' }}>
               <div className="flex flex-wrap items-start justify-between gap-2"><h3 className="display text-xl">{candidate.name}</h3><span className="chip text-xs">{t(ranked.confidence === 'confirmed' ? 'decision.confirmed' : 'decision.conditional')}</span></div>
               {candidate.address && <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>{candidate.address}</p>}
               <div className="mt-3 flex flex-wrap gap-2 text-sm">
-                <span className="chip">{t('decision.match', { n: ranked.matchScore })}</span>
+                <span className="chip">{ranked.criteria.some((criterion) => criterion.state === 'match') ? t('decision.match', { n: ranked.matchScore }) : t(ranked.criteria.length ? 'decision.noEvidence' : 'decision.noFilters')}</span>
                 {candidate.rating ? <a className="chip underline" href={safeDecisionUrl(candidate.rating.sourceUrl)} target="_blank" rel="noreferrer">⭐ {candidate.rating.value.toFixed(1)} / 5 {candidate.rating.count !== undefined ? ' · ' + t('decision.reviews', { n: candidate.rating.count }) : ''}</a> : <span className="chip">{t('decision.noRating')}</span>}
               </div>
               <p className="mt-2 text-xs">{candidate.price ? t('decision.referencePrice', { price: (candidate.price.min !== undefined ? money(candidate.price.min, candidate.price.currency) + '–' : '') + money(candidate.price.max, candidate.price.currency) }) + ' ' + t(candidate.price.basis === 'night' ? 'decision.perNight' : 'decision.perPerson') : t('decision.priceUnknown')}</p>
@@ -249,6 +254,8 @@ export default function DecisionAssistant({ trip }: { trip: Trip }) {
             </article>
           })}
         </div>
+          </section>
+        })}
         <div className="rounded-xl p-3 text-sm" style={{ background: 'var(--bg-2)' }}><p className="mb-2">{t('decision.search')}</p><div className="flex flex-wrap gap-3">{searchLinks.map((link) => <a key={link.url} className="underline" href={link.url} target="_blank" rel="noreferrer">{link.label}</a>)}</div></div>
       </div>}
       {prefs.kind === 'restaurant' && prefs.variety && <div className="mt-6 border-t pt-5" style={{ borderColor: 'var(--line)' }}>

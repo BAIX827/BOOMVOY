@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { decisionZh, decisionEn } from './decisionI18n'
 import { journeyZh, journeyEn } from './journeyI18n'
 import { upgradeZh, upgradeEn } from './upgradeI18n'
+import { experienceZh, experienceEn } from './experienceI18n'
 import { useApp } from './store'
 import type {
   BookingStatus,
@@ -20,6 +21,7 @@ export type Vars = Record<string, string | number>
 export type TFn = (key: string, vars?: Vars) => string
 
 const zh = {
+  ...experienceZh,
   ...journeyZh,
   ...upgradeZh,
   ...decisionZh,
@@ -425,7 +427,7 @@ const zh = {
   'suggest.tickets': '订门票',
   'suggest.route': '路线',
   'suggest.offline': 'OpenAI 暂时连不上，先用本地建议',
-  'suggest.failed': 'API 失败',
+  'suggest.failed': '在线推荐暂时不可用，请重试或核对本地建议。',
   'suggest.empty': '当前条件下暂无可用的新推荐',
   'suggest.socialHint': '请出发前确认地点、营业时间和门票。',
   'suggest.already': '已在 {date} 的行程里',
@@ -787,6 +789,7 @@ const zh = {
 } as const
 
 const en: Record<keyof typeof zh, string> = {
+  ...experienceEn,
   ...journeyEn,
   ...upgradeEn,
   ...decisionEn,
@@ -1192,7 +1195,7 @@ const en: Record<keyof typeof zh, string> = {
   'suggest.tickets': 'Tickets',
   'suggest.route': 'Directions',
   'suggest.offline': 'OpenAI is unreachable for now — using local suggestions',
-  'suggest.failed': 'API failed',
+  'suggest.failed': 'Online recommendations are temporarily unavailable. Retry or review the local suggestions.',
   'suggest.empty': 'No new recommendations match the current conditions',
   'suggest.socialHint': 'Confirm locations, opening hours and tickets before visiting.',
   'suggest.already': 'Already on {date}',
@@ -1640,8 +1643,18 @@ export function weatherBlurb(snap: WeatherSnap, tFn: TFn) {
     return tFn('wx.seasonal', { min: snap.tMin, max: snap.tMax, mm: snap.precipMm ?? 0 })
   }
   if (snap.source === 'placeholder') return tFn('wx.placeholder')
-  if (snap.source === 'forecast' || snap.source === 'archive') {
+  if (snap.source === 'archive') return tFn('wx.archiveSummary', { min: snap.tMin, max: snap.tMax, mm: snap.precipMm ?? 0 })
+  if (snap.source === 'forecast' && snap.rainProbKnown === false) return tFn('wx.forecastWithoutRain', { min: snap.tMin, max: snap.tMax, mm: snap.precipMm ?? 0 })
+  if (snap.source === 'forecast') {
     return tFn('wx.forecast', { min: snap.tMin, max: snap.tMax, rain: snap.rainProb })
   }
   return snap.summary
+}
+
+export function weatherCompact(snap: WeatherSnap, tFn: TFn) {
+  if (snap.source === 'placeholder') return tFn('wx.pending')
+  const source = tFn(snap.source === 'seasonal' ? 'wx.reference' : snap.source === 'archive' ? 'wx.history' : snap.source === 'forecast' ? 'wx.forecastLabel' : 'wx.sourceUnknown')
+  const detail = snap.source === 'forecast' && snap.rainProbKnown !== false ? tFn('wx.rain', { n: snap.rainProb })
+    : snap.precipMm !== undefined ? tFn('wx.precipitation', { mm: snap.precipMm }) : ''
+  return `${source} · ${snap.tMin}–${snap.tMax}°C${detail ? ` · ${detail}` : ''}`
 }

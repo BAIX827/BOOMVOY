@@ -11,7 +11,7 @@ const PROFILE_FIELDS = ['name', 'homeCity', 'homeCurrency', 'themePref', 'locale
 const PLAN_FIELDS = ['planA', 'planB']
 const MEMBER_FIELDS = ['id', 'name', 'role', 'color']
 const MONEY_FIELDS = ['amount', 'currency']
-const WEATHER_FIELDS = ['condition', 'tMin', 'tMax', 'rainProb', 'rainWindow', 'summary', 'source', 'precipMm']
+const WEATHER_FIELDS = ['condition', 'tMin', 'tMax', 'rainProb', 'rainProbKnown', 'rainWindow', 'summary', 'source', 'precipMm']
 const COORDS_FIELDS = ['lat', 'lng']
 const PLACE_FIELDS = [
   'id', 'locationPending', 'name', 'category', 'setting', 'time', 'durationMin', 'notes', 'cost',
@@ -370,6 +370,7 @@ function validateWeather(value, path) {
   boundedNumber(weather.tMax, -100, 100, `${path}.tMax`)
   if (weather.tMin > weather.tMax) invalid(`${path}.tMin must not exceed tMax`)
   boundedNumber(weather.rainProb, 0, 100, `${path}.rainProb`)
+  if (weather.rainProbKnown !== undefined && typeof weather.rainProbKnown !== 'boolean') invalid(`${path}.rainProbKnown must be boolean`)
   stringValue(weather.summary, `${path}.summary`)
   optional(weather, 'rainWindow', path, stringValue)
   optional(weather, 'source', path, (entry, entryPath) => enumValue(entry, WEATHER_SOURCES, entryPath))

@@ -55,6 +55,7 @@ export interface WeatherSnap {
   tMin: number
   tMax: number
   rainProb: number
+  rainProbKnown?: boolean
   rainWindow?: string
   summary: string
   source?: 'forecast' | 'seasonal' | 'archive' | 'placeholder'

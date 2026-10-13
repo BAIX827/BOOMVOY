@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { TripButton, TripInput, TripSelect } from './TripControls'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Sparkles } from 'lucide-react'
@@ -133,7 +134,7 @@ export default function DaySuggest({ city, date, weather, existing, planned = []
       setSource(result.source)
       setPicked(0)
       setExcluded(new Set())
-      setError(result.error ? t(`suggest.${result.error}`) : '')
+      setError(result.error ? result.source === 'local' && result.items.length ? t('suggest.serviceFallback') : t(`suggest.${result.error}`) : '')
       if (result.cached) setStatus(t('suggest.cached'))
     } catch {
       if (id === generation.current && !abort.signal.aborted) setError(t('suggest.failed'))
@@ -200,12 +201,12 @@ export default function DaySuggest({ city, date, weather, existing, planned = []
         {orderConflict && <p role="alert" className="text-sm" style={{ color: 'var(--warn)' }}>{t('suggest.orderConflict')}</p>}
         {protectedPlan && <p className="text-xs" style={{ color: 'var(--muted)' }}>{t('suggest.protectedHint')}</p>}
         <div className="flex flex-wrap items-center gap-3">
-          <TripButton type="button" className="btn" disabled={loading || locating || cannotGenerate} data-guide="recommend" onClick={() => void run()}><Sparkles size={16} />{asked ? t('suggest.regenerate') : t('suggest.recommend')}</TripButton>
+          <TripButton type="button" className="btn" disabled={loading || locating || cannotGenerate} data-guide="recommend" onClick={() => void run()}><Sparkles size={16} />{error ? t('suggest.retry') : asked ? t('suggest.regenerate') : t('suggest.recommend')}</TripButton>
           {loading && <TripButton type="button" className="btn btn-ghost" onClick={() => { clearResults(); setStatus(t('suggest.cancelled')) }}>{t('suggest.cancel')}</TripButton>}
           {loading && <span role="status" className="text-sm">{t('suggest.loading', { city })}</span>}
         </div>
         {(status || undo) && <div role="status" className="flex flex-wrap items-center gap-3 text-sm"><span>{status}</span>{undo && <TripButton className="btn btn-ghost text-xs" onClick={() => { setStatus(t(onUndo(undo) ? 'suggest.undone' : 'suggest.undoChanged')); setUndo(null) }}>{t('suggest.undo')}</TripButton>}</div>}
-        {error && <p role="status" className="text-xs" style={{ color: 'var(--warn)' }}>{error}</p>}
+        {error && <div role="status" className="space-y-2 text-xs" style={{ color: 'var(--warn)' }}><p>{error}</p><Link className="underline" to="/profile">{t('service.settings')}</Link></div>}
         {asked && !loading && !current && <p className="text-sm">{t('suggest.noCandidates')}</p>}
       </div>
       {current && <div className="space-y-4 border-t p-5" style={{ borderColor: 'var(--line)' }}>

@@ -58,6 +58,7 @@ export default function CreateTrip() {
   }
 
   function submit() {
+    if (memberNames.length > people) { setError(t('members.tooMany', { named: memberNames.length })); setStep(2); return }
     const id = createTrip({
       name: name || destinations[0] || t('create.untitled'),
       origin,
@@ -76,6 +77,7 @@ export default function CreateTrip() {
   }
 
   function validate(currentStep: number) {
+    if (currentStep === 2 && memberNames.length > people) return t('members.tooMany', { named: memberNames.length })
     if (currentStep === 0 && (!origin.trim() || destinations.length === 0)) return t('create.errorRoute')
     if (currentStep === 0 && destinations.length > 100) return t('create.errorLimits')
     if (currentStep === 1) {
@@ -174,6 +176,7 @@ export default function CreateTrip() {
             <div>
               <Label>{t('create.members')}</Label>
               <input className="field" value={members} onChange={(e) => setMembers(e.target.value)} placeholder="Ari, Bo" />
+              {Number.isInteger(people) && people > memberNames.length && <p className="mt-2 text-xs" role="status">{t('members.createHint', { named: memberNames.length, total: people, missing: people - memberNames.length })}</p>}
             </div>
             <div>
               <Label>{t('create.budget', { currency: profile.homeCurrency })}</Label>

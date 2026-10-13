@@ -1,3 +1,4 @@
+import { stayCoverage } from '../stayCoverage'
 import { Link, useParams } from 'react-router-dom'
 import { useTrip } from '../store'
 import { CoverArt, Progress, Tone } from '../ui'
@@ -6,7 +7,7 @@ import { formatRange, money } from '../lib'
 import { bookingProgress, cityRoute, itineraryProgress, weatherAdvice } from '../domain'
 import { flightLinks, lookupAir, tripFlightPlan } from '../bookingLinks'
 import type { Trip } from '../types'
-import { bookingStatusLabel, kindLabel, transportLabel, useT, type TFn } from '../i18n'
+import { bookingStatusLabel, kindLabel, transportLabel, useT, weatherCompact, type TFn } from '../i18n'
 import { nextJourneyAction, tripHref } from '../journey'
 import { ArrowRight } from 'lucide-react'
 
@@ -17,6 +18,7 @@ export default function Overview() {
   if (!trip) return null
   const route = cityRoute(trip)
   const booking = bookingProgress(trip)
+  const stays = stayCoverage(trip)
   const itin = itineraryProgress(trip)
   const rainDay = trip.days.find((d) => weatherAdvice(d, t)?.suggestSwitch)
   const next = nextJourneyAction(trip)
@@ -82,10 +84,12 @@ export default function Overview() {
                     {KINDS[b.kind].icon} {kindLabel(t, b.kind)}
                   </span>
                   <span>
-                    {b.total === 0 ? '—' : b.done === b.total ? '✓' : `${b.done}/${b.total}`}
+                    {b.kind === 'hotel' ? stays.total ? t('stay.coverage', { done: stays.done, total: stays.total }) : t('stay.noNights') : b.total === 0 ? '—' : b.done === b.total ? '✓' : `${b.done}/${b.total}`}
                   </span>
                 </div>
-                <Progress value={b.total ? (b.done / b.total) * 100 : 0} />
+                <Progress value={b.kind === 'hotel' ? stays.total ? stays.done / stays.total * 100 : 100 : b.total ? (b.done / b.total) * 100 : 0} />
+                {b.kind === 'hotel' && stays.missing.length > 0 && <Link className="mt-2 block text-xs underline" to={tripHref(trip.id, 'bookings', trip.days.find((day) => day.date === stays.missing[0])?.id)}>{t('stay.missing', { dates: stays.missing.map((date) => date.slice(5)).join(' · ') })}</Link>}
+                {b.kind === 'hotel' && stays.undated.length > 0 && <p className="mt-2 text-xs">{t('stay.review', { names: stays.undated.join(' · ') })}</p>}
               </div>
             ))}
           </div>
@@ -139,7 +143,7 @@ export default function Overview() {
                 {n.stay && <span className="chip">🏨 {n.stay}</span>}
                 {n.weather && (
                   <span className="chip">
-                    {WEATHER[n.weather.condition].icon} {n.weather.tMin}–{n.weather.tMax}°C
+                    {weatherCompact(n.weather, t)}
                   </span>
                 )}
               </div>

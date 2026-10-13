@@ -427,6 +427,12 @@ header.sticky {
 }
 .guide-dock > * { pointer-events: auto; }
 
+/* Forms own the foreground while a modal is open. */
+body:has([aria-modal="true"]:not(.guide-card)) .guide-dock {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .guide-card {
   width: min(340px, calc(100vw - 32px));
   padding: 16px 16px 14px;
@@ -482,7 +488,9 @@ header.sticky {
 }
 @media (max-width: 767px) {
   .guide-cat { width: 64px; height: 80px; }
-  .guide-card { max-height: calc(100dvh - 210px); overflow-y: auto; }
+  .guide-card { max-height: calc(100dvh - 120px); overflow-y: auto; }
+  .guide-dock:has(.guide-card) .guide-cat { display: none; }
+  body:has([data-guide="create-form"]) .guide-dock:not(:has(.guide-card)) { display: none; }
 }
 .guide-cat-pulse {
   animation: cat-bob 1.6s ease-in-out infinite;

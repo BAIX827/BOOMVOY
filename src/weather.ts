@@ -34,13 +34,6 @@ function wmoCondition(code: number): WeatherCondition {
   return 'cloudy'
 }
 
-function rainFromMm(mm: number) {
-  if (mm <= 0.2) return 12
-  if (mm < 2) return 35
-  if (mm < 8) return 60
-  return 82
-}
-
 function shiftYear(iso: string, years: number) {
   const d = new Date(iso + 'T00:00:00')
   d.setFullYear(d.getFullYear() + years)
@@ -62,23 +55,24 @@ type Daily = {
   precipitation_sum?: number[]
 }
 
-function snapsFromDaily(daily: Daily, seasonal: boolean, locale: Locale): Record<string, WeatherSnap> {
+function snapsFromDaily(daily: Daily, source: 'seasonal' | 'archive' | 'forecast', locale: Locale): Record<string, WeatherSnap> {
   const out: Record<string, WeatherSnap> = {}
   daily.time.forEach((date, i) => {
     const code = daily.weather_code?.[i] ?? 2
     const tMax = Math.round(daily.temperature_2m_max?.[i] ?? 22)
     const tMin = Math.round(daily.temperature_2m_min?.[i] ?? 16)
-    const rainProb = daily.precipitation_probability_max?.[i] ?? rainFromMm(daily.precipitation_sum?.[i] ?? 0)
+    const rainProbKnown = source === 'forecast' && Number.isFinite(daily.precipitation_probability_max?.[i])
+    const rainProb = source === 'forecast' ? daily.precipitation_probability_max?.[i] ?? 0 : 0
     const precipMm = Math.round(daily.precipitation_sum?.[i] ?? 0)
-    const source = seasonal ? ('seasonal' as const) : ('forecast' as const)
     out[date] = {
       condition: wmoCondition(code),
       tMin,
       tMax,
       rainProb: Math.round(rainProb),
+      rainProbKnown,
       precipMm,
       source,
-      summary: t(locale, source === 'seasonal' ? 'wx.seasonal' : 'wx.forecast', {
+      summary: t(locale, source === 'seasonal' ? 'wx.seasonal' : source === 'archive' ? 'wx.archiveSummary' : rainProbKnown ? 'wx.forecast' : 'wx.forecastWithoutRain', {
         min: tMin,
         max: tMax,
         mm: precipMm,
@@ -97,7 +91,7 @@ async function forecastRange(lat: number, lng: number, start: string, end: strin
     if (!res.ok) throw new Error(`Weather API ${res.status}`)
     const data = await res.json()
     if (!data.daily?.time) throw new Error('Invalid weather response')
-    return snapsFromDaily(data.daily, false, locale)
+    return snapsFromDaily(data.daily, 'forecast', locale)
   }
   return force ? forecastCache.refresh(key, load) : forecastCache.getOrCreate(key, load)
 }
@@ -110,7 +104,7 @@ async function archiveRange(lat: number, lng: number, start: string, end: string
     if (!res.ok) throw new Error(`Weather archive API ${res.status}`)
     const data = await res.json()
     if (!data.daily?.time) throw new Error('Invalid weather archive response')
-    return snapsFromDaily(data.daily, seasonal, locale)
+    return snapsFromDaily(data.daily, seasonal ? 'seasonal' : 'archive', locale)
   }
   return force ? archiveCache.refresh(key, load) : archiveCache.getOrCreate(key, load)
 }

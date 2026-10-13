@@ -19,6 +19,7 @@ export default function Group() {
   const owner = !session || session.role === 'owner'
   if (!trip) return null
 
+  const nextCount = Math.max(trip.travellers, trip.members.length + 1)
   const hotelVote = trip.saved.filter((s) => s.kind === 'hotel' && (s.status === 'comparing' || s.status === 'shortlisted' || s.status === 'chosen' || s.status === 'booked'))
 
   return (
@@ -65,15 +66,15 @@ export default function Group() {
         <input className="field" placeholder={t('group.invite')} value={name} onChange={(e) => setName(e.target.value)} />
         <button
           className="btn"
-          disabled={!owner || !name.trim() || trip.members.length >= 100 || trip.travellers >= 100 || (trip.travellers + 1) * trip.budgetPerPerson > 1_000_000_000_000}
+          disabled={!owner || !name.trim() || trip.members.length >= 100 || nextCount > 100 || nextCount * trip.budgetPerPerson > 1_000_000_000_000}
           onClick={() => {
             updateTrip(trip.id, {
               members: [
                 ...trip.members,
                 { id: uid(), name: name.trim(), role: 'editor', color: MEMBER_COLORS[trip.members.length % MEMBER_COLORS.length] },
               ],
-              travellers: trip.travellers + 1,
-              totalBudget: (trip.travellers + 1) * trip.budgetPerPerson,
+              travellers: nextCount,
+              totalBudget: nextCount * trip.budgetPerPerson,
             })
             setName('')
           }}

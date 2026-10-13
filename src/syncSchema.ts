@@ -151,7 +151,7 @@ function sanitizeDay(value: unknown) {
   const clean = pickKnown(value, ['id', 'date', 'city', 'weather', 'planA', 'planB', 'activePlan', 'notes', 'transportMode', 'stay', 'stayBookingId'])
   if (!record(clean)) return clean
   if (Object.hasOwn(clean, 'weather')) {
-    clean.weather = pickKnown(clean.weather, ['condition', 'tMin', 'tMax', 'rainProb', 'rainWindow', 'summary', 'source', 'precipMm'])
+    clean.weather = pickKnown(clean.weather, ['condition', 'tMin', 'tMax', 'rainProb', 'rainProbKnown', 'rainWindow', 'summary', 'source', 'precipMm'])
   }
   for (const field of ['planA', 'planB']) if (Object.hasOwn(clean, field)) clean[field] = mapKnown(clean[field], sanitizePlace)
   return clean
@@ -236,6 +236,7 @@ function weather(value: unknown) {
     && numberIn(value.tMax, -100, 100)
     && value.tMin <= value.tMax
     && numberIn(value.rainProb, 0, 100)
+    && optional(value, 'rainProbKnown', (entry) => typeof entry === 'boolean')
     && stringValue(value.summary)
     && optional(value, 'rainWindow', stringValue)
     && optional(value, 'source', (entry) => enumValue(entry, WEATHER_SOURCES))

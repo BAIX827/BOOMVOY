@@ -13,6 +13,7 @@ export function outdoorRatio(places: PlaceStop[]) {
 }
 
 export function weatherAdvice(day: DayPlan, tFn: TFn) {
+  if (day.weather.rainProbKnown === false || day.weather.source && day.weather.source !== 'forecast') return null
   const places = activePlaces(day)
   const ratio = outdoorRatio(places)
   const rain = day.weather.rainProb
@@ -195,6 +196,7 @@ export function expenseHomeAmount(trip: Trip, e: Expense) {
 }
 
 export function suggestedSwap(day: DayPlan): PlaceStop[] | null {
+  if (day.weather.rainProbKnown === false || day.weather.source && day.weather.source !== 'forecast') return null
   if (day.weather.rainProb < 55) return null
   const places = [...day.planA]
   if (places.length < 3) return null

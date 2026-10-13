@@ -7,7 +7,7 @@ import { formatDayLong } from '../lib'
 import { activePlaces, outdoorRatio, suggestedSwap, weatherAdvice } from '../domain'
 import { Tone } from '../ui'
 import { refreshTripWeather } from '../weather'
-import { settingLabel, useT, weatherBlurb } from '../i18n'
+import { settingLabel, useT, weatherBlurb, weatherCompact } from '../i18n'
 
 export default function Weather() {
   const { id } = useParams()
@@ -73,9 +73,9 @@ export default function Weather() {
               </div>
               <div className="text-right">
                 <div className="display text-2xl">
-                  {d.weather.tMin}–{d.weather.tMax}°C
+                  {d.weather.source === 'placeholder' ? '—' : `${d.weather.tMin}–${d.weather.tMax}°C`}
                 </div>
-                <div className="text-sm">{t('wx.rain', { n: d.weather.rainProb })}</div>
+                <div className="text-sm">{weatherCompact(d.weather, t)}</div>
               </div>
             </div>
             <p className="mt-2 text-sm">{weatherBlurb(d.weather, t)}</p>

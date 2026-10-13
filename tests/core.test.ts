@@ -282,6 +282,8 @@ try {
   const weatherA = weatherForCity('Weather City 8fd8', ['2099-05-04'], 'en')
   const weatherB = weatherForCity('Weather City 8fd8', ['2099-05-04'], 'en')
   assert.deepEqual(await weatherA, await weatherB)
+  assert.equal((await weatherA)['2099-05-04'].rainProb, 0, 'Historical precipitation does not fabricate a rain probability')
+  assert.equal((await weatherA)['2099-05-04'].rainProbKnown, false)
   assert.equal(weatherCalls.length, 2, 'Concurrent weather loads share one city lookup and one range request')
   await weatherForCity('Weather City 8fd8', ['2099-05-04'], 'en', true)
   assert.equal(weatherCalls.length, 3, 'A manual refresh reuses city coordinates but bypasses settled weather data')

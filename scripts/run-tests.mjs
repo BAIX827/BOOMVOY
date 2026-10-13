@@ -4,7 +4,7 @@ import { build } from 'esbuild'
 const testStorage = new Map()
 Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: (key) => testStorage.get(key) ?? null, setItem: (key, value) => testStorage.set(key, String(value)), removeItem: (key) => testStorage.delete(key), clear: () => testStorage.clear() } })
 
-for (const entry of ['tests/travel-upgrades.test.ts', 'tests/journey.test.ts', 'tests/core.test.ts', 'tests/boomi.test.ts', 'tests/packing.test.ts', 'tests/recommendation.test.ts', 'tests/recommendation-application.test.ts', 'tests/decision.test.ts', 'tests/decision-selection.test.ts', 'tests/sync-client.test.ts', 'tests/provider-settings-client.test.ts']) {
+for (const entry of ['tests/experience.test.ts', 'tests/travel-upgrades.test.ts', 'tests/journey.test.ts', 'tests/core.test.ts', 'tests/boomi.test.ts', 'tests/packing.test.ts', 'tests/recommendation.test.ts', 'tests/recommendation-application.test.ts', 'tests/decision.test.ts', 'tests/decision-selection.test.ts', 'tests/sync-client.test.ts', 'tests/provider-settings-client.test.ts']) {
   const result = await build({
     entryPoints: [entry],
     bundle: true,

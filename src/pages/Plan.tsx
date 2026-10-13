@@ -1,6 +1,7 @@
+import { itineraryRequest } from '../boomiChat'
 import { TripButton, TripInput, TripSelect, TripTextarea } from '../TripControls'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
   DndContext,
   PointerSensor,
@@ -24,10 +25,13 @@ import { useTripContext } from '../useTripContext'
 import { planFingerprint, type RecommendationUndo } from '../recommendationApplication'
 import { nearbyOrder, scheduleConflicts } from '../planOrdering'
 import { ensurePlaceGeo, hopMeta, mapsNavigateUrl, mapsDayRoute, mapsDirUrl, mapsPlaceUrl, routeHop, searchPlaces, type HopRoute, type PlaceSearchHit } from '../geo'
-import { PLACE_CATS, placeCatLabel, priorityLabel, settingLabel, transportLabel, useT } from '../i18n'
+import { PLACE_CATS, placeCatLabel, priorityLabel, settingLabel, transportLabel, useT, weatherCompact } from '../i18n'
 
 export default function Plan() {
   const { id } = useParams()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const request = itineraryRequest(searchParams.get('request') || '')
+  const [requestDraft, setRequestDraft] = useState<{ name?: string; time?: string; notes?: string }>()
   const trip = useTrip(id)
   const { addDayPlace, removePlace, reorderPlaces, setActivePlan, updatePlace, updateTrip, replacePlaces, applyRecommendation, undoRecommendation } = useApp()
   const { t, locale } = useT()
@@ -114,6 +118,13 @@ export default function Plan() {
       </div>
 
       <div className="min-w-0 flex-1 space-y-4">
+        {request && <section className="paper space-y-3 p-4" data-guide="plan-request">
+          <h2 className="display text-xl">{t('plan.requestTitle')}</h2><p className="text-sm">{request.text}</p>
+          <p className="text-xs" style={{ color: 'var(--muted)' }}>{t('plan.requestHint')}</p>
+          <div className="flex flex-wrap gap-2"><TripButton className="btn text-sm" onClick={() => { setRequestDraft({ name: request.place, time: request.time, notes: request.text }); setOpen(true) }}>{t('plan.requestAdd')}</TripButton>
+          <TripButton className="btn btn-ghost text-sm" onClick={() => { const next = new URLSearchParams(searchParams); next.delete('request'); setSearchParams(next, { replace: true }) }}>{t('plan.requestDismiss')}</TripButton></div>
+        </section>}
+
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <div className="text-sm" style={{ color: 'var(--muted)' }}>
@@ -139,7 +150,7 @@ export default function Plan() {
 
         <div className="flex flex-wrap gap-2 text-sm">
           <span className="chip">
-            {WEATHER[day.weather.condition].icon} {day.weather.tMin}–{day.weather.tMax}°C · {t('plan.rainChip', { n: day.weather.rainProb })}
+            {weatherCompact(day.weather, t)}
           </span>
           <span className="chip">{TRANSPORT[day.transportMode].icon} {transportLabel(t, day.transportMode)}</span>
           {day.stay && <span className="chip">🏨 {day.stay}</span>}
@@ -168,7 +179,7 @@ export default function Plan() {
 
 
         <div className="flex flex-wrap gap-2">
-          <TripButton className="btn" onClick={() => setOpen(true)}><Plus size={16} />{t('plan.addPlace')}</TripButton>
+          <TripButton className="btn" onClick={() => { setRequestDraft(undefined); setOpen(true) }}><Plus size={16} />{t('plan.addPlace')}</TripButton>
           <TripButton className="btn btn-ghost" onClick={() => setSavedOpen(true)}>{t('journey.addSaved')}</TripButton>
           <Link className="btn btn-ghost no-underline" to={href('map')}>{t('journey.map')}</Link>
           {mapsDayRoute(places) && <a className="btn btn-ghost no-underline" href={mapsDayRoute(places)} target="_blank" rel="noreferrer">{t('plan.openRoute')}</a>}
@@ -271,6 +282,7 @@ export default function Plan() {
         </Modal>
         {savedItem && <ScheduleSaved key={savedItem.id} trip={trip} item={savedItem} onClose={() => setSavedItem(null)} />}
         <AddPlaceModal
+          initial={requestDraft}
           open={open}
           city={day.city}
           onClose={() => setOpen(false)}
@@ -639,11 +651,13 @@ function CheckInBtn({ place, onPatch }: { place: PlaceStop; onPatch: (p: Partial
 }
 
 function AddPlaceModal({
+  initial,
   open,
   city,
   onClose,
   onAdd,
 }: {
+  initial?: { name?: string; time?: string; notes?: string }
   open: boolean
   city: string
   onClose: () => void
@@ -663,6 +677,19 @@ function AddPlaceModal({
   const searchController = useRef<AbortController | null>(null)
   const searchInFlight = useRef(false)
   const { t } = useT()
+
+  useEffect(() => {
+    if (!open) return
+    setName(initial?.name || '')
+    setTime(initial?.time || '10:00')
+    setNotes(initial?.notes || '')
+    setCategory('景点')
+    setSetting('outdoor')
+    setPriority('want')
+    setTicket(false)
+    setQ(initial?.name || '')
+    setHits([])
+  }, [open, initial])
 
   useEffect(() => {
     if (open) return

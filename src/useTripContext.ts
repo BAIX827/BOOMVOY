@@ -19,6 +19,7 @@ export function useTripContext(trip?: Trip) {
     const next = new URLSearchParams(params)
     next.set('day', dayId)
     next.delete('place')
+    next.delete('request')
     next.delete('view')
     setParams(next, { replace: true })
   }

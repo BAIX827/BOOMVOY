@@ -1,3 +1,5 @@
+import { completeMemberNames } from './travelMembers'
+import { t as translate, resolveLocale } from './i18n'
 import { canEditTrip, useShared } from './collaborationState'
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
@@ -124,12 +126,13 @@ export const useApp = create<AppState>()(
       setProfile: (p) => set({ profile: { ...get().profile, ...p } }),
       createTrip: (draft) => {
         const id = uid()
-        const members = draft.members.filter(Boolean).map((name, i) => ({
+        const members = completeMemberNames(draft.members, draft.travellers, (n) => translate(resolveLocale(get().profile.locale), 'members.placeholder', { n })).map((name, i) => ({
           id: i === 0 ? 'me' : uid(),
           name,
           role: i === 0 ? ('owner' as const) : ('editor' as const),
           color: ['#D989A0', '#3E8EBE', '#6B8F71', '#E8C36A'][i % 4],
         }))
+        const travellers = Math.max(draft.travellers, members.length)
         const dest0 = draft.destinations[0] || draft.origin
         const destinationDays = draft.destinationDays || []
         const days: DayPlan[] = eachDate(draft.startDate, draft.endDate).map((date, index) => ({
@@ -157,10 +160,10 @@ export const useApp = create<AppState>()(
           destinations: draft.destinations,
           startDate: draft.startDate,
           endDate: draft.endDate,
-          travellers: draft.travellers,
+          travellers,
           members: members.length ? members : [{ id: 'me', name: 'Me', role: 'owner', color: '#D989A0' }],
           budgetPerPerson: draft.budgetPerPerson,
-          totalBudget: draft.budgetPerPerson * draft.travellers,
+          totalBudget: draft.budgetPerPerson * travellers,
           homeCurrency: draft.homeCurrency,
           theme: draft.theme,
           cover: draft.theme,
@@ -169,7 +172,7 @@ export const useApp = create<AppState>()(
           saved: [],
           compares: [],
           bookings: [],
-          budget: emptyBudget(draft.budgetPerPerson * draft.travellers),
+          budget: emptyBudget(draft.budgetPerPerson * travellers),
           expenses: [],
           gifts: [],
           packing: emptyPacking({ days } as Trip),

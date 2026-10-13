@@ -1,6 +1,7 @@
 import { TripButton, TripInput, TripSelect } from '../TripControls'
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { pendingMemberName } from '../travelMembers'
+import { Link, useParams } from 'react-router-dom'
 import { useApp, useTrip } from '../store'
 import { BUDGET_CATS } from '../catalog'
 import { money } from '../lib'
@@ -38,6 +39,8 @@ export default function Expenses() {
         </TripButton>
       </div>
 
+      {trip.members.length < trip.travellers && <div className="paper p-4" role="status"><p>{t('members.incomplete', { total: trip.travellers, named: trip.members.length })}</p><Link className="btn btn-soft mt-3 no-underline" to={`/trip/${trip.id}/group`}>{t('members.manage')}</Link></div>}
+      {trip.members.some((member) => pendingMemberName(member.name)) && <p className="text-sm">{t('members.pendingHint')} <Link className="underline" to={`/trip/${trip.id}/group`}>{t('members.rename')}</Link></p>}
       <div className="paper p-5">
         <h2 className="display text-2xl">{t('aa.settle')}</h2>
         {transfers.length === 0 ? (

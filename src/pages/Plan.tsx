@@ -106,11 +106,11 @@ export default function Plan() {
               style={{ outline: d.id === day.id ? '2px solid var(--ink)' : undefined }}
             >
               <div className="text-xs" style={{ color: 'var(--muted)' }}>
-                Day {i + 1} · {WEATHER[d.weather.condition].icon}
+                {t('ui.day', { n: i + 1 })} · {WEATHER[d.weather.condition].icon}
               </div>
               <div className="font-medium">{d.city}</div>
               <div className="text-xs" style={{ color: 'var(--muted)' }}>
-                {d.date.slice(5)} · Plan {d.activePlan}
+                {d.date.slice(5)} · {t('ui.plan', { p: d.activePlan })}
               </div>
             </TripButton>
           ))}
@@ -131,13 +131,13 @@ export default function Plan() {
               {formatDayLong(day.date, locale)}
             </div>
             <h2 className="display text-4xl">
-              Day {trip.days.findIndex((d) => d.id === day.id) + 1} — {day.city}
+              {t('ui.day', { n: trip.days.findIndex((d) => d.id === day.id) + 1 })} — {day.city}
             </h2>
           </div>
           <div className="flex flex-wrap gap-2">
             {(['A', 'B'] as PlanVariant[]).map((p) => (
               <TripButton key={p} className={plan === p ? 'btn' : 'btn btn-ghost'} onClick={() => setActivePlan(trip.id, day.id, p)}>
-                {p === 'A' ? '☀️ Plan A' : '🌧️ Plan B'}
+                {p === 'A' ? t('ui.planA') : t('ui.planB')}
               </TripButton>
             ))}
           </div>
@@ -283,6 +283,7 @@ export default function Plan() {
         {savedItem && <ScheduleSaved key={savedItem.id} trip={trip} item={savedItem} onClose={() => setSavedItem(null)} />}
         <AddPlaceModal
           initial={requestDraft}
+          defaultTime={nextStopTime(places)}
           open={open}
           city={day.city}
           onClose={() => setOpen(false)}
@@ -333,7 +334,7 @@ function SortablePlace({
         </TripButton>
         <span className="route-stop-number">{number}</span>
         <TripInput
-          type="time" aria-label={t('plan.time')} className="stop-time w-[72px] rounded-lg border px-2 py-1 text-sm"
+          type="time" aria-label={t('plan.time')} className="stop-time w-[104px] min-w-[104px] rounded-lg border px-2 py-1 text-sm"
           style={{ borderColor: 'var(--line)', background: 'transparent' }}
           value={place.time || ''}
           onChange={(e) => onPatch({ time: e.target.value })}
@@ -652,12 +653,14 @@ function CheckInBtn({ place, onPatch }: { place: PlaceStop; onPatch: (p: Partial
 
 function AddPlaceModal({
   initial,
+  defaultTime = '10:00',
   open,
   city,
   onClose,
   onAdd,
 }: {
   initial?: { name?: string; time?: string; notes?: string }
+  defaultTime?: string
   open: boolean
   city: string
   onClose: () => void
@@ -666,7 +669,7 @@ function AddPlaceModal({
   const [name, setName] = useState('')
   const [time, setTime] = useState('10:00')
   const [category, setCategory] = useState('景点')
-  const [setting, setSetting] = useState<PlaceSetting>('outdoor')
+  const [setting, setSetting] = useState<PlaceSetting>('mixed')
   const [priority, setPriority] = useState<Priority>('want')
   const [notes, setNotes] = useState('')
   const [ticket, setTicket] = useState(false)
@@ -681,15 +684,15 @@ function AddPlaceModal({
   useEffect(() => {
     if (!open) return
     setName(initial?.name || '')
-    setTime(initial?.time || '10:00')
+    setTime(initial?.time || defaultTime)
     setNotes(initial?.notes || '')
     setCategory('景点')
-    setSetting('outdoor')
+    setSetting('mixed')
     setPriority('want')
     setTicket(false)
     setQ(initial?.name || '')
     setHits([])
-  }, [open, initial])
+  }, [open, initial, defaultTime])
 
   useEffect(() => {
     if (open) return
@@ -777,8 +780,8 @@ function AddPlaceModal({
           </TripButton>
         ))}
         <div className="grid grid-cols-2 gap-2">
-          <TripInput className="field" value={time} onChange={(e) => setTime(e.target.value)} />
-          <TripSelect className="field" value={category} onChange={(e) => setCategory(e.target.value)}>
+          <TripInput className="field" type="time" aria-label={t('plan.time')} value={time} onChange={(e) => setTime(e.target.value)} />
+          <TripSelect className="field" value={category} onChange={(e) => { setCategory(e.target.value); setSetting(settingForCategory(e.target.value)) }}>
             {PLACE_CATS.map((c) => (
               <option key={c} value={c}>
                 {placeCatLabel(t, c)}
@@ -817,7 +820,7 @@ function AddPlaceModal({
               notes,
               ticketNeeded: ticket,
               transportToNext: 'public' as TransportMode,
-              coords: picked ? { lat: Number(picked.lat), lng: Number(picked.lon) } : undefined,
+              coords: picked && Number.isFinite(Number(picked.lat)) && Number.isFinite(Number(picked.lon)) ? { lat: Number(picked.lat), lng: Number(picked.lon) } : undefined,
               address: picked?.display_name,
             })
           }
@@ -827,6 +830,25 @@ function AddPlaceModal({
       </div>
     </Modal>
   )
+}
+
+/** Food, stays and shopping are usually indoors; sights and activities stay mixed until the user says otherwise. */
+function settingForCategory(category: string): PlaceSetting {
+  return ['餐饮', '住宿', '购物'].includes(category) ? 'indoor' : 'mixed'
+}
+
+/** Next stop defaults to after the latest timed stop (its duration, or 90 min), capped at 21:00. */
+function nextStopTime(places: { time?: string; durationMin?: number }[]): string {
+  let latest = -1
+  for (const place of places) {
+    const match = /^(\d{1,2}):(\d{2})$/.exec(place.time || '')
+    if (!match) continue
+    const end = Number(match[1]) * 60 + Number(match[2]) + (place.durationMin && place.durationMin > 0 ? place.durationMin : 90)
+    latest = Math.max(latest, end)
+  }
+  if (latest < 0) return '10:00'
+  const rounded = Math.min(21 * 60, Math.ceil(latest / 15) * 15)
+  return `${String(Math.floor(rounded / 60)).padStart(2, '0')}:${String(rounded % 60).padStart(2, '0')}`
 }
 
 const STOPS: Record<string, Array<Omit<PlaceStop, 'id'> & { detour: string; rating: number }>> = {

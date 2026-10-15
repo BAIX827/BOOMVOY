@@ -57,6 +57,7 @@ export default function DecisionAssistant({ trip }: { trip: Trip }) {
     currency: trip.homeCurrency, seaView: false, parking: false, freeParking: false, cuisine: 'any', variety: false,
     minRating: 4.3, minReviews: 100, checkin: stay?.checkin || trip.startDate, checkout: stay?.checkout || nextDay(trip.startDate),
     travellers: trip.travellers,
+    budgetMax: defaultNightlyBudget(trip),
   }))
   const [prompt, setPrompt] = useState('')
   const [live, setLive] = useState<DecisionCandidate[]>([])
@@ -186,7 +187,7 @@ export default function DecisionAssistant({ trip }: { trip: Trip }) {
       <div className="mt-4 flex flex-wrap gap-2">
         {(['hotel', 'restaurant'] as const).map((kind) => <TripButton key={kind} className={prefs.kind === kind ? 'btn' : 'btn btn-ghost'} aria-pressed={prefs.kind === kind} onClick={() => change({ kind, budgetMax: undefined })}>{t('decision.' + kind)}</TripButton>)}
       </div>
-      <label className="mt-4 block space-y-2 text-sm"><span>{t('decision.prompt')}</span><TripTextarea className="field min-h-20" value={prompt} maxLength={2000} onChange={(event) => setPrompt(event.target.value)} placeholder={t('decision.promptPh')} /></label>
+      <label className="mt-4 block space-y-2 text-sm"><span>{t('decision.prompt')}</span><TripTextarea className="field min-h-20" value={prompt} maxLength={2000} onChange={(event) => setPrompt(event.target.value)} placeholder={t('decision.promptPh', { city: prefs.city || trip.destinations[0] || '', budget: defaultNightlyBudget(trip) ? `${trip.homeCurrency} ${defaultNightlyBudget(trip)}` : trip.homeCurrency })} /></label>
       <div className="mt-2 flex flex-wrap gap-2">
         <TripButton className="btn btn-soft text-xs" disabled={!prompt.trim()} onClick={() => readIntent()}>{t('decision.parse')}</TripButton>
         <TripButton className="btn btn-ghost text-xs" onClick={() => readIntent(t('decision.hotelExample'))}>{t('decision.hotelExample')}</TripButton>
@@ -241,10 +242,10 @@ export default function DecisionAssistant({ trip }: { trip: Trip }) {
               </div>
               <p className="mt-2 text-xs">{candidate.price ? t('decision.referencePrice', { price: (candidate.price.min !== undefined ? money(candidate.price.min, candidate.price.currency) + '–' : '') + money(candidate.price.max, candidate.price.currency) }) + ' ' + t(candidate.price.basis === 'night' ? 'decision.perNight' : 'decision.perPerson') : t('decision.priceUnknown')}</p>
               <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>{t('decision.availability')}</p>
-              {candidate.seaView === 'room' && <p className="mt-2 text-xs">{t('decision.viewRoom')}</p>}
-              {candidate.seaView === 'property' && <p className="mt-2 text-xs">{t('decision.viewProperty')}</p>}
+              {prefs.seaView && candidate.seaView === 'room' && <p className="mt-2 text-xs">{t('decision.viewRoom')}</p>}
+              {prefs.seaView && candidate.seaView === 'property' && <p className="mt-2 text-xs">{t('decision.viewProperty')}</p>}
               <ul className="mt-3 space-y-1 text-xs">{ranked.criteria.map((criterion) => <li key={criterion.key}>{criterion.state === 'match' ? '✓' : '?'} {t('decision.' + criterionKey(criterion.key))} · {t('decision.' + (criterion.state === 'match' ? 'matches' : 'unknown'))}</li>)}</ul>
-              <div className="mt-3 flex flex-wrap gap-3 text-xs">{links.map((link) => <a key={link.url} className="underline" href={link.url} target="_blank" rel="noreferrer">{link.label}</a>)}</div>
+              <div className="mt-3 flex flex-wrap gap-3 text-xs">{links.map((link) => <a key={link.url} className="underline" href={link.url} target="_blank" rel="noreferrer">{t(link.label)}</a>)}</div>
               <div className="mt-3 border-t pt-2 text-xs" style={{ borderColor: 'var(--line)', color: 'var(--muted)' }}>
                 <a href={safeDecisionUrl(candidate.sourceUrl)} target="_blank" rel="noreferrer" className="underline">{candidate.source === 'google' ? <span translate="no" style={{ fontFamily: 'sans-serif', fontWeight: 400, color: '#5e5e5e', whiteSpace: 'nowrap' }}>Google Maps</span> : t(candidate.source === 'curated' ? 'decision.sourceCurated' : 'decision.sourceSaved')}</a>
                 {candidate.checkedAt && <span> · {t('decision.checked', { date: candidate.checkedAt.slice(0, 10) })}</span>}
@@ -256,7 +257,7 @@ export default function DecisionAssistant({ trip }: { trip: Trip }) {
         </div>
           </section>
         })}
-        <div className="rounded-xl p-3 text-sm" style={{ background: 'var(--bg-2)' }}><p className="mb-2">{t('decision.search')}</p><div className="flex flex-wrap gap-3">{searchLinks.map((link) => <a key={link.url} className="underline" href={link.url} target="_blank" rel="noreferrer">{link.label}</a>)}</div></div>
+        <div className="rounded-xl p-3 text-sm" style={{ background: 'var(--bg-2)' }}><p className="mb-2">{t('decision.search')}</p><div className="flex flex-wrap gap-3">{searchLinks.map((link) => <a key={link.url} className="underline" href={link.url} target="_blank" rel="noreferrer">{t(link.label)}</a>)}</div></div>
       </div>}
       {prefs.kind === 'restaurant' && prefs.variety && <div className="mt-6 border-t pt-5" style={{ borderColor: 'var(--line)' }}>
         <h3 className="display text-xl">{t('decision.mealTitle')}</h3><p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>{t('decision.mealHint')}</p>
@@ -285,4 +286,13 @@ export default function DecisionAssistant({ trip }: { trip: Trip }) {
       </Modal>
     </section>
   )
+}
+
+/** Default hotel cap from the trip itself: 30% of the total budget, per room (2 guests) per night. */
+function defaultNightlyBudget(trip: { totalBudget: number; travellers: number; days: unknown[] }): number | undefined {
+  const nights = Math.max(1, trip.days.length - 1)
+  const rooms = Math.max(1, Math.ceil((trip.travellers || 1) / 2))
+  if (!Number.isFinite(trip.totalBudget) || trip.totalBudget <= 0) return undefined
+  const value = Math.round((trip.totalBudget * 0.3) / nights / rooms / 10) * 10
+  return value > 0 && value <= 1_000_000 ? value : undefined
 }

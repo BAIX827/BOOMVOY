@@ -77,6 +77,21 @@ for (const [input, expected] of voiceCases) {
   if (formatted) assert.match(formatted, /(?<!喵)喵$/u)
 }
 
+const englishCases = [
+  ['Hello.', 'Hello.'],
+  ['Hello. 喵! 喵喵。', 'Hello.'],
+  ['Ready 🐱', 'Ready 🐱'],
+  ['喵', 'Meow!'],
+] as const
+
+for (const [input, expected] of englishCases) {
+  const formatted = boomiSay(input, 'en')
+  assert.equal(formatted, expected, input)
+  assert.equal(boomiSay(formatted, 'en'), formatted, `English formatting is idempotent: ${input}`)
+  assert.doesNotMatch(formatted, /喵/u)
+}
+assert.equal(boomiSay('你好', 'zh'), '你好，喵')
+
 const trips = [{ id: 'template', template: true }, { id: 'first' }, { id: 'current' }]
 assert.equal(guideTripId(trips, '/trip/current/pack'), 'current', 'Guide follows the open trip')
 assert.equal(guideTripId(trips, '/'), 'first', 'Guide works without a hardcoded sample trip')

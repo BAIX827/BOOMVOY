@@ -793,9 +793,9 @@ body { line-height: 1.5; }
 @media (pointer: coarse) { button.route-stop-number { min-width: 44px; min-height: 44px; } }
 @media (max-width: 639px) {
   .plan-stop-layout { display: grid; grid-template-columns: 20px 28px minmax(0, 1fr); gap: 10px; }
-  .plan-stop-layout > .stop-time { grid-column: 3; width: 110px; }
+  .plan-stop-layout > .stop-time { grid-column: 3; width: 120px; min-width: 120px; }
   .plan-stop-layout > .stop-details { grid-column: 1 / -1; }
-  .plan-stop-layout > .stop-actions { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
+  .plan-stop-layout > .stop-actions { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; padding-right: 72px; } /* keep Check-in / Edit clear of the floating Boomi button */
   .plan-stop-layout > .stop-actions > button { min-height: 44px; }
   .plan-stop-layout > .stop-actions > a { display: inline-flex; min-height: 44px; align-items: center; }
 }

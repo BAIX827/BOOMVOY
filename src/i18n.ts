@@ -308,7 +308,7 @@ const zh = {
   'plan.title': '行程',
   'plan.rainChip': '雨 {n}%',
   'plan.outdoor': '户外 {n}%',
-  'plan.about': '约 {km} km / {min} min',
+  'plan.about': '直线约 {km} km / 粗估 {min} 分钟（道路路线见地图）',
   'plan.switchB': '切换到雨天 Plan B',
   'plan.weatherSwap': '天气替换建议',
   'plan.weatherSwapHint': '上午雨更大：把室内项目提前，户外挪到后面。',
@@ -438,7 +438,7 @@ const zh = {
   'map.nights': '{date} · {n} 天 · {stay} · {transport}',
   'map.stayTbd': '住宿待定',
   'map.return': '{city} 返程',
-  'map.dayKm': '当天连线约 {km} km，{min} 分钟（粗估）',
+  'map.dayKm': '当天直线连线约 {km} km，{min} 分钟（粗估）',
   'map.dayKmRoute': '当天道路路线 {km} km，约 {min} 分钟',
   'map.dayKmEstimate': '当天约 {km} km，{min} 分钟（部分路段为估算）',
   'map.google': '在 Google 地图打开',
@@ -786,6 +786,25 @@ const zh = {
   'cat.应急': '应急',
   'cat.景点': '景点',
   'cat.休息区': '休息区',
+  'ui.day': '第 {n} 天',
+  'ui.planA': '☀️ 方案 A',
+  'ui.planB': '🌧️ 方案 B',
+  'ui.plan': '方案 {p}',
+  'app.title': 'BOOMVOY — 少计划，好决定',
+  'decision.link.maps': '地图与评价',
+  'decision.link.searchMaps': '地图搜索',
+  'decision.link.official': '官网',
+  'decision.link.booking': '预订入口',
+  'decision.link.source': '信息来源',
+  'decision.link.bookingSearch': 'Booking 搜索',
+  'decision.link.searchRequirements': '条件搜索',
+  'decision.link.searchReservations': '订位搜索',
+  'budget.splitHint': '新建行程时按总预算自动分配了默认比例（机票 30%、住宿 30%、餐饮 15% 等），可随时改。预估合计 = 各分类预估之和。',
+  'create.budgetTotal': '合计约 {money}（{n} 人）',
+  'saved.empty': '这里还空着。在「智能决策」里点收藏，或用右上角「添加收藏」记下想去的地方、餐厅和酒店；收藏后可以一键排进日程。',
+  'pack.startReturn': '开始回程清单（已打包 {done}/{total}）',
+  'group.namePh': '同伴 {n} 的名字',
+  'share.back': '← 返回行程',
 } as const
 
 const en: Record<keyof typeof zh, string> = {
@@ -1076,7 +1095,7 @@ const en: Record<keyof typeof zh, string> = {
   'plan.title': 'Plan',
   'plan.rainChip': 'Rain {n}%',
   'plan.outdoor': 'Outdoor {n}%',
-  'plan.about': 'About {km} km / {min} min',
+  'plan.about': 'Straight-line ~{km} km / rough {min} min (road route on Map)',
   'plan.switchB': 'Switch to rain Plan B',
   'plan.weatherSwap': 'Weather reorder',
   'plan.weatherSwapHint': 'Heavier rain in the morning: indoor first, outdoor later.',
@@ -1206,7 +1225,7 @@ const en: Record<keyof typeof zh, string> = {
   'map.nights': '{date} · {n} days · {stay} · {transport}',
   'map.stayTbd': 'Stay TBD',
   'map.return': 'Return to {city}',
-  'map.dayKm': 'About {km} km and {min} min for the day (rough)',
+  'map.dayKm': 'Straight-line about {km} km and {min} min for the day (rough)',
   'map.dayKmRoute': '{km} km by route, about {min} min for the day',
   'map.dayKmEstimate': 'About {km} km and {min} min for the day; some legs are estimated',
   'map.google': 'Open in Google Maps',
@@ -1554,6 +1573,25 @@ const en: Record<keyof typeof zh, string> = {
   'cat.应急': 'Buffer',
   'cat.景点': 'Sight',
   'cat.休息区': 'Rest stop',
+  'ui.day': 'Day {n}',
+  'ui.planA': '☀️ Plan A',
+  'ui.planB': '🌧️ Plan B',
+  'ui.plan': 'Plan {p}',
+  'app.title': 'BOOMVOY — Plan less. Decide better.',
+  'decision.link.maps': 'Maps & reviews',
+  'decision.link.searchMaps': 'Search Maps',
+  'decision.link.official': 'Official website',
+  'decision.link.booking': 'Booking page',
+  'decision.link.source': 'Source',
+  'decision.link.bookingSearch': 'Booking search',
+  'decision.link.searchRequirements': 'Search requirements',
+  'decision.link.searchReservations': 'Search reservations',
+  'budget.splitHint': 'New trips split the total budget into default shares (flights 30%, stay 30%, food 15%, and so on). Edit any line; Estimated is the sum of the categories.',
+  'create.budgetTotal': 'Total about {money} for {n} people',
+  'saved.empty': 'Nothing saved yet. Save places from Smart decisions, or use Add saved to note sights, restaurants and hotels; you can then schedule them into a day.',
+  'pack.startReturn': 'Start return checklist ({done}/{total} packed)',
+  'group.namePh': 'Companion {n} name',
+  'share.back': '← Back to trip',
 }
 
 type Msg = keyof typeof zh
@@ -1570,7 +1608,9 @@ export function resolveLocale(raw?: string): Locale {
 export function t(locale: Locale, key: string, vars?: Vars) {
   const table = locale === 'en' ? en : zh
   const raw = table[key as Msg] ?? zh[key as Msg] ?? key
-  return fill(raw, vars)
+  const text = fill(raw, vars)
+  // English singular for counts of exactly 1 ("1 day", not "1 days").
+  return locale === 'en' ? text.replace(/(^|[^\d.,])1 (journal|day|night|place|stop|item|city|expense|booking|note|stay)s\b/g, '$11 $2').replace(/(^|[^\d.,])1 cities\b/g, '$11 city') : text
 }
 
 export function useT() {

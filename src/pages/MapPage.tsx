@@ -111,7 +111,7 @@ export default function MapPage() {
         </Chip>
         {(trip?.days || []).map((d, i) => (
           <Chip key={d.id} active={filter === d.id} onClick={() => selectDay(d.id)} color={DAY_COLORS[i % DAY_COLORS.length]}>
-            Day {i + 1} · {d.city}
+            {t('ui.day', { n: i + 1 })} · {d.city}
           </Chip>
         ))}
       </div>

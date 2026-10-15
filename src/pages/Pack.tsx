@@ -110,7 +110,7 @@ export default function Pack() {
       <div className="flex flex-wrap gap-2">
         {phase === 'out' ? (
           <TripButton className="btn btn-accent" onClick={() => save(applyReturnExtras({ ...list, phase: 'back' }))}>
-            {t('pack.ready')}
+            {done >= list.items.length && list.items.length > 0 ? t('pack.ready') : t('pack.startReturn', { done, total: list.items.length })}
           </TripButton>
         ) : (
           <TripButton className="btn" onClick={() => save({ ...list, phase: 'out' })}>

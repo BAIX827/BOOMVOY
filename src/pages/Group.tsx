@@ -29,14 +29,16 @@ export default function Group() {
       {!owner && <p className="text-sm">{t('collab.ownerOnly')}</p>}
       <div className="grid gap-3 sm:grid-cols-2">
         {trip.members.map((m) => (
-          <div key={m.id} className="paper flex items-center gap-3 p-4">
+          <div key={m.id} className="paper flex flex-wrap items-center gap-3 p-4">
             <span className="grid h-10 w-10 place-items-center rounded-full text-white" style={{ background: m.color }}>
               {m.name.slice(0, 1)}
             </span>
-            <div className="flex-1">
+            <div className="min-w-[10rem] flex-1">
               <input
-                className="field"
+                className="field w-full min-w-0"
                 disabled={!owner}
+                aria-label={t('group.namePh', { n: trip.members.indexOf(m) + 1 })}
+                placeholder={t('group.namePh', { n: trip.members.indexOf(m) + 1 })}
                 value={m.name}
                 onChange={(e) =>
                   updateTrip(trip.id, {

@@ -31,6 +31,7 @@ export default function Budget() {
         </div>
         <Progress value={percent} />
         <p className="mt-3 text-xs" style={{ color: 'var(--muted)' }}>{t('budget.actualHint')}</p>
+        <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>{t('budget.splitHint')}</p>
       </div>
       <div className="space-y-2">
         {trip.budget.map((c) => {

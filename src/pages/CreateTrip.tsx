@@ -5,7 +5,7 @@ import { useApp } from '../store'
 import type { ThemeId, TransportMode } from '../types'
 import { Label } from '../ui'
 import { transportLabel, useT } from '../i18n'
-import { eachDate, toISODate } from '../lib'
+import { eachDate, money, toISODate } from '../lib'
 import { ThemePreview } from '../ThemeDecor'
 
 const modes: TransportMode[] = ['self-drive', 'public', 'walking', 'taxi', 'cycling', 'mixed']
@@ -33,12 +33,12 @@ export default function CreateTrip() {
   const [origin, setOrigin] = useState(profile.homeCity)
   const [dest, setDest] = useState('')
   const [startDate, setStartDate] = useState(() => futureDate(30))
-  const [endDate, setEndDate] = useState(() => futureDate(37))
+  const [endDate, setEndDate] = useState(() => futureDate(34))
   const [people, setPeople] = useState(2)
-  const [members, setMembers] = useState(profile.name + ', ')
+  const [members, setMembers] = useState('')
   const [budget, setBudget] = useState(3000)
   const [theme, setTheme] = useState<ThemeId>('cream')
-  const [transport, setTransport] = useState<TransportMode[]>(['mixed'])
+  const [transport, setTransport] = useState<TransportMode[]>([])
   const [destinationDays, setDestinationDays] = useState<number[]>([])
   const [error, setError] = useState('')
 
@@ -175,12 +175,13 @@ export default function CreateTrip() {
             </div>
             <div>
               <Label>{t('create.members')}</Label>
-              <input className="field" value={members} onChange={(e) => setMembers(e.target.value)} placeholder="Ari, Bo" />
+              <input className="field" value={members} onChange={(e) => setMembers(e.target.value)} placeholder={profile.name ? `${profile.name}, …` : 'Ari, Bo'} />
               {Number.isInteger(people) && people > memberNames.length && <p className="mt-2 text-xs" role="status">{t('members.createHint', { named: memberNames.length, total: people, missing: people - memberNames.length })}</p>}
             </div>
             <div>
               <Label>{t('create.budget', { currency: profile.homeCurrency })}</Label>
               <input className="field" type="number" min={0} max={1_000_000_000_000} step="0.01" value={budget} onChange={(e) => setBudget(Number(e.target.value))} />
+              {Number.isFinite(budget) && budget > 0 && Number.isInteger(people) && people > 0 && <p className="mt-2 text-xs" role="status" style={{ color: 'var(--muted)' }}>{t('create.budgetTotal', { money: money(budget * people, profile.homeCurrency), n: people })}</p>}
             </div>
           </div>
         )}

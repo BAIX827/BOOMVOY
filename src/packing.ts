@@ -130,12 +130,23 @@ function mergeSeeds(packing: PackingState, seeds: Seed[]): PackingState {
   return { ...packing, items: add.length ? [...items, ...add] : items }
 }
 
+/** Car keys only make sense when someone drives (self-drive day/mode or a rental car). */
+export function tripDrives(trip: Trip) {
+  return (
+    !!trip.transportModes?.includes('self-drive') ||
+    !!trip.days?.some((d) => d.transportMode === 'self-drive') ||
+    !!trip.bookings?.some((b) => b.kind === 'rental-car') ||
+    !!trip.saved?.some((s) => s.kind === 'rental-car')
+  )
+}
+
 export function emptyPacking(trip: Trip): PackingState {
+  const drives = tripDrives(trip)
   return {
     phase: 'out',
     groupBy: 'category',
     dismissed: [],
-    items: [...ESSENTIALS.map(toItem), ...clothingSeeds(trip).map(toItem)],
+    items: [...ESSENTIALS.filter((seed) => drives || seed.catalogId !== 'carKeys').map(toItem), ...clothingSeeds(trip).map(toItem)],
   }
 }
 

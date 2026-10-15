@@ -309,7 +309,7 @@ export default function GuideCat() {
                   {t('guide.progress', { n: step + 1, total: steps.length })}
                 </div>
                 <div className="display mt-1 text-xl">{current.title}</div>
-                <p className="mt-2 text-sm leading-6" aria-live="polite">{boomiSay(current.say)}</p>
+                <p className="mt-2 text-sm leading-6" aria-live="polite">{boomiSay(current.say, locale)}</p>
                 <div className="guide-progress-track" aria-hidden="true"><span style={{ width: `${(step + 1) / steps.length * 100}%` }} /></div>
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                   <button className="btn btn-ghost px-3 py-1.5 text-sm" disabled={step === 0} onClick={() => goStep(step - 1)}>
@@ -332,16 +332,16 @@ export default function GuideCat() {
             ) : open ? (
               <>
                 <div className="display text-xl">{t('guide.here')}</div>
-                <p className="mt-2 text-sm leading-6">{boomiSay(pageTip(loc.pathname, t))}</p>
+                <p className="mt-2 text-sm leading-6">{boomiSay(pageTip(loc.pathname, t), locale)}</p>
                 {msgs.length > 0 && (
                   <div ref={chatEnd} className="guide-chat" role="log" aria-live="polite" aria-relevant="additions">
                     {msgs.map((m, i) => (
                       <div key={`${m.who}-${i}`} className={m.who === 'user' ? 'guide-msg guide-msg-user' : 'guide-msg'}>
-                        <span>{m.who === 'boomi' ? boomiSay(m.text) : m.text}</span>
+                        <span>{m.who === 'boomi' ? boomiSay(m.text, locale) : m.text}</span>
                         {m.who === 'boomi' && m.action?.route && <button type="button" className="guide-answer-action" onClick={() => openAnswer(m.action!)}>{t('chat.openPage')}<ArrowUpRight size={14} /></button>}
                       </div>
                     ))}
-                    {busy && <div className="guide-msg" style={{ color: 'var(--muted)' }}>{boomiSay(t('chat.thinking'))}</div>}
+                    {busy && <div className="guide-msg" style={{ color: 'var(--muted)' }}>{boomiSay(t('chat.thinking'), locale)}</div>}
                   </div>
                 )}
                 <div className="mt-3 flex flex-wrap gap-1.5">
@@ -380,7 +380,7 @@ export default function GuideCat() {
               </>
             ) : (
               <>
-                <div className="guide-welcome"><img src={boomi} alt="" /><p className="text-sm leading-6">{boomiSay(t('guide.firstHi', { name: 'Boomi' }))}</p></div>
+                <div className="guide-welcome"><img src={boomi} alt="" /><p className="text-sm leading-6">{boomiSay(t('guide.firstHi', { name: 'Boomi' }), locale)}</p></div>
                 <div className="mt-3 flex gap-2">
                   <button className="btn text-sm" onClick={startTour}>
                     {t('guide.start')}

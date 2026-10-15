@@ -225,6 +225,7 @@ function validDate(value: string): boolean {
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value
 }
 
+/** label is an i18n key (decision.link.*); render it with t(). */
 export type DecisionLink = { label: string; url: string; kind: 'detail' | 'booking' | 'search' }
 
 /** Search links carry preferences as keywords, never unverified amenity/price filter IDs. */
@@ -249,11 +250,11 @@ export function buildDecisionLinks(prefs: DecisionPreferences, candidate?: Decis
   const maps = new URL('https://www.google.com/maps/search/')
   maps.searchParams.set('api', '1')
   maps.searchParams.set('query', query)
-  add(candidate ? '地图与评价 / Maps & reviews' : '地图搜索 / Search Maps', safeDecisionUrl(candidate?.mapsUrl) || maps.href, candidate ? 'detail' : 'search')
+  add(candidate ? 'decision.link.maps' : 'decision.link.searchMaps', safeDecisionUrl(candidate?.mapsUrl) || maps.href, candidate ? 'detail' : 'search')
   if (candidate) {
-    add('官网 / Official website', candidate.websiteUrl, 'detail')
-    add('预订入口 / Booking page', candidate.bookingUrl, 'booking')
-    add('信息来源 / Source', candidate.sourceUrl, 'detail')
+    add('decision.link.official', candidate.websiteUrl, 'detail')
+    add('decision.link.booking', candidate.bookingUrl, 'booking')
+    add('decision.link.source', candidate.sourceUrl, 'detail')
   }
   if (prefs.kind === 'hotel') {
     const booking = new URL('https://www.booking.com/searchresults.html')
@@ -264,17 +265,17 @@ export function buildDecisionLinks(prefs: DecisionPreferences, candidate?: Decis
     }
     if (Number.isInteger(prefs.travellers) && prefs.travellers > 0 && prefs.travellers <= 30) booking.searchParams.set('group_adults', String(prefs.travellers))
     if (currencyTerms.some(([currency]) => currency === prefs.currency.toUpperCase())) booking.searchParams.set('selected_currency', prefs.currency.toUpperCase())
-    add('Booking 搜索 / Booking search', booking.href, 'search')
+    add('decision.link.bookingSearch', booking.href, 'search')
     // Prices and amenities remain explicit keywords until a provider exposes verified structured filters.
     if (prefs.seaView || prefs.parking || prefs.freeParking || positiveNumber(prefs.budgetMax)) {
       const search = new URL('https://www.google.com/search')
       search.searchParams.set('q', `site:booking.com ${name ? `${name} ` : ''}${keywords.join(' ')}`)
-      add('条件搜索 / Search requirements', search.href, 'search')
+      add('decision.link.searchRequirements', search.href, 'search')
     }
   } else {
     const search = new URL('https://www.google.com/search')
     search.searchParams.set('q', `${query} reservations booking${prefs.checkin && validDate(prefs.checkin) ? ` ${prefs.checkin}` : ''}${Number.isInteger(prefs.travellers) && prefs.travellers > 0 ? ` ${prefs.travellers} people` : ''}`)
-    add('订位搜索 / Search reservations', search.href, 'search')
+    add('decision.link.searchReservations', search.href, 'search')
   }
   return links
 }

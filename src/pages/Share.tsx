@@ -39,7 +39,7 @@ export default function Share() {
             <Mark />
             <span className="display text-xl">BOOMVOY</span>
           </Link>
-          <div className="flex flex-wrap gap-2"><button className="btn" onClick={exportTrip}>{t('journey.exportTrip')}</button><button className="btn btn-ghost" onClick={() => window.print()}>{t('journey.printTrip')}</button></div>
+          <div className="flex flex-wrap gap-2"><Link className="btn btn-ghost no-underline" to={tripHref(trip.id)}>{t('share.back')}</Link><button className="btn" onClick={exportTrip}>{t('journey.exportTrip')}</button><button className="btn btn-ghost" onClick={() => window.print()}>{t('journey.printTrip')}</button></div>
         </div>
         <p className="share-controls mb-5 text-sm" style={{ color: 'var(--muted)' }}>{t('journey.shareHint')}</p>
         {status && <p className="share-controls mb-4 text-sm" role="status">{status}</p>}
@@ -83,7 +83,7 @@ export default function Share() {
           {trip.days.map((d, i) => (
             <section key={d.id} className="paper p-5">
               <h3 className="display text-2xl">
-                Day {i + 1} · {d.city}
+                {t('ui.day', { n: i + 1 })} · {d.city}
               </h3>
               <ol className="mt-2 space-y-1 text-sm">
                 {activePlaces(d).map((p) => (

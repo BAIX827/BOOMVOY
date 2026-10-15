@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useTripContext } from '../useTripContext'
 import { useApp, useTrip } from '../store'
 import { WEATHER } from '../catalog'
-import { formatDayLong } from '../lib'
+import { formatDayLong, toISODate } from '../lib'
 import { activePlaces, outdoorRatio, suggestedSwap, weatherAdvice } from '../domain'
 import { Tone } from '../ui'
 import { refreshTripWeather } from '../weather'
@@ -51,10 +51,10 @@ export default function Weather() {
       )}
       {trip.weatherUpdatedAt && (
         <p className="text-xs" style={{ color: 'var(--muted)' }}>
-          {t('wx.updated', { at: trip.weatherUpdatedAt.replace('T', ' ').slice(0, 16) })}
+          {t('wx.updated', { at: localStamp(trip.weatherUpdatedAt) })}
         </p>
       )}
-      <div className="flex gap-2 overflow-x-auto pb-1"><button className={allDays ? 'btn text-sm' : 'btn btn-ghost text-sm'} onClick={showAllDays}>{t('map.all')}</button>{trip.days.map((day, index) => <button key={day.id} className={!allDays && selectedDay?.id === day.id ? 'btn text-sm whitespace-nowrap' : 'btn btn-ghost text-sm whitespace-nowrap'} onClick={() => selectDay(day.id)}>Day {index + 1} · {day.city}</button>)}</div>
+      <div className="flex gap-2 overflow-x-auto pb-1"><button className={allDays ? 'btn text-sm' : 'btn btn-ghost text-sm'} onClick={showAllDays}>{t('map.all')}</button>{trip.days.map((day, index) => <button key={day.id} className={!allDays && selectedDay?.id === day.id ? 'btn text-sm whitespace-nowrap' : 'btn btn-ghost text-sm whitespace-nowrap'} onClick={() => selectDay(day.id)}>{t('ui.day', { n: index + 1 })} · {day.city}</button>)}</div>
       {trip.days.filter((day) => allDays || day.id === selectedDay?.id).map((d) => {
         const i = trip.days.findIndex((day) => day.id === d.id)
         const places = activePlaces(d)
@@ -65,7 +65,7 @@ export default function Weather() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="text-sm" style={{ color: 'var(--muted)' }}>
-                  Day {i + 1} · {formatDayLong(d.date, locale)}
+                  {t('ui.day', { n: i + 1 })} · {formatDayLong(d.date, locale)}
                 </div>
                 <h2 className="display text-3xl">
                   {d.city} {WEATHER[d.weather.condition].icon}
@@ -122,7 +122,7 @@ export default function Weather() {
             )}
             {d.planB.length > 0 && (
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <PlanCol title="☀️ Plan A" items={d.planA.map((p) => p.name)} />
+                <PlanCol title={t('ui.planA')} items={d.planA.map((p) => p.name)} />
                 <PlanCol title="🌧️ Plan B" items={d.planB.map((p) => p.name)} />
               </div>
             )}
@@ -144,4 +144,11 @@ function PlanCol({ title, items }: { title: string; items: string[] }) {
       </ul>
     </div>
   )
+}
+
+/** Show a stored ISO timestamp in the traveller's local time (YYYY-MM-DD HH:mm). */
+function localStamp(iso: string) {
+  const date = new Date(iso)
+  if (!Number.isFinite(date.getTime())) return iso.replace('T', ' ').slice(0, 16)
+  return `${toISODate(date)} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }

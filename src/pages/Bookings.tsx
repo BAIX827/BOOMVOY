@@ -5,7 +5,7 @@ import { useApp, useTrip } from '../store'
 import { BOOKING_STATUS, KINDS } from '../catalog'
 import type { BookingStatus, SavedKind } from '../types'
 import { Label, Modal, Tone } from '../ui'
-import { money, safeWebUrl } from '../lib'
+import { money, safeWebUrl, toISODate } from '../lib'
 import BookingSearch from '../BookingSearch'
 import { bookingStatusLabel, kindLabel, useT } from '../i18n'
 import type { Booking } from '../types'
@@ -120,7 +120,7 @@ export default function Bookings() {
                             homeAmount: validAmount(b.homeAmount) ? b.homeAmount : expenseCost.currency === trip.homeCurrency ? expenseCost.amount : undefined,
                             exchangeRate: validExchangeRate(b.exchangeRate) ? b.exchangeRate : undefined,
                             category: bookingBudgetCategory(b.kind),
-                            date: validDate(b.date) ? b.date! : new Date().toISOString().slice(0, 10),
+                            date: validDate(b.date) ? b.date! : toISODate(new Date()),
                             paidBy: trip.members.find((member) => member.id === 'me')?.id || trip.members[0]?.id || '',
                             split: 'equal',
                             excluded: [],

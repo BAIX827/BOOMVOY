@@ -610,7 +610,7 @@ export function japanTrip(): Trip {
     day({
       date: '2026-10-04',
       city: 'Osaka',
-      stay: '返程',
+      stay: 'Flight home',
       transportMode: 'flight',
       weather: w('cloudy', 18, 24, 30),
       activePlan: 'A',
@@ -799,7 +799,7 @@ export function japanTrip(): Trip {
       {
         id: 'bk-2',
         kind: 'flight',
-        name: '回程 KIX → MEL',
+        name: 'Return KIX → MEL',
         status: 'paid',
         date: '2026-10-04',
         confirmation: 'JQ-8F2K9',
@@ -824,7 +824,7 @@ export function japanTrip(): Trip {
       {
         id: 'bk-5',
         kind: 'hotel',
-        name: '大阪 Cross Hotel × 2',
+        name: 'Cross Hotel Osaka × 2',
         status: 'need',
         date: '2026-10-02',
       },
@@ -1019,10 +1019,15 @@ export function oceanRoadTrip(): Trip {
 
 function BUDGET_EMPTY(total: number) {
   const names = ['机票', '住宿', '餐饮', '交通', '活动', '购物', '伴手礼', '其他', '应急']
+  // Default shares sum to 100%, so the category estimates add up to the trip budget.
+  const shares = [0.3, 0.3, 0.15, 0.07, 0.08, 0.05, 0.02, 0.03, 0.1]
+  const safe = Number.isFinite(total) && total > 0 ? total : 0
+  const amounts = shares.map((share) => Math.round(safe * share))
+  amounts[8] += Math.round(safe) - amounts.reduce((sum, n) => sum + n, 0)
   return names.map((name, i) => ({
     id: `b${i}`,
     name,
-    estimated: i === 8 ? Math.round(total * 0.1) : 0,
+    estimated: Math.max(0, amounts[i]),
     booked: 0,
     paid: 0,
   }))

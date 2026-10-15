@@ -26,10 +26,11 @@ const Pack = lazy(() => import('./pages/Pack'))
 const Share = lazy(() => import('./pages/Share'))
 
 function LocaleDoc() {
-  const { locale } = useT()
+  const { locale, t } = useT()
   useEffect(() => {
     document.documentElement.lang = locale === 'zh' ? 'zh-CN' : 'en'
-  }, [locale])
+    document.title = t('app.title')
+  }, [locale, t])
   return null
 }
 

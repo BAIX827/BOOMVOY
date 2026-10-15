@@ -47,6 +47,7 @@ export default function Saved() {
           </FilterChip>
         ))}
       </div>
+      {items.length === 0 && <p className="paper p-5 text-sm" role="status" style={{ color: 'var(--muted)' }}>{t('saved.empty')}</p>}
       <div className="grid gap-3 md:grid-cols-2">
         {items.map((s) => {
           const safeUrl = safeWebUrl(s.url)

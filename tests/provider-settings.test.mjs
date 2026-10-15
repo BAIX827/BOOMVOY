@@ -234,10 +234,10 @@ test('changing OpenAI keys isolates in-flight and cached results, including late
   await entered
   assert.equal((await put(base, initial.csrfToken, { openaiApiKey: OPENAI_NEXT })).status, 200)
   const current = await post(base, '/api/ai/chat', chatBody)
-  assert.deepEqual(await current.json(), { text: 'New reply. 喵' })
+  assert.deepEqual(await current.json(), { text: 'New reply.' })
   release()
-  assert.deepEqual(await (await old).json(), { text: 'Old reply. 喵' })
-  assert.deepEqual(await (await post(base, '/api/ai/chat', chatBody)).json(), { text: 'New reply. 喵' })
+  assert.deepEqual(await (await old).json(), { text: 'Old reply.' })
+  assert.deepEqual(await (await post(base, '/api/ai/chat', chatBody)).json(), { text: 'New reply.' })
   assert.deepEqual(calls, [`Bearer ${OPENAI}`, `Bearer ${OPENAI_NEXT}`])
 })
 
@@ -284,10 +284,10 @@ test('concurrent save then removal each publish a fresh cache generation', async
   await removing
   releaseSave()
   assert.equal((await save).status, 200)
-  assert.deepEqual(await (await post(base, '/api/ai/chat', chatBody)).json(), { text: 'Saved reply. 喵' })
+  assert.deepEqual(await (await post(base, '/api/ai/chat', chatBody)).json(), { text: 'Saved reply.' })
   releaseRemove()
   assert.equal((await remove).status, 200)
-  assert.deepEqual(await (await post(base, '/api/ai/chat', chatBody)).json(), { text: 'Environment reply. 喵' })
+  assert.deepEqual(await (await post(base, '/api/ai/chat', chatBody)).json(), { text: 'Environment reply.' })
   assert.deepEqual(calls, [`Bearer ${OPENAI_NEXT}`, `Bearer ${OPENAI}`])
 })
 

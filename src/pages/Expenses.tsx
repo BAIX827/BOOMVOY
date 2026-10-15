@@ -4,7 +4,7 @@ import { pendingMemberName } from '../travelMembers'
 import { Link, useParams } from 'react-router-dom'
 import { useApp, useTrip } from '../store'
 import { BUDGET_CATS } from '../catalog'
-import { money } from '../lib'
+import { money, toISODate } from '../lib'
 import { settle } from '../domain'
 import { Label, Modal } from '../ui'
 import { namedCat, useT } from '../i18n'
@@ -24,6 +24,7 @@ export default function Expenses() {
   const { t } = useT()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Expense | undefined>()
+  const [formSeq, setFormSeq] = useState(0)
   const [giftOpen, setGiftOpen] = useState(false)
   const [giftEditing, setGiftEditing] = useState<GiftItem | undefined>()
   if (!trip) return null
@@ -126,16 +127,18 @@ export default function Expenses() {
 
       {giftOpen && <GiftEditor initial={giftEditing} defaultCity={trip.destinations[0]} onClose={() => setGiftOpen(false)} onSave={(value) => { if (giftEditing) updateGift(trip.id, giftEditing.id, value); else addGift(trip.id, value); setGiftOpen(false) }} onDelete={giftEditing ? () => { removeGift(trip.id, giftEditing.id); setGiftOpen(false) } : undefined} />}
       <AddExpense
-        key={editing?.id || 'new'}
+        key={editing?.id || `new-${formSeq}`}
         open={open}
         members={trip.members}
         homeCurrency={trip.homeCurrency}
         initial={editing}
-        onClose={() => setOpen(false)}
+        onClose={() => { setOpen(false); setFormSeq((n) => n + 1) }}
         onAdd={(e) => {
           if (editing) updateExpense(trip.id, editing.id, e)
           else addExpense(trip.id, e)
           setOpen(false)
+          // A fresh form for the next expense: no leftover amount, currency or rate.
+          setFormSeq((n) => n + 1)
         }}
       />
     </div>
@@ -162,7 +165,7 @@ function AddExpense({
   const [amount, setAmount] = useState(initial?.amount ?? 0)
   const [currency, setCurrency] = useState(initial?.currency || homeCurrency)
   const [category, setCategory] = useState(initial?.category || '餐饮')
-  const [date, setDate] = useState(initial?.date || new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(initial?.date || toISODate(new Date()))
   const [paidBy, setPaidBy] = useState(initial?.paidBy || members[0]?.id || '')
   const [excluded, setExcluded] = useState<string[]>(initial?.excluded || [])
   const [mode, setMode] = useState<'equal' | 'custom'>(initial?.split === 'equal' || !initial ? 'equal' : 'custom')

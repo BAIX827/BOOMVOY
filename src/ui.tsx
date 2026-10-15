@@ -162,6 +162,7 @@ export function Label({ children }: { children: ReactNode }) {
   )
 }
 
+/** The only language control; rendered in Profile (「我」) settings. */
 export function LangSwitch({ compact }: { compact?: boolean }) {
   const { locale, t } = useT()
   const setProfile = useApp((s) => s.setProfile)

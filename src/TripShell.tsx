@@ -7,7 +7,6 @@ import { cls, formatRange } from './lib'
 import { Mark } from './Shell'
 import { useLiveWeather } from './weather'
 import { useT } from './i18n'
-import { LangSwitch } from './ui'
 import { ThemeAtmosphere } from './ThemeDecor'
 import { useTripContext } from './useTripContext'
 
@@ -55,7 +54,6 @@ export default function TripShell() {
             </div>)}
           </nav>
           <NavLink to={`/share/${trip.id}`} className="btn btn-ghost mt-3 text-sm no-underline"><Share2 size={15} />{t('trip.share')}</NavLink>
-          <div className="mt-3"><LangSwitch compact /></div>
         </aside>
         <div className="min-w-0 flex-1">
           <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b px-4 py-3 backdrop-blur lg:hidden" style={{ borderColor: 'var(--line)', backgroundColor: 'color-mix(in srgb, var(--bg) 92%, transparent)' }}>

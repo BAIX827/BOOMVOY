@@ -2,7 +2,6 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { Compass, MapPinned, Plus, UserRound } from 'lucide-react'
 import { cls } from './lib'
 import { useT } from './i18n'
-import { LangSwitch } from './ui'
 import { useApp } from './store'
 import { ThemeAtmosphere } from './ThemeDecor'
 import boomiIcon from './assets/boomi_icon.png'
@@ -50,9 +49,6 @@ export default function Shell() {
             ))}
           </nav>
           <div className="flex items-center gap-2">
-            <div className="hidden sm:block">
-              <LangSwitch compact />
-            </div>
             <button className="btn" onClick={() => nav('/new')} data-guide="create-trip">
               <Plus size={16} /> {t('nav.create')}
             </button>

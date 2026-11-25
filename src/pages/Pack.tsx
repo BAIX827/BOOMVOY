@@ -183,12 +183,15 @@ export default function Pack() {
                   className="flex flex-wrap items-center gap-3 border-b px-5 py-3 last:border-b-0"
                   style={{ borderColor: 'var(--line)' }}
                 >
+                  <label className="pack-checkbox-hit">
                   <TripInput
                     type="checkbox"
                     className="h-4 w-4"
+                    aria-label={itemName(item, t)}
                     checked={checked}
                     onChange={(e) => patchItem(item.id, { [packedKey]: e.target.checked })}
                   />
+                  </label>
                   <div className="min-w-0 flex-1">
                     <div className={checked ? 'text-sm line-through' : 'text-sm'} style={{ opacity: checked ? 0.55 : 1 }}>
                       {itemName(item, t)}

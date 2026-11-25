@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { THEMES, TRANSPORT } from '../catalog'
 import { useApp } from '../store'
 import type { ThemeId, TransportMode } from '../types'
@@ -28,10 +28,11 @@ export default function CreateTrip() {
   const profile = useApp((s) => s.profile)
   const nav = useNavigate()
   const { t } = useT()
+  const [params] = useSearchParams()
   const [step, setStep] = useState(0)
   const [name, setName] = useState('')
   const [origin, setOrigin] = useState(profile.homeCity)
-  const [dest, setDest] = useState('')
+  const [dest, setDest] = useState(() => (params.get('destination') || '').slice(0, 200))
   const [startDate, setStartDate] = useState(() => futureDate(30))
   const [endDate, setEndDate] = useState(() => futureDate(34))
   const [people, setPeople] = useState(2)
@@ -111,7 +112,7 @@ export default function CreateTrip() {
           <div className="space-y-4">
             <div>
               <Label>{t('create.name')}</Label>
-              <input className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder="Japan 2026" />
+              <input className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('notebook.tripExample')} />
             </div>
             <div>
               <Label>{t('create.origin')}</Label>
@@ -123,7 +124,7 @@ export default function CreateTrip() {
                 className="field"
                 value={dest}
                 onChange={(e) => setDest(e.target.value)}
-                placeholder="Tokyo → Fuji → Kyoto → Osaka"
+                placeholder={t('notebook.routeExample')}
               />
             </div>
           </div>

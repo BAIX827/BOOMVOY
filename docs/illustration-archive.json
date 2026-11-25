@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "status": "local-archive-verified; cloud-backup-deferred",
+  "archivePath": "output/asset-archives/boomvoy-illustrations-9d0b3ca43f1f.zip",
+  "sha256": "0dc360c914c9b936ce04698f71a605894c8df027db35caec6e6e519673d1a206",
+  "bytes": 370303499,
+  "assetCount": 171,
+  "imageFileCount": 513,
+  "inventorySha256": "a39593a26c2bc844dc9b0ef60d84f18d6199b0907e11166a347f223baf792a67"
+}

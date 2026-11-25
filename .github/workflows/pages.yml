@@ -30,8 +30,11 @@ jobs:
         env:
           GITHUB_PAGES_BASE: /${{ github.event.repository.name }}/
         run: npm run build
-      - name: SPA fallback
-        run: cp dist/index.html dist/404.html
+      - name: Publish the atlas entry point and SPA fallback
+        run: |
+          mkdir -p dist/explore
+          cp dist/index.html dist/explore/index.html
+          cp dist/index.html dist/404.html
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

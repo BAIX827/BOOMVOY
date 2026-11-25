@@ -36,6 +36,8 @@ export function guideChips(pathname: string): string[] {
   if (pathname === '/profile') return ['theme', 'create']
   if (pathname.endsWith('/plan')) return ['suggest', 'checkin', 'weather']
   if (pathname.endsWith('/pack')) return ['packing', 'weather']
+  if (pathname.endsWith('/notebook')) return ['packing', 'booking', 'checkin']
+  if (pathname.endsWith('/more')) return ['saved', 'budget', 'theme']
   if (pathname.endsWith('/map')) return ['map', 'suggest']
   if (pathname.endsWith('/weather')) return ['weather', 'packing']
   if (pathname.endsWith('/bookings')) return ['booking', 'budget']

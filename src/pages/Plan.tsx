@@ -20,6 +20,7 @@ import { formatDayLong, money, toISODate, addMinutesToTime, compressPhoto, safeW
 import { Label, Modal, Tone } from '../ui'
 import { activePlaces, dayDistance, outdoorRatio, suggestedSwap, weatherAdvice } from '../domain'
 import DaySuggest from '../DaySuggest'
+import DestinationArt from '../DestinationArt'
 import ScheduleSaved from '../ScheduleSaved'
 import { useTripContext } from '../useTripContext'
 import { planFingerprint, type RecommendationUndo } from '../recommendationApplication'
@@ -43,6 +44,7 @@ export default function Plan() {
   const [undo, setUndo] = useState<{ dayId: string; plan: PlanVariant; snapshot: RecommendationUndo } | null>(null)
   const [notice, setNotice] = useState('')
   const [open, setOpen] = useState(false)
+  const dayIndex = useRef<HTMLDivElement>(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   const places = day ? activePlaces(day) : []
@@ -78,6 +80,19 @@ export default function Plan() {
     if (placeId) document.getElementById(`stop-${placeId}`)?.scrollIntoView({ block: 'center', behavior: 'instant' })
   }, [day?.id, placeId])
 
+  useEffect(() => {
+    const list = dayIndex.current
+    const current = list?.querySelector<HTMLElement>('[aria-pressed="true"]')
+    if (!list || !current) return
+    const center = () => {
+      if (list.scrollWidth > list.clientWidth) list.scrollLeft = current.offsetLeft - list.clientWidth / 2 + current.offsetWidth / 2
+    }
+    center()
+    const observer = new ResizeObserver(center)
+    observer.observe(list)
+    return () => observer.disconnect()
+  }, [day?.id])
+
   if (!trip || !day) return null
   const currentTrip = trip
   const currentDay = day
@@ -93,10 +108,10 @@ export default function Plan() {
   }
 
   return (
-    <div className="flex flex-col gap-5 lg:flex-row">
-      <div className="lg:w-[220px] shrink-0">
+    <div className="day-spread flex flex-col gap-5 lg:flex-row">
+      <div className="day-index lg:w-[170px] shrink-0">
         <h1 className="display mb-3 text-3xl">{t('plan.title')}</h1>
-        <div className="flex gap-2 overflow-auto pb-2 lg:flex-col">
+        <div ref={dayIndex} className="relative flex gap-2 overflow-auto pb-2 lg:flex-col">
           {trip.days.map((d, i) => (
             <TripButton data-browse
               key={d.id}
@@ -125,7 +140,7 @@ export default function Plan() {
           <TripButton className="btn btn-ghost text-sm" onClick={() => { const next = new URLSearchParams(searchParams); next.delete('request'); setSearchParams(next, { replace: true }) }}>{t('plan.requestDismiss')}</TripButton></div>
         </section>}
 
-        <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="day-chapter">
           <div>
             <div className="text-sm" style={{ color: 'var(--muted)' }}>
               {formatDayLong(day.date, locale)}
@@ -134,6 +149,8 @@ export default function Plan() {
               {t('ui.day', { n: trip.days.findIndex((d) => d.id === day.id) + 1 })} — {day.city}
             </h2>
           </div>
+          <DestinationArt city={day.city} theme={trip.theme} eager sizes="(max-width: 639px) 38vw, 220px" />
+        </div>
           <div className="flex flex-wrap gap-2">
             {(['A', 'B'] as PlanVariant[]).map((p) => (
               <TripButton key={p} className={plan === p ? 'btn' : 'btn btn-ghost'} onClick={() => setActivePlan(trip.id, day.id, p)}>
@@ -141,42 +158,11 @@ export default function Plan() {
               </TripButton>
             ))}
           </div>
-        </div>
 
         {day.date === toISODate(new Date()) && places.length > 0 && <section className="paper journey-next p-4">
           <p className="text-xs" style={{ color: 'var(--muted)' }}>{t('journey.nextStop')}</p>
           {(() => { const next = places.find((place) => !place.checkedIn); return next ? <div className="mt-2 flex flex-wrap items-center justify-between gap-3"><div><h3 className="display text-2xl">{next.time} · {next.name}</h3></div><a className="btn no-underline" href={mapsNavigateUrl(`${next.name} ${day.city}`, next.coords, day.transportMode)} target="_blank" rel="noreferrer">{t('journey.navigate')}</a></div> : <div className="mt-2"><h3 className="display text-2xl">{t('journey.dayDone')}</h3><Link className="btn btn-ghost mt-3 no-underline" to={href('journal')}>{t('trip.journal')} →</Link></div> })()}
         </section>}
-
-        <div className="flex flex-wrap gap-2 text-sm">
-          <span className="chip">
-            {weatherCompact(day.weather, t)}
-          </span>
-          <span className="chip">{TRANSPORT[day.transportMode].icon} {transportLabel(t, day.transportMode)}</span>
-          {day.stay && <span className="chip">🏨 {day.stay}</span>}
-          <span className="chip">{t('plan.outdoor', { n: Math.round(outdoorRatio(places) * 100) })}</span>
-          {dist.km > 0 && (
-            <span className="chip">
-              {t('plan.about', { km: dist.km.toFixed(1), min: dist.minutes })}
-            </span>
-          )}
-        </div>
-
-        {advice && (
-          <div className="paper p-4">
-            <Tone tone={advice.level === 'warn' ? 'warn' : 'info'}>{advice.title}</Tone>
-            <p className="mt-2 text-sm leading-6">{advice.text}</p>
-            {advice.suggestSwitch && (
-              <TripButton className="btn mt-3 text-sm" onClick={() => setActivePlan(trip.id, day.id, 'B')}>
-                {t('plan.switchB')}
-              </TripButton>
-            )}
-          </div>
-        )}
-
-
-
-
 
         <div className="flex flex-wrap gap-2">
           <TripButton className="btn" onClick={() => { setRequestDraft(undefined); setOpen(true) }}><Plus size={16} />{t('plan.addPlace')}</TripButton>
@@ -211,6 +197,32 @@ export default function Plan() {
             </div>
           </SortableContext>
         </DndContext>
+
+        <div className="flex flex-wrap gap-2 text-sm">
+          <span className="chip">
+            {weatherCompact(day.weather, t)}
+          </span>
+          <span className="chip">{TRANSPORT[day.transportMode].icon} {transportLabel(t, day.transportMode)}</span>
+          {day.stay && <span className="chip">🏨 {day.stay}</span>}
+          <span className="chip">{t('plan.outdoor', { n: Math.round(outdoorRatio(places) * 100) })}</span>
+          {dist.km > 0 && (
+            <span className="chip">
+              {t('plan.about', { km: dist.km.toFixed(1), min: dist.minutes })}
+            </span>
+          )}
+        </div>
+
+        {advice && (
+          <div className="paper p-4">
+            <Tone tone={advice.level === 'warn' ? 'warn' : 'info'}>{advice.title}</Tone>
+            <p className="mt-2 text-sm leading-6">{advice.text}</p>
+            {advice.suggestSwitch && (
+              <TripButton className="btn mt-3 text-sm" onClick={() => setActivePlan(trip.id, day.id, 'B')}>
+                {t('plan.switchB')}
+              </TripButton>
+            )}
+          </div>
+        )}
 
 
 

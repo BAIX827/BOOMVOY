@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { notebookZh, notebookEn } from './notebookI18n'
 import { decisionZh, decisionEn } from './decisionI18n'
 import { journeyZh, journeyEn } from './journeyI18n'
 import { upgradeZh, upgradeEn } from './upgradeI18n'
@@ -21,6 +22,7 @@ export type Vars = Record<string, string | number>
 export type TFn = (key: string, vars?: Vars) => string
 
 const zh = {
+  ...notebookZh,
   ...experienceZh,
   ...journeyZh,
   ...upgradeZh,
@@ -29,8 +31,6 @@ const zh = {
   'nav.explore': '发现',
   'nav.me': '我',
   'nav.create': '创建旅行',
-  'brand.tagline': '一本旅行手账',
-  'brand.workspace': '一次旅行一个工作台',
 
   'trip.overview': '总览',
   'trip.plan': '行程',
@@ -87,12 +87,10 @@ const zh = {
   'home.days': '{n} 天',
   'home.route': '旅行路线',
   'home.nextChapter': '下一篇，去哪里？',
-  'home.nextChapterText': '留一页空白，给还没出发的美好。',
   'home.signoff': '慢慢计划，好好出发。',
   'home.skipToContent': '跳转到主要内容',
   'home.navigation': '主要导航',
 
-  'explore.kicker': '把别人规划好的一天，撕下来贴进自己的本子。',
   'explore.title': '发现行程',
   'explore.days': '{n} 天',
   'explore.copyable': '可整本复制',
@@ -290,7 +288,7 @@ const zh = {
   'overview.weatherAlt': '天气备选',
   'overview.rain': '{city} · {icon} 降雨 {n}%',
   'overview.switchB': '要不要切换到 Plan B？',
-  'overview.travellers': '{n} travellers',
+  'overview.travellers': '{n} 人',
   'overview.perPerson': '{money} / person',
   'overview.booking': '预订进度',
   'overview.itinerary': '行程完成度',
@@ -808,6 +806,7 @@ const zh = {
 } as const
 
 const en: Record<keyof typeof zh, string> = {
+  ...notebookEn,
   ...experienceEn,
   ...journeyEn,
   ...upgradeEn,
@@ -816,8 +815,6 @@ const en: Record<keyof typeof zh, string> = {
   'nav.explore': 'Explore',
   'nav.me': 'Me',
   'nav.create': 'Create trip',
-  'brand.tagline': 'A travel journal',
-  'brand.workspace': 'One trip, one workspace',
 
   'trip.overview': 'Overview',
   'trip.plan': 'Plan',
@@ -874,12 +871,10 @@ const en: Record<keyof typeof zh, string> = {
   'home.days': '{n} days',
   'home.route': 'Travel route',
   'home.nextChapter': 'Where to next?',
-  'home.nextChapterText': 'A blank page for somewhere you have yet to discover.',
   'home.signoff': 'Plan a little. Remember a lot.',
   'home.skipToContent': 'Skip to main content',
   'home.navigation': 'Main navigation',
 
-  'explore.kicker': 'Tear a planned day out and stick it in your own notebook.',
   'explore.title': 'Discover trips',
   'explore.days': '{n} days',
   'explore.copyable': 'Copy the whole trip',

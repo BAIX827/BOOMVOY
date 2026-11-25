@@ -21,18 +21,13 @@ export default function Shell() {
     <div className={`theme-${theme} app-shell relative isolate min-h-screen overflow-x-clip`}>
       <ThemeAtmosphere theme={theme} />
       <a className="skip-link" href="#main-content">{t('home.skipToContent')}</a>
-      <header className="app-header sticky top-0 z-40 border-b backdrop-blur-md" style={{ borderColor: 'var(--line)', backgroundColor: 'color-mix(in srgb, var(--bg) 90%, transparent)' }}>
+      <header className="app-header sticky top-0 z-40 border-b" style={{ borderColor: 'var(--line)' }}>
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <NavLink to="/" className="flex items-center gap-2 no-underline" style={{ color: 'var(--ink)' }} data-guide="brand">
             <Mark />
-            <div>
-              <div className="display text-xl leading-none">BOOMVOY</div>
-              <div className="text-[11px] tracking-wide" style={{ color: 'var(--muted)' }}>
-                {t('brand.tagline')}
-              </div>
-            </div>
+            <div className="display text-xl leading-none">BOOMVOY</div>
           </NavLink>
-          <nav className="desktop-navigation hidden items-center gap-1 sm:flex" aria-label={t('home.navigation')}>
+          <nav className="desktop-navigation hidden items-center gap-1 md:flex" aria-label={t('home.navigation')}>
             {links.map((l) => (
               <NavLink
                 key={l.to}
@@ -49,17 +44,18 @@ export default function Shell() {
             ))}
           </nav>
           <div className="flex items-center gap-2">
-            <button className="btn" onClick={() => nav('/new')} data-guide="create-trip">
-              <Plus size={16} /> {t('nav.create')}
+            <button className="btn app-header-create" aria-label={t('nav.create')} onClick={() => nav('/new')} data-guide="create-trip">
+              <Plus size={16} aria-hidden="true" /> <span className="app-create-label">{t('nav.create')}</span>
             </button>
+            <span className="global-boomi-slot md:hidden" aria-hidden="true" />
           </div>
         </div>
       </header>
-      <main id="main-content" tabIndex={-1} className="relative z-10 mx-auto max-w-6xl px-4 pb-24 pt-8">
+      <main id="main-content" tabIndex={-1} className="app-main relative z-10 mx-auto max-w-6xl px-4 pb-24 pt-8">
         <Outlet />
       </main>
       <nav
-        className="mobile-navigation fixed bottom-0 left-0 right-0 z-40 grid grid-cols-3 border-t sm:hidden"
+        className="mobile-navigation fixed bottom-0 left-0 right-0 z-40 grid grid-cols-3 border-t md:hidden"
         style={{ background: 'var(--paper)', borderColor: 'var(--line)' }}
         aria-label={t('home.navigation')}
       >

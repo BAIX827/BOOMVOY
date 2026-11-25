@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Shell from './Shell'
 import TripShell from './TripShell'
 import GuideCat from './GuideCat'
@@ -23,6 +23,8 @@ const Group = lazy(() => import('./pages/Group'))
 const Notes = lazy(() => import('./pages/Notes'))
 const Journal = lazy(() => import('./pages/Journal'))
 const Pack = lazy(() => import('./pages/Pack'))
+const NotebookPage = lazy(() => import('./pages/NotebookPage'))
+const More = lazy(() => import('./pages/More'))
 const Share = lazy(() => import('./pages/Share'))
 
 function LocaleDoc() {
@@ -45,11 +47,19 @@ function ThemeDoc() {
   return null
 }
 
+function PagePosition() {
+  const { pathname } = useLocation()
+  // Primary destinations open at their heading; date and notebook tab changes keep position.
+  useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }) }, [pathname])
+  return null
+}
+
 export default function App() {
   return (
     <>
       <LocaleDoc />
       <ThemeDoc />
+      <PagePosition />
       <Suspense fallback={<RouteLoading />}>
         <Routes>
           <Route element={<Shell />}>
@@ -72,6 +82,8 @@ export default function App() {
             <Route path="notes" element={<Notes />} />
             <Route path="journal" element={<Journal />} />
             <Route path="pack" element={<Pack />} />
+            <Route path="notebook" element={<NotebookPage />} />
+            <Route path="more" element={<More />} />
           </Route>
           <Route path="/share/:id" element={<Share />} />
           <Route path="*" element={<Navigate to="/" replace />} />

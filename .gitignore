@@ -7,3 +7,8 @@ dist
 *.local
 .vite
 server/data/
+
+# Generated migration snapshots duplicate the preserved source assets.
+output/asset-archives/
+# Masters are preserved in the local, checksum-verified archive (cloud backup deferred).
+output/illustration-masters/*.png

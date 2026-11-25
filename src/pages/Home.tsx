@@ -1,122 +1,101 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { ArrowRight, BookOpen, CalendarDays, Compass, MapPin, Plus, Search, Users, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { ArrowRight, BookOpen, CalendarDays, ChevronLeft, ChevronRight, Compass, Plus, Search, Users, X } from 'lucide-react'
+import DestinationArt from '../DestinationArt'
 import { useApp } from '../store'
-import { formatRange, money, toISODate } from '../lib'
-import { TRANSPORT } from '../catalog'
-import { cityRoute } from '../domain'
-import { tripHref, resolveTripDay } from '../journey'
-import { transportLabel, useT } from '../i18n'
-import { ThemeScene } from '../ThemeDecor'
+import { formatRange, toISODate } from '../lib'
+import { resolveTripDay, tripHref } from '../journey'
+import { useT } from '../i18n'
+import type { Trip } from '../types'
 
 type TripFilter = 'all' | 'upcoming' | 'past'
 
+function TravelBook({ trip, today, first }: { trip: Trip; today: string; first: boolean }) {
+  const { t, locale } = useT()
+  const cities = [...new Set(trip.destinations)]
+  const status = trip.endDate < today ? 'past' : trip.startDate <= today ? 'active' : 'upcoming'
+  return <Link className={`pocket-book cover-${trip.theme}`} to={`/trip/${trip.id}`}>
+    <div className="book-heading">
+      <div className="book-status"><BookOpen size={15} />{t(`home.status.${status}`)}</div>
+      <h2 className="display">{trip.name}</h2>
+      <p>{cities.join(' · ') || trip.origin}</p>
+    </div>
+    <div className={`book-art ${cities.length > 1 ? 'book-art-pair' : ''}`}>
+      <DestinationArt city={cities[0]} theme={trip.theme} eager={first} sizes="(max-width: 639px) 75vw, 430px" />
+      {cities.length > 1 && <DestinationArt city={cities[1]} theme={trip.theme} eager={first} sizes="(max-width: 639px) 65vw, 340px" />}
+    </div>
+    <div className="book-foot">
+      <div className="book-facts"><span><CalendarDays size={15} />{formatRange(trip.startDate, trip.endDate, locale)}</span><span><Users size={15} />{t('home.people', { n: trip.travellers })} · {t('home.days', { n: trip.days.length })}</span></div>
+      <span className="book-open">{t('home.open')}<ArrowRight size={16} /></span>
+    </div>
+  </Link>
+}
+
 export default function Home() {
   const trips = useApp((s) => s.trips).filter((trip) => !trip.template)
-  const themePref = useApp((s) => s.profile.themePref)
-  const theme = themePref === 'auto' ? 'cream' : themePref
-  const nav = useNavigate()
-  const { t, locale } = useT()
+  const { t } = useT()
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<TripFilter>('all')
+  const [position, setPosition] = useState(0)
+  const shelf = useRef<HTMLDivElement>(null)
   const today = toISODate(new Date())
-  const cities = new Set(trips.flatMap((trip) => trip.destinations))
-  const totalDays = trips.reduce((sum, trip) => sum + trip.days.length, 0)
   const search = query.trim().toLocaleLowerCase()
-  const visibleTrips = trips.filter((trip) => {
+  const visible = trips.filter((trip) => {
     const matchesStatus = filter === 'all' || (filter === 'upcoming' ? trip.endDate >= today : trip.endDate < today)
     return matchesStatus && (!search || [trip.name, trip.origin, ...trip.destinations].some((value) => value.toLocaleLowerCase().includes(search)))
   })
-
-  const currentTrip = trips.find((trip) => trip.startDate <= today && trip.endDate >= today)
-  const upcomingTrip = trips.filter((trip) => trip.startDate > today).sort((a, b) => a.startDate.localeCompare(b.startDate))[0]
-  const resumeTrip = currentTrip || upcomingTrip
+  const extras = !search && filter === 'all'
+  const count = visible.length + (extras ? 2 : 0)
+  const resume = trips.find((trip) => trip.startDate <= today && trip.endDate >= today) ||
+    trips.filter((trip) => trip.startDate > today).sort((a, b) => a.startDate.localeCompare(b.startDate))[0]
   let remembered: string | null = null
-  try { if (resumeTrip) remembered = localStorage.getItem(`boomvoy-day:${resumeTrip.id}`) } catch { /* Date fallback remains available. */ }
-  const resumeDay = resumeTrip ? resolveTripDay(resumeTrip, null, remembered) : undefined
+  try { if (resume) remembered = localStorage.getItem(`boomvoy-day:${resume.id}`) } catch { /* Use the trip date when storage is unavailable. */ }
+  const day = resume && resolveTripDay(resume, resume.days.find((entry) => entry.date === today)?.id, remembered, today)
 
-  return (
-    <div className="home-page">
-      {resumeTrip && <section className="paper journey-next mb-6 flex flex-wrap items-center justify-between gap-4 p-5"><div><p className="text-xs" style={{ color: 'var(--muted)' }}>{t(currentTrip ? 'journey.today' : 'journey.continue')}</p><h2 className="display mt-1 text-2xl">{resumeTrip.name}</h2><p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>{resumeDay?.city} · {resumeDay?.date}</p></div><Link className="btn no-underline" to={tripHref(resumeTrip.id, 'plan', currentTrip ? currentTrip.days.find((day) => day.date === today)?.id : resumeDay?.id)}>{t('journey.open')}<ArrowRight size={16} /></Link></section>}
-      <section className="journal-hero" aria-labelledby="home-heading">
-        <div className="journal-hero-copy">
-          <p className="journal-eyebrow"><span /> YOUR TRAVEL JOURNAL</p>
-          <h1 id="home-heading" className="display journal-headline">{t('home.heroTitle')}<br /><span>{t('home.heroAccent')}</span></h1>
-          <p className="journal-intro">{t('home.heroText')}</p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <button className="btn" onClick={() => nav('/new')}><Plus size={17} />{t('home.newPage')}</button>
-            <Link className="btn btn-ghost no-underline" to="/explore"><Compass size={17} />{t('home.findInspiration')}</Link>
-          </div>
-          <div className="journal-stats" aria-label={t('home.stats')}>
-            {[{ value: trips.length, label: t('home.tripCount'), icon: BookOpen }, { value: cities.size, label: t('home.cityCount'), icon: MapPin }, { value: totalDays, label: t('home.dayCount'), icon: CalendarDays }].map(({ value, label, icon: Icon }) => (
-              <div className="journal-stat" key={label}><Icon size={16} aria-hidden="true" /><strong>{value.toString().padStart(2, '0')}</strong><span>{label}</span></div>
-            ))}
-          </div>
-        </div>
-        <div className="journal-hero-art" aria-hidden="true">
-          <div className="journal-orbit" />
-          <div className="journal-postcard">
-            <div className="postcard-top"><span>BOOMVOY · FIELD NOTES</span><Compass size={17} /></div>
-            <ThemeScene theme={theme} />
-            <div className="postcard-caption"><span className="hand">{t(`home.mood.${theme}`)}</span><span className="postcard-edition">VOL. 01<br />{theme.toUpperCase()}</span></div>
-          </div>
-          <span className="journal-stamp">LET'S<br />WANDER</span>
-          <span className="journal-note hand">{t('home.collectMoments')}</span>
-        </div>
-      </section>
+  useEffect(() => {
+    if (shelf.current) shelf.current.scrollLeft = 0
+    setPosition(0)
+  }, [search, filter, count])
 
-      <section className="journal-library" aria-labelledby="my-trips-heading">
-        <div className="library-heading">
-          <div><p className="journal-eyebrow">THE COLLECTION</p><h2 id="my-trips-heading" className="display text-3xl" data-guide="my-trips">{t('home.title')} <span className="library-count">{trips.length}</span></h2></div>
-          {trips.length > 0 && <label className="journal-search"><Search size={17} aria-hidden="true" /><span className="sr-only">{t('home.search')}</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('home.search')} /></label>}
-        </div>
+  function turnBook(index: number) {
+    const container = shelf.current
+    const book = container?.children[index] as HTMLElement | undefined
+    if (container && book) container.scrollTo({ left: book.offsetLeft - (container.firstElementChild as HTMLElement).offsetLeft })
+  }
 
-        {trips.length > 0 && <div className="library-toolbar">
-          <div className="journal-filters" role="group" aria-label={t('home.filter')}>
-            {(['all', 'upcoming', 'past'] as const).map((value) => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>{t(`home.filter.${value}`)}</button>)}
-          </div>
-          <span className="text-xs" style={{ color: 'var(--muted)' }} aria-live="polite">{t('home.showing', { n: visibleTrips.length })}</span>
-        </div>}
+  function trackBook() {
+    const container = shelf.current
+    if (!container || !container.children.length) return
+    const start = (container.firstElementChild as HTMLElement).offsetLeft
+    const offsets = Array.from(container.children, (book) => Math.abs((book as HTMLElement).offsetLeft - start - container.scrollLeft))
+    setPosition(offsets.indexOf(Math.min(...offsets)))
+  }
 
-        {trips.length === 0 ? (
-          <div className="paper journal-empty">
-            <span className="empty-icon"><BookOpen size={30} strokeWidth={1.5} /></span>
-            <h3 className="display mt-5 text-2xl">{t('home.emptyTitle')}</h3>
-            <p className="mx-auto mt-3 max-w-md text-sm leading-6" style={{ color: 'var(--muted)' }}>{t('home.emptyText')}</p>
-            <button className="btn mt-6" onClick={() => nav('/new')}><Plus size={16} />{t('home.create')}</button>
-          </div>
-        ) : visibleTrips.length === 0 ? (
-          <div className="paper journal-empty"><Search size={28} className="mx-auto" /><h3 className="display mt-4 text-2xl">{t('home.noMatches')}</h3><p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>{t('home.noMatchesText')}</p><button className="btn btn-ghost mt-5" onClick={() => { setQuery(''); setFilter('all') }}><X size={15} />{t('home.clearFilters')}</button></div>
-        ) : (
-          <div className="trip-collection">
-            {visibleTrips.map((trip, index) => {
-              const route = cityRoute(trip)
-              const status = trip.endDate < today ? 'past' : trip.startDate <= today ? 'active' : 'upcoming'
-              return (
-                <Link key={trip.id} to={`/trip/${trip.id}`} className="trip-journal-card no-underline" style={{ color: 'var(--ink)' }}>
-                  <div className={`trip-card-cover theme-${trip.theme}`}>
-                    <ThemeScene theme={trip.theme} />
-                    <span className="trip-volume">JOURNAL / {String(index + 1).padStart(2, '0')}</span>
-                    <span className={`trip-status trip-status-${status}`}><span />{t(`home.status.${status}`)}</span>
-                    <div className="trip-cover-label"><MapPin size={13} />{trip.destinations[trip.destinations.length - 1] || trip.origin}</div>
-                  </div>
-                  <div className="trip-card-body">
-                    <div className="trip-card-date"><CalendarDays size={14} />{formatRange(trip.startDate, trip.endDate, locale)}<span>{t('home.days', { n: trip.days.length })}</span></div>
-                    <h3 className="display trip-card-title">{trip.name}</h3>
-                    <div className="trip-card-route" aria-label={t('home.route')}>
-                      {route.map((node, i) => <span key={node.city + node.start}><span className="route-dot" style={{ background: node.color }} />{node.city}{i < route.length - 1 && <ArrowRight size={12} aria-hidden="true" />}</span>)}
-                    </div>
-                    <div className="trip-card-meta"><span><Users size={14} />{t('home.people', { n: trip.travellers })}</span><span>{t('home.perPerson', { money: money(trip.budgetPerPerson, trip.homeCurrency) })}</span></div>
-                    <div className="trip-card-footer"><div className="flex flex-wrap gap-1.5">{trip.transportModes.slice(0, 2).map((mode) => <span className="trip-transport" key={mode}>{TRANSPORT[mode].icon} {transportLabel(t, mode)}</span>)}</div><span className="trip-open" aria-label={t('home.open')}><ArrowRight size={18} /></span></div>
-                  </div>
-                </Link>
-              )
-            })}
-            {!query && filter === 'all' && <button className="new-journal-card" onClick={() => nav('/new')}><span><Plus size={25} /></span><strong className="display text-xl">{t('home.nextChapter')}</strong><p>{t('home.nextChapterText')}</p><span className="new-journal-cta">{t('home.newPage')}<ArrowRight size={15} /></span></button>}
-          </div>
-        )}
-      </section>
-      <p className="journal-signoff hand">{t('home.signoff')}</p>
-    </div>
-  )
+  return <div className="pocket-library">
+    <header className="library-heading">
+      <h1 className="display shelf-title" data-guide="my-trips">{t('home.title')}</h1>
+      {trips.length > 0 && <label className="journal-search"><Search size={17} /><span className="sr-only">{t('home.search')}</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('home.search')} /></label>}
+    </header>
+    {trips.length > 0 && <div className="library-toolbar">
+      <div className="journal-filters" role="group" aria-label={t('home.filter')}>{(['all', 'upcoming', 'past'] as const).map((value) => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>{t(`home.filter.${value}`)}</button>)}</div>
+      <span className="notebook-caption" aria-live="polite">{t('home.showing', { n: visible.length })}</span>
+    </div>}
+    {count > 0 ? <>
+      <div className="book-shelf" ref={shelf} onScroll={trackBook}>
+        {visible.map((trip, i) => <TravelBook key={trip.id} trip={trip} today={today} first={i === 0} />)}
+        {extras && <Link to="/explore" className="pocket-book atlas-book">
+          <div className="book-heading"><Compass aria-hidden="true" size={22} /><h2 className="display">{t('shelf.atlas')}</h2></div>
+          <DestinationArt city="Sydney" className="atlas-cover-art" sizes="(max-width: 639px) 75vw, 320px" />
+          <span className="book-open">{t('nav.explore')}<ArrowRight size={16} /></span>
+        </Link>}
+        {extras && <Link to="/new" className="pocket-book blank-book">
+          <div className="book-heading"><Plus aria-hidden="true" size={22} /><h2 className="display">{t('home.newPage')}</h2></div>
+          <DestinationArt landscape="countryside" className="atlas-cover-art" sizes="(max-width: 639px) 75vw, 280px" />
+          <span className="book-open">{t('shelf.start')}<ArrowRight size={16} /></span>
+        </Link>}
+      </div>
+      {count > 1 && <div className="shelf-pager"><button type="button" disabled={position === 0} aria-label={t('shelf.prev')} onClick={() => turnBook(position - 1)}><ChevronLeft size={18} /></button><span aria-live="polite">{position + 1} / {count}</span><button type="button" disabled={position >= count - 1} aria-label={t('shelf.next')} onClick={() => turnBook(position + 1)}><ChevronRight size={18} /></button></div>}
+    </> : <div className="paper journal-empty"><h2 className="display text-2xl">{t('home.noMatches')}</h2><button className="btn btn-ghost mt-4" onClick={() => { setQuery(''); setFilter('all') }}><X size={16} />{t('home.clearFilters')}</button></div>}
+    {resume && <aside className="shelf-resume"><CalendarDays size={21} /><div><strong>{t(resume.startDate <= today ? 'journey.today' : 'journey.continue')} · {resume.name}</strong><p>{day?.city} · {day?.date}</p></div><Link to={tripHref(resume.id, 'plan', day?.id)}>{t('journey.open')}<ArrowRight size={16} /></Link></aside>}
+  </div>
 }

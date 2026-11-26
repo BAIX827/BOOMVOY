@@ -209,3 +209,32 @@ body { background-image: none; font-size: 16px; }
   .btn:active { transform: none; }
   .illustrated-route-stops { scroll-behavior: auto; scroll-snap-type: none; }
 }
+
+/* Closed Boomi docks into a reserved header/sidebar slot measured by GuideCat. */
+.trip-boomi-slot { display: block; width: 56px; height: 56px; margin: 12px 0 0 4px; flex-shrink: 0; }
+.guide-dock.is-docked .guide-cat { width: var(--boomi-size, 44px); height: var(--boomi-size, 44px); animation: none; }
+
+/* One-line hop to the next stop: mode picker + distance/ETA. */
+.stop-hop-mode {
+  min-height: 30px; padding: 3px 26px 3px 10px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--paper) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%23777' stroke-width='1.5'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E") no-repeat right 10px center;
+  color: var(--ink); font: inherit; font-weight: 600; appearance: none; -webkit-appearance: none; cursor: pointer;
+}
+.stop-hop-mode:hover { border-color: var(--ink); }
+@media (pointer: coarse) { .stop-hop-mode { min-height: 40px; } }
+
+/* Plan notices (delete / reorder + 撤销) float above the bottom nav so they are seen wherever the stop was. */
+.plan-toast {
+  position: fixed; left: 50%; bottom: 24px; z-index: 85; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; width: max-content; max-width: calc(100vw - 32px);
+  padding: 8px 8px 8px 16px; font-size: 14px; box-shadow: 0 10px 30px color-mix(in srgb, var(--ink) 18%, transparent);
+  animation: guide-in .2s ease;
+}
+.plan-toast > span { min-width: 0; overflow-wrap: anywhere; }
+.plan-toast .btn { flex-shrink: 0; min-height: 36px; padding: 4px 12px; }
+.plan-toast-close { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; color: var(--muted); }
+.plan-toast-close:hover { color: var(--ink); background: var(--accent-soft); }
+@media (max-width: 1023px) { .plan-toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); } }
+@media (prefers-reduced-motion: reduce) { .plan-toast { animation: none; } }
+.guide-dock.is-docked .guide-card { max-height: calc(100dvh - var(--boomi-size, 44px) - 120px); }
+@media (max-width: 767px) { .guide-dock.is-docked:has(.guide-card) .guide-cat { display: grid; } }

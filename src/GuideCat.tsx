@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowUpRight, MessageCircle, X } from 'lucide-react'
 import { useApp } from './store'
@@ -12,6 +12,22 @@ import { useT, type TFn } from './i18n'
 type ChatMsg = { who: 'user' | 'boomi'; text: string; action?: BoomiHit }
 
 const SEEN_KEY = 'boomvoy-met-boom'
+
+// Pin the dock to Boomi's slot and unfold the card toward the roomier side of the screen.
+function dockStyle(slot: { top: number; left: number; size: number }): CSSProperties {
+  const { clientWidth: vw, clientHeight: vh } = document.documentElement
+  const low = slot.top > vh / 2
+  const leftSide = slot.left < vw / 2
+  return {
+    ['--boomi-size' as string]: `${slot.size}px`,
+    flexDirection: low ? 'column' : 'column-reverse',
+    alignItems: leftSide ? 'flex-start' : 'flex-end',
+    top: low ? 'auto' : slot.top,
+    bottom: low ? vh - slot.top - slot.size : 'auto',
+    left: leftSide ? slot.left : 'auto',
+    right: leftSide ? 'auto' : vw - slot.left - slot.size,
+  }
+}
 
 function pageTip(pathname: string, t: TFn) {
   if (pathname === '/' || pathname.endsWith('/')) return t('guide.tip.home')
@@ -66,6 +82,7 @@ export default function GuideCat() {
   const [draft, setDraft] = useState('')
   const [msgs, setMsgs] = useState<ChatMsg[]>([])
   const [busy, setBusy] = useState(false)
+  const [slot, setSlot] = useState<{ top: number; left: number; size: number } | null>(null)
   const chatEnd = useRef<HTMLDivElement>(null)
   const dialog = useRef<HTMLDivElement>(null)
   const catButton = useRef<HTMLButtonElement>(null)
@@ -266,6 +283,28 @@ export default function GuideCat() {
 
   const chips = guideChips(loc.pathname).map((key) => t(`guide.chip.${key}`))
 
+  // Closed Boomi sits in a reserved slot in the header or trip sidebar, so it never covers page controls.
+  const cardOpen = bubble || open
+  useLayoutEffect(() => {
+    if (touring) { setSlot(null); return }
+    let frame = 0
+    const measure = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const el = Array.from(document.querySelectorAll<HTMLElement>('[data-boomi-slot]')).find((node) => node.getClientRects().length > 0)
+        if (!el) { setSlot(null); return }
+        const r = el.getBoundingClientRect()
+        setSlot((prev) => prev && prev.top === r.top && prev.left === r.left && prev.size === r.width ? prev : { top: r.top, left: r.left, size: r.width })
+      })
+    }
+    measure()
+    const watcher = new MutationObserver(measure)
+    watcher.observe(document.body, { childList: true, subtree: true })
+    window.addEventListener('resize', measure)
+    window.addEventListener('scroll', measure, { passive: true })
+    return () => { cancelAnimationFrame(frame); watcher.disconnect(); window.removeEventListener('resize', measure); window.removeEventListener('scroll', measure) }
+  }, [touring, loc.pathname])
+
   return (
     <>
       {touring && (
@@ -296,7 +335,7 @@ export default function GuideCat() {
         />
       )}
 
-      <div className="guide-dock">
+      <div className={slot ? `guide-dock is-docked${cardOpen ? ' is-open' : ''}` : 'guide-dock'} style={slot ? dockStyle(slot) : undefined}>
         {(bubble || open || touring) && (
           <div ref={dialog} tabIndex={-1} className="guide-card paper" role="dialog" aria-modal={touring || undefined} aria-label={t('guide.aria')}>
             <div className="guide-card-header">
@@ -402,7 +441,7 @@ export default function GuideCat() {
           aria-expanded={open || touring || bubble}
         >
           <img src={boomi} alt="" />
-          {!open && !touring && (
+          {!open && !touring && !slot && (
             <span className="guide-badge">{bubble ? t('guide.tap') : 'Boomi'}</span>
           )}
         </button>

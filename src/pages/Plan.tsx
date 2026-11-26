@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Camera, GripVertical, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react'
+import { Camera, GripVertical, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react'
 import { useApp, useTrip } from '../store'
 import type { PlaceSetting, PlaceStop, PlanVariant, Priority, TransportMode, SavedItem } from '../types'
 import { TRANSPORT, WEATHER } from '../catalog'
@@ -46,6 +46,12 @@ export default function Plan() {
   const [open, setOpen] = useState(false)
   const dayIndex = useRef<HTMLDivElement>(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+
+  useEffect(() => {
+    if (!notice && !undo) return
+    const timer = window.setTimeout(() => { setNotice(''); setUndo(null) }, 8000)
+    return () => window.clearTimeout(timer)
+  }, [notice, undo])
 
   const places = day ? activePlaces(day) : []
   const advice = day ? weatherAdvice(day, t) : null
@@ -171,7 +177,7 @@ export default function Plan() {
           {mapsDayRoute(places) && <a className="btn btn-ghost no-underline" href={mapsDayRoute(places)} target="_blank" rel="noreferrer">{t('plan.openRoute')}</a>}
           <TripButton className="btn btn-ghost" data-guide="recommend" aria-expanded={recommendOpen} onClick={() => setRecommendOpen(!recommendOpen)}><Sparkles size={16} />{t('journey.recommend')}</TripButton>
         </div>
-        {(notice || undo) && <div role="status" className="flex flex-wrap items-center gap-3 text-sm"><span>{notice}</span>{undo && <TripButton className="btn btn-ghost text-sm" onClick={() => { const restored = undoRecommendation(trip.id, undo.dayId, undo.plan, undo.snapshot); setNotice(restored ? t('journey.restored') : t('journey.undoChanged')); setUndo(null) }}>{t('journey.undo')}</TripButton>}</div>}
+        {(notice || undo) && <div role="status" className="plan-toast paper"><span>{notice}</span>{undo && <TripButton className="btn btn-ghost text-sm" onClick={() => { const restored = undoRecommendation(trip.id, undo.dayId, undo.plan, undo.snapshot); setNotice(restored ? t('journey.restored') : t('journey.undoChanged')); setUndo(null) }}>{t('journey.undo')}</TripButton>}<TripButton className="plan-toast-close" aria-label={t('ui.close')} onClick={() => { setNotice(''); setUndo(null) }}><X size={16} /></TripButton></div>}
 
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={places.map((p) => p.id)} strategy={verticalListSortingStrategy}>
@@ -591,15 +597,13 @@ function PlaceHop({
   const eta = addMinutesToTime(from.time, (from.durationMin || 45) + (hop?.minutes || 0))
   const url = from.coords && to.coords ? mapsDirUrl(from.coords, to.coords, mode) : ''
   return (
-    <div className="mt-2 space-y-1">
-      <div className="flex flex-wrap gap-1">
+    <div className="stop-hop mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" style={{ color: 'var(--muted)' }}>
+      <select className="stop-hop-mode" aria-label={t('plan.hopMode')} value={mode} onChange={(e) => onMode(e.target.value as TransportMode)}>
         {HOP_MODES.map((m) => (
-          <TripButton key={m} className={mode === m ? 'btn px-2 py-0.5 text-[11px]' : 'btn btn-ghost px-2 py-0.5 text-[11px]'} onClick={() => onMode(m)}>
-            {TRANSPORT[m].icon} {transportLabel(t, m)}
-          </TripButton>
+          <option key={m} value={m}>{TRANSPORT[m].icon} {transportLabel(t, m)}</option>
         ))}
-      </div>
-      <div className="text-xs" style={{ color: 'var(--muted)' }}>
+      </select>
+      <span>
         {hop ? t('plan.hopEta', { km: hop.km.toFixed(1), min: hop.minutes }) : !from.coords || !to.coords ? t('route.locate') : t('plan.hopWait')}
         {eta && hop && from.coords && to.coords ? ` · ${t('plan.arrive', { time: eta })}` : ''}
         {url && (
@@ -610,7 +614,7 @@ function PlaceHop({
             </a>
           </>
         )}
-      </div>
+      </span>
     </div>
   )
 }

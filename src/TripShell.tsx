@@ -49,11 +49,12 @@ export default function TripShell() {
               {current.key === group.key && group.items.length > 0 && <div className="mt-1 ml-5 space-y-1 border-l pl-2" style={{ borderColor: 'var(--line)' }}>{group.items.map((item) => <NavLink key={item.to} to={href(item.to)} className={({ isActive }) => cls('block rounded-lg px-3 py-2 text-sm no-underline', isActive && 'btn-soft font-medium')} style={{ color: 'var(--ink)' }} data-guide={item.to !== group.key ? NAV_GUIDE[item.to] : undefined}>{item.label}</NavLink>)}</div>}
             </div>)}
           </nav>
+          <span className="trip-boomi-slot" data-boomi-slot aria-hidden="true" />
           <NavLink to={`/share/${trip.id}`} className="btn btn-ghost mt-3 shrink-0 text-sm no-underline"><Share2 size={15} />{t('trip.share')}</NavLink>
         </aside>
         <div className="min-w-0 flex-1">
           <header className="trip-mobile-bar sticky top-0 z-30 flex items-center justify-between gap-3 border-b px-4 py-3 lg:hidden" style={{ borderColor: 'var(--line)' }}>
-            <button onClick={() => nav('/')} className="min-h-11 shrink-0 text-sm" style={{ color: 'var(--muted)' }}>{t('trip.back')}</button><div className="display truncate text-lg">{trip.name}</div><span className="h-11 w-11 shrink-0" aria-hidden="true" />
+            <button onClick={() => nav('/')} className="min-h-11 shrink-0 text-sm" style={{ color: 'var(--muted)' }}>{t('trip.back')}</button><div className="display truncate text-lg">{trip.name}</div><span className="h-11 w-11 shrink-0" data-boomi-slot aria-hidden="true" />
           </header>
           {current.items.length > 0 && section !== 'notebook' && section !== 'more' && <nav className="trip-section-tabs flex gap-2 overflow-x-auto border-b px-4 py-3 lg:px-8" aria-label={current.label} style={{ borderColor: 'var(--line)' }}>{current.items.map((item) => <NavLink key={item.to} to={href(item.to)} className={({ isActive }) => cls('btn whitespace-nowrap text-sm no-underline', isActive ? 'btn-soft' : 'btn-ghost')} data-guide={NAV_GUIDE[item.to]}><item.icon size={16} />{item.label}</NavLink>)}</nav>}
           <main id="trip-content" tabIndex={-1} className="trip-main px-4 py-6 lg:px-8"><SharedStatus trip={trip} /><Outlet /></main>

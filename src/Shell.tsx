@@ -47,7 +47,7 @@ export default function Shell() {
             <button className="btn app-header-create" aria-label={t('nav.create')} onClick={() => nav('/new')} data-guide="create-trip">
               <Plus size={16} aria-hidden="true" /> <span className="app-create-label">{t('nav.create')}</span>
             </button>
-            <span className="global-boomi-slot md:hidden" aria-hidden="true" />
+            <span className="global-boomi-slot" data-boomi-slot aria-hidden="true" />
           </div>
         </div>
       </header>
